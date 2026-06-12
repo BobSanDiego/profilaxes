@@ -491,15 +491,7 @@ class CFM
     echo '<form method="get" action="">';
     echo '<input type="hidden" name="page" value="cfm-audience-engine" />';
     echo '<table class="form-table" role="presentation"><tbody>';
-
-    echo '<tr><th scope="row"><label for="cfm_audience_framework_id">Profile</label></th><td>';
-    echo '<select id="cfm_audience_framework_id" name="framework_id">';
-
-    foreach ($frameworks as $framework) {
-      echo '<option value="' . esc_attr((string) $framework->id) . '" ' . selected($selected_framework_id, (int) $framework->id, false) . '>' . esc_html($framework->name) . '</option>';
-    }
-
-    echo '</select></td></tr>';
+    echo '<input type="hidden" name="framework_id" value="' . esc_attr((string) $selected_framework_id) . '" />';
 
     echo '<tr><th scope="row"><label for="cfm_audience_terms">Audience terms</label></th><td>';
     echo '<input type="text" id="cfm_audience_terms" name="terms" value="' . esc_attr($terms_query_raw) . '" class="regular-text" placeholder="Example: elementary, math" />';
@@ -718,14 +710,7 @@ class CFM
     echo '<form method="get" action="">';
     echo '<input type="hidden" name="page" value="cfm-segmentation-tests" />';
     echo '<table class="form-table" role="presentation"><tbody>';
-    echo '<tr><th scope="row"><label for="cfm_seg_framework_id">Framework</label></th><td>';
-    echo '<select id="cfm_seg_framework_id" name="framework_id">';
 
-    foreach ($frameworks as $framework) {
-      echo '<option value="' . esc_attr((string) $framework->id) . '" ' . selected($selected_framework_id, (int) $framework->id, false) . '>' . esc_html($framework->name) . '</option>';
-    }
-
-    echo '</select></td></tr>';
     echo '<tr><th scope="row"><label for="cfm_seg_user_search">Find user</label></th><td>';
     echo '<input type="search" id="cfm_seg_user_search" name="user_search" value="' . esc_attr($user_search) . '" class="regular-text" placeholder="At least 3 characters, or exact email" /> ';
     submit_button('Search Users', 'secondary', '', false);
@@ -892,14 +877,7 @@ class CFM
     echo '<input type="hidden" name="sort" value="' . esc_attr($sort) . '" />';
     echo '<input type="hidden" name="dir" value="' . esc_attr($dir) . '" />';
     echo '<table class="form-table" role="presentation"><tbody>';
-    echo '<tr><th scope="row"><label for="cfm_stats_framework_id">Profile</label></th><td>';
-    echo '<select id="cfm_stats_framework_id" name="framework_id">';
 
-    foreach ($frameworks as $framework) {
-      echo '<option value="' . esc_attr((string) $framework->id) . '" ' . selected($selected_framework_id, (int) $framework->id, false) . '>' . esc_html($framework->name) . '</option>';
-    }
-
-    echo '</select></td></tr>';
     echo '<tr><th scope="row"><label for="cfm_stats_term_query">Search term</label></th><td>';
     echo '<input type="text" id="cfm_stats_term_query" name="term_query" value="' . esc_attr($term_query) . '" class="regular-text" placeholder="Example: elementary, grade-1, math" />';
     echo '<p class="description">Optional. Enter a term slug to inspect audience size.</p>';
@@ -1183,16 +1161,7 @@ class CFM
     }
 
     echo '</td></tr>';
-    echo '<tr><th scope="row"><label for="cfm_framework_id">Framework</label></th><td>';
-    echo '<select id="cfm_framework_id" name="framework_id">';
-
-    foreach ($frameworks as $framework) {
-      echo '<option value="' . esc_attr((string) $framework->id) . '" ' . selected($selected_framework_id, (int) $framework->id, false) . '>' . esc_html($framework->name) . '</option>';
-    }
-
-    echo '</select> ';
-    submit_button('Load Selected User', 'secondary', '', false);
-    echo '</td></tr>';
+    echo '<input type="hidden" name="framework_id" value="' . esc_attr((string) $selected_framework_id) . '" />';
     echo '</tbody></table>';
     echo '</form>';
 
