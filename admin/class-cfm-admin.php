@@ -633,6 +633,8 @@ class CFM_Admin
 
       if ($show_actions && $framework_id && $term_uuid !== '' && (($term['type'] ?? '') === 'term')) {
         echo ' <span style="margin-left: 8px;">';
+        echo '<a href="' . esc_url(self::edit_term_url($framework_id, $term_uuid)) . '">Edit</a>';
+        echo ' | ';
         echo '<a href="' . esc_url(self::move_term_url($framework_id, $term_uuid)) . '">Move</a>';
         echo ' | ';
         echo '<a href="' . esc_url(self::archive_term_url($framework_id, $term_uuid)) . '">Archive</a>';
@@ -973,6 +975,16 @@ class CFM_Admin
     );
 
     return wp_nonce_url($url, 'cfm_restore_version_' . $framework_id . '_' . $version_id);
+  }
+
+  private static function edit_term_url(int $framework_id, string $term_uuid): string
+  {
+    return add_query_arg([
+      'page' => 'cfm-frameworks',
+      'action' => 'edit_term',
+      'framework_id' => $framework_id,
+      'term_uuid' => $term_uuid,
+    ], admin_url('admin.php'));
   }
 
   private static function move_term_url(int $framework_id, string $term_uuid): string
