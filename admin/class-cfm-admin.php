@@ -992,7 +992,7 @@ class CFM_Admin
 
           <div style="margin-top: 16px;">
             <a class="button button-primary" href="<?php echo esc_url(self::edit_url((int) $framework->id)); ?>">
-              Edit Profiles
+              View/Edit Profiles
             </a>
 
             <?php if (!empty($active_version)) : ?>
