@@ -447,6 +447,7 @@ class CFM_Admin
           . '&framework_id=' . $framework_id
           . '&cfm_term_moved=1'
           . $compile_result['query_arg']
+          . '#cfm-existing-terms'
       )
     );
     exit;
