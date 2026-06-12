@@ -48,6 +48,11 @@ class CFM_Admin
       return;
     }
 
+    if ($action === 'update_term') {
+      self::handle_update_term();
+      return;
+    }
+
 
     if ($action === 'move_term') {
       self::handle_move_term();
@@ -286,6 +291,86 @@ class CFM_Admin
     exit;
   }
 
+  private static function handle_update_term(): void
+  {
+    check_admin_referer('cfm_update_term', 'cfm_nonce');
+
+    $framework_id = absint($_POST['framework_id'] ?? 0);
+    $term_uuid = sanitize_text_field(wp_unslash($_POST['term_uuid'] ?? ''));
+    $parent_uuid = sanitize_text_field(wp_unslash($_POST['parent_uuid'] ?? ''));
+    $term_label = sanitize_text_field(wp_unslash($_POST['term_label'] ?? ''));
+    $term_slug = sanitize_title(wp_unslash($_POST['term_slug'] ?? ''));
+
+    if ($framework_id <= 0 || $term_uuid === '' || $parent_uuid === '' || $term_label === '' || $term_slug === '') {
+      wp_safe_redirect(admin_url('admin.php?page=cfm-frameworks&action=edit_term&framework_id=' . $framework_id . '&term_uuid=' . rawurlencode($term_uuid) . '&cfm_error=missing_edit_fields'));
+      exit;
+    }
+
+    if ($term_uuid === $parent_uuid) {
+      wp_die('A term cannot be assigned as its own parent.');
+    }
+
+    $framework = CFM_Framework_Repository::get_framework($framework_id);
+
+    if (!$framework) {
+      wp_die('Framework not found.');
+    }
+
+    $tree = self::get_framework_tree($framework);
+    $term_info = self::find_node_with_parent($tree, $term_uuid);
+    $parent_info = self::find_node_with_parent($tree, $parent_uuid);
+
+    if (!$term_info || empty($term_info['node']) || !is_array($term_info['node'])) {
+      wp_die('Term not found.');
+    }
+
+    if (($term_info['node']['type'] ?? '') !== 'term') {
+      wp_die('Only terms can be edited here.');
+    }
+
+    if (!$parent_info || empty($parent_info['node']) || !is_array($parent_info['node'])) {
+      wp_die('Parent not found.');
+    }
+
+    if (self::node_contains_uuid($term_info['node'], $parent_uuid)) {
+      wp_die('A term cannot be moved under itself or one of its descendants.');
+    }
+
+    $current_parent_uuid = '';
+    if (!empty($term_info['parent']) && is_array($term_info['parent'])) {
+      $current_parent_uuid = (string) ($term_info['parent']['uuid'] ?? '');
+    }
+
+    if ($current_parent_uuid === $parent_uuid) {
+      $updated = self::update_node_label_slug_by_uuid($tree, $term_uuid, $term_label, $term_slug);
+
+      if (!$updated) {
+        wp_die('Unable to update term.');
+      }
+    } else {
+      $removed_term = null;
+      $removed = self::remove_child_node_by_uuid($tree, $term_uuid, $removed_term);
+
+      if (!$removed || !is_array($removed_term)) {
+        wp_die('Unable to remove term from current parent.');
+      }
+
+      $removed_term['label'] = $term_label;
+      $removed_term['slug'] = $term_slug;
+
+      $added = self::append_child_to_node_by_uuid($tree, $parent_uuid, $removed_term);
+
+      if (!$added) {
+        wp_die('Unable to add term to selected parent.');
+      }
+    }
+
+    $compile_result = self::save_active_tree_and_compile($framework_id, $tree);
+
+    wp_safe_redirect(admin_url('admin.php?page=cfm-frameworks&action=edit&framework_id=' . $framework_id . '&cfm_term_updated=1&cfm_parent_uuid=' . rawurlencode($parent_uuid) . $compile_result['query_arg'] . '#cfm-existing-terms'));
+    exit;
+  }
+
   private static function handle_move_term(): void
   {
     check_admin_referer('cfm_move_term', 'cfm_nonce');
@@ -452,6 +537,33 @@ class CFM_Admin
     }
 
     return null;
+  }
+
+  private static function update_node_label_slug_by_uuid(array &$node, string $uuid, string $label, string $slug): bool
+  {
+    if (($node['uuid'] ?? '') === $uuid) {
+      $node['label'] = $label;
+      $node['slug'] = $slug;
+      return true;
+    }
+
+    if (empty($node['children']) || !is_array($node['children'])) {
+      return false;
+    }
+
+    foreach ($node['children'] as &$child) {
+      if (!is_array($child)) {
+        continue;
+      }
+
+      if (self::update_node_label_slug_by_uuid($child, $uuid, $label, $slug)) {
+        unset($child);
+        return true;
+      }
+    }
+
+    unset($child);
+    return false;
   }
 
   private static function node_contains_uuid(array $node, string $uuid): bool
@@ -743,6 +855,11 @@ class CFM_Admin
       return;
     }
 
+
+    if ($action === 'edit_term') {
+      self::render_edit_term_page();
+      return;
+    }
 
     if ($action === 'move_term') {
       self::render_move_term_page();
@@ -1429,6 +1546,92 @@ class CFM_Admin
         <input type="hidden" name="term_uuid" value="<?php echo esc_attr($term['uuid'] ?? ''); ?>">
 
         <?php submit_button('Archive Term', 'delete'); ?>
+      </form>
+    </div>
+  <?php
+  }
+
+  public static function render_edit_term_page(): void
+  {
+    if (!current_user_can('manage_options')) {
+      wp_die('You do not have permission to access this page.');
+    }
+
+    $framework_id = isset($_GET['framework_id']) ? absint($_GET['framework_id']) : 0;
+    $term_uuid = isset($_GET['term_uuid']) ? sanitize_text_field(wp_unslash($_GET['term_uuid'])) : '';
+
+    $framework = CFM_Framework_Repository::get_framework($framework_id);
+
+    if (!$framework) {
+      wp_die('Framework not found.');
+    }
+
+    $tree = self::get_framework_tree($framework);
+    $axes = $tree['children'] ?? [];
+    $term_info = self::find_node_with_parent($tree, $term_uuid);
+
+    if (!$term_info || empty($term_info['node']) || !is_array($term_info['node'])) {
+      wp_die('Term not found.');
+    }
+
+    $term = $term_info['node'];
+    $current_parent = (!empty($term_info['parent']) && is_array($term_info['parent'])) ? $term_info['parent'] : null;
+
+    if (($term['type'] ?? '') !== 'term') {
+      wp_die('Only terms can be edited here.');
+    }
+
+    $current_parent_uuid = $current_parent['uuid'] ?? '';
+
+  ?>
+    <div class="wrap">
+      <h1>Edit Term: <?php echo esc_html($term['label'] ?? ''); ?></h1>
+
+      <p>
+        <a href="<?php echo esc_url(admin_url('admin.php?page=cfm-frameworks&action=edit&framework_id=' . (int) $framework->id)); ?>">← Back to Edit Profiles</a>
+      </p>
+
+      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'missing_edit_fields') : ?>
+        <div class="notice notice-error is-dismissible">
+          <p>Parent, term label, and term slug are required.</p>
+        </div>
+      <?php endif; ?>
+
+      <form method="post">
+        <?php wp_nonce_field('cfm_update_term', 'cfm_nonce'); ?>
+
+        <input type="hidden" name="cfm_action" value="update_term">
+        <input type="hidden" name="framework_id" value="<?php echo esc_attr($framework->id); ?>">
+        <input type="hidden" name="term_uuid" value="<?php echo esc_attr($term['uuid'] ?? ''); ?>">
+
+        <table class="form-table" role="presentation">
+          <tr>
+            <th scope="row"><label for="term_label">Term Label</label></th>
+            <td>
+              <input name="term_label" id="term_label" type="text" class="regular-text" value="<?php echo esc_attr($term['label'] ?? ''); ?>" required>
+            </td>
+          </tr>
+
+          <tr>
+            <th scope="row"><label for="term_slug">Term Slug</label></th>
+            <td>
+              <input name="term_slug" id="term_slug" type="text" class="regular-text" value="<?php echo esc_attr($term['slug'] ?? ''); ?>" required>
+              <p class="description">Keep this stable unless you intentionally need to change API-facing references.</p>
+            </td>
+          </tr>
+
+          <tr>
+            <th scope="row"><label for="parent_uuid">Parent</label></th>
+            <td>
+              <select name="parent_uuid" id="parent_uuid" required>
+                <option value="">Select a parent</option>
+                <?php self::render_move_parent_options($axes, $term, (string) $current_parent_uuid); ?>
+              </select>
+            </td>
+          </tr>
+        </table>
+
+        <?php submit_button('Save Term'); ?>
       </form>
     </div>
   <?php
