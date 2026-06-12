@@ -2161,7 +2161,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
 
       <hr>
 
-      <h2>Existing Axes and Terms</h2>
+      <h2 id="cfm-existing-terms">Existing Axes and Terms</h2>
 
       <?php if (empty($axes)) : ?>
         <p>No axes created yet.</p>
