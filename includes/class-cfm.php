@@ -465,7 +465,7 @@ class CFM
     echo '<p>Find users who match one or more profile terms, including inherited parent/child profile meaning.</p>';
 
     if (empty($frameworks)) {
-      echo '<div class="notice notice-warning inline"><p>No compiled profile vocabularies are available.</p></div>';
+      echo '<div class="notice notice-warning inline"><p>No compiled profile taxonomies are available.</p></div>';
       echo '</div>';
       return;
     }
@@ -520,7 +520,7 @@ class CFM
     echo '<pre style="max-width:760px;background:#fff;border:1px solid #ccd0d4;padding:12px;overflow:auto;">' . esc_html(self::format_audience_query_example($framework_slug, $target_terms, $operator, $limit)) . '</pre>';
 
     if (!$selected_framework) {
-      echo '<div class="notice notice-error inline"><p>Invalid profile vocabulary.</p></div>';
+      echo '<div class="notice notice-error inline"><p>Invalid profile taxonomy.</p></div>';
       echo '</div>';
       return;
     }
@@ -594,7 +594,10 @@ class CFM
       return;
     }
 
-    echo '<table class="widefat striped" style="max-width:960px;"><thead><tr><th>User</th><th>Email</th><th>Assigned Terms</th><th>Effective Terms</th></tr></thead><tbody>';
+    $all_terms = self::order_terms_as_tree(CFM_Framework_Repository::get_compiled_terms((int) $selected_framework->id));
+    $terms_by_uuid = self::index_terms_by_uuid($all_terms);
+
+    echo '<table class="widefat striped" style="max-width:960px;"><thead><tr><th>User</th><th>Email</th><th>Assigned Terms</th><th>Inherited Audience Terms</th></tr></thead><tbody>';
 
     foreach ($matched_user_ids as $user_id) {
       $user = get_userdata((int) $user_id);
@@ -611,8 +614,8 @@ class CFM
       echo '<tr>';
       echo '<td><a href="' . esc_url($edit_url) . '">' . esc_html($user_label) . '</a><br /><span class="description">ID: ' . esc_html((string) $user_id) . ' / ' . esc_html($user->user_login) . '</span></td>';
       echo '<td>' . esc_html($user->user_email) . '</td>';
-      echo '<td>' . esc_html(self::format_term_labels($assigned_terms)) . '</td>';
-      echo '<td>' . esc_html(self::format_term_labels($effective_terms)) . '</td>';
+      echo '<td>' . esc_html(self::format_term_breadcrumbs($assigned_terms, $terms_by_uuid)) . '</td>';
+      echo '<td>' . esc_html(self::format_term_breadcrumbs($effective_terms, $terms_by_uuid)) . '</td>';
       echo '</tr>';
     }
 
@@ -638,30 +641,23 @@ class CFM
 
     foreach ($frameworks as $framework) {
       $assigned_terms = CFM_Framework_Repository::get_user_terms((int) $user->ID, (int) $framework->id);
-      $assigned_labels = array_map(static fn($term): string => (string) $term->label, $assigned_terms);
       $effective_terms = self::get_user_effective_terms_by_framework_id((int) $user->ID, (int) $framework->id);
-      $effective_labels = array_map(static fn($term): string => (string) $term->label, $effective_terms);
+      $all_terms = self::order_terms_as_tree(CFM_Framework_Repository::get_compiled_terms((int) $framework->id));
+      $terms_by_uuid = self::index_terms_by_uuid($all_terms);
       $manage_url = self::get_assignment_admin_url((int) $user->ID, (int) $framework->id);
 
       echo '<tr>';
       echo '<th><label>' . esc_html($framework->name) . '</label></th>';
       echo '<td>';
 
-      if (empty($assigned_labels)) {
-        echo '<p><strong>Assigned terms:</strong> None.</p>';
-      } else {
-        echo '<p><strong>Assigned terms:</strong> ' . esc_html(implode(', ', $assigned_labels)) . '</p>';
-      }
-
-      if (!empty($effective_labels)) {
-        echo '<p><strong>Effective inherited terms:</strong> ' . esc_html(implode(', ', $effective_labels)) . '</p>';
-      }
+      echo '<p><strong>Assigned directly:</strong> ' . esc_html(self::format_term_breadcrumbs($assigned_terms, $terms_by_uuid)) . '</p>';
+      echo '<p><strong>Inherited audience terms:</strong> ' . esc_html(self::format_term_breadcrumbs($effective_terms, $terms_by_uuid)) . '</p>';
 
       if (current_user_can('list_users')) {
         echo '<p><a class="button" href="' . esc_url($manage_url) . '">Manage profile assignments</a></p>';
       }
 
-      echo '<p class="description">Assignments are stored by stable term UUID and read through compiled profile tables.</p>';
+      echo '<p class="description">Assignments are stored by stable term UUID and resolved through the compiled Profile Taxonomy.</p>';
       echo '</td>';
       echo '</tr>';
     }
@@ -682,7 +678,7 @@ class CFM
     echo '<p>Read-only view of one user’s assigned profile selections and inherited effective terms.</p>';
 
     if (empty($frameworks)) {
-      echo '<div class="notice notice-warning inline"><p>No compiled profile vocabularies are available.</p></div>';
+      echo '<div class="notice notice-warning inline"><p>No compiled profile taxonomies are available.</p></div>';
       echo '</div>';
       return;
     }
@@ -751,13 +747,13 @@ class CFM
     echo '</form>';
 
     if (!$selected_framework) {
-      echo '<div class="notice notice-error inline"><p>Invalid profile vocabulary.</p></div>';
+      echo '<div class="notice notice-error inline"><p>Invalid profile taxonomy.</p></div>';
       echo '</div>';
       return;
     }
 
     echo '<hr />';
-    echo '<h2>Profile Vocabulary</h2>';
+    echo '<h2>Profile Taxonomy</h2>';
     echo '<p><strong>' . esc_html((string) $selected_framework->name) . '</strong> <code>' . esc_html($framework_slug) . '</code></p>';
 
     echo '<p class="description">Use Profile Statistics for population counts and distribution reports. Use Find Audience to locate matching users.</p>';
@@ -768,11 +764,12 @@ class CFM
     } else {
       $assigned_terms = self::get_user_terms($selected_user_id, $framework_slug);
       $effective_terms = self::get_user_effective_terms($selected_user_id, $framework_slug);
+      $terms_by_uuid = self::index_terms_by_uuid($terms);
       $user_label = sprintf('%s (%s) — %s', $selected_user->display_name ?: $selected_user->user_login, $selected_user->user_login, $selected_user->user_email);
 
       echo '<p><strong>User:</strong> ' . esc_html($user_label) . '</p>';
-      echo '<p><strong>Assigned terms:</strong> ' . esc_html(self::format_term_labels($assigned_terms)) . '</p>';
-      echo '<p><strong>Effective inherited terms:</strong> ' . esc_html(self::format_term_labels($effective_terms)) . '</p>';
+      echo '<p><strong>Assigned directly:</strong> ' . esc_html(self::format_term_breadcrumbs($assigned_terms, $terms_by_uuid)) . '</p>';
+      echo '<p><strong>Inherited audience terms:</strong> ' . esc_html(self::format_term_breadcrumbs($effective_terms, $terms_by_uuid)) . '</p>';
 
       if ($term_query !== '') {
         $custom_term = self::get_term_by_slug($framework_slug, $term_query);
@@ -784,7 +781,7 @@ class CFM
         echo '<p><strong>Test term:</strong> <code>' . esc_html($term_query) . '</code></p>';
 
         if (!$custom_term) {
-          echo '<div class="notice notice-warning inline"><p>No compiled term with this slug exists in the active profile vocabulary. Counts and matching should be treated as invalid/zero.</p></div>';
+          echo '<div class="notice notice-warning inline"><p>No compiled term with this slug exists in the selected profile taxonomy. Counts and matching should be treated as invalid/zero.</p></div>';
         }
 
         echo '<table class="widefat striped" style="max-width:760px;"><thead><tr><th>Question</th><th>Result</th></tr></thead><tbody>';
@@ -808,7 +805,7 @@ class CFM
       }
 
       if (empty($checks)) {
-        echo '<tr><td colspan="2">No matching checks available for this profile vocabulary yet.</td></tr>';
+        echo '<tr><td colspan="2">No matching checks available for this profile taxonomy yet.</td></tr>';
       } else {
         foreach ($checks as $check) {
           $is_true = $check['result'] === 'true' || (is_numeric($check['result']) && (int) $check['result'] > 0);
@@ -836,10 +833,10 @@ class CFM
 
     echo '<div class="wrap">';
     echo '<h1>Community Profile Snapshot</h1>';
-    echo '<p>This page summarizes user profile composition across compiled profile terms.</p>';
+    echo '<p>This page summarizes user profile composition across compiled Profile Taxonomy terms.</p>';
 
     if (empty($frameworks)) {
-      echo '<div class="notice notice-warning inline"><p>No compiled profile vocabularies are available.</p></div>';
+      echo '<div class="notice notice-warning inline"><p>No compiled profile taxonomies are available.</p></div>';
       echo '</div>';
       return;
     }
@@ -864,7 +861,7 @@ class CFM
     $selected_framework = CFM_Framework_Repository::get_framework($selected_framework_id);
 
     if (!$selected_framework) {
-      echo '<div class="notice notice-error inline"><p>Invalid profile vocabulary.</p></div>';
+      echo '<div class="notice notice-error inline"><p>Invalid profile taxonomy.</p></div>';
       echo '</div>';
       return;
     }
@@ -1050,7 +1047,7 @@ class CFM
     $frameworks = self::get_profile_frameworks();
 
     if (empty($frameworks)) {
-      echo '<div class="wrap"><h1>Assign Profiles</h1><p>No compiled profile vocabularies are available.</p></div>';
+      echo '<div class="wrap"><h1>Assign Profiles</h1><p>No compiled profile taxonomies are available.</p></div>';
       return;
     }
 
@@ -1074,7 +1071,7 @@ class CFM
         $notice = 'Assignment save failed: invalid or inaccessible user.';
         $notice_type = 'error';
       } elseif (!self::framework_id_exists($frameworks, $selected_framework_id)) {
-        $notice = 'Assignment save failed: invalid profile vocabulary.';
+        $notice = 'Assignment save failed: invalid profile taxonomy.';
         $notice_type = 'error';
       } else {
         $posted_terms = isset($_POST['cfm_user_terms']) && is_array($_POST['cfm_user_terms'])
@@ -1087,7 +1084,7 @@ class CFM
           $saved_user = get_userdata($selected_user_id);
           $saved_framework = CFM_Framework_Repository::get_framework($selected_framework_id);
           $saved_user_label = $saved_user ? (($saved_user->display_name ?: $saved_user->user_login) . ' / ' . $saved_user->user_email) : ('User ID ' . $selected_user_id);
-          $saved_framework_label = $saved_framework ? (string) $saved_framework->name : ('Profile vocabulary ID ' . $selected_framework_id);
+          $saved_framework_label = $saved_framework ? (string) $saved_framework->name : ('Profile Taxonomy ID ' . $selected_framework_id);
           $notice = 'Profile assignments saved for ' . $saved_user_label . ' in ' . $saved_framework_label . '.';
         } else {
           $notice = 'Assignment save failed.';
@@ -1117,6 +1114,7 @@ class CFM
     $selected_framework = CFM_Framework_Repository::get_framework($selected_framework_id);
     $selected_user = $selected_user_id > 0 ? get_userdata($selected_user_id) : false;
     $terms = $selected_framework ? self::order_terms_as_tree(CFM_Framework_Repository::get_compiled_terms($selected_framework_id)) : [];
+    $terms_by_uuid = self::index_terms_by_uuid($terms);
     $assigned = $selected_user_id > 0 ? CFM_Framework_Repository::get_user_term_uuids($selected_user_id, $selected_framework_id) : [];
 
     echo '<div class="wrap">';
@@ -1172,7 +1170,7 @@ class CFM
     }
 
     if (!$selected_user || !$selected_framework) {
-      echo '<div class="notice notice-error inline"><p>Cannot load assignments: invalid user or profile vocabulary.</p></div>';
+      echo '<div class="notice notice-error inline"><p>Cannot load assignments: invalid user or profile taxonomy.</p></div>';
       echo '</div>';
       return;
     }
@@ -1190,10 +1188,10 @@ class CFM
     echo '<input type="hidden" name="user_id" value="' . esc_attr((string) $selected_user_id) . '" />';
     echo '<input type="hidden" name="framework_id" value="' . esc_attr((string) $selected_framework_id) . '" />';
 
-    echo '<h2>' . esc_html(($selected_framework ? $selected_framework->name : 'Profiles') . ' Assignments') . '</h2>';
+    echo '<h2>' . esc_html(($selected_framework ? $selected_framework->name : 'Profile Taxonomy') . ' Profile Assignments') . '</h2>';
 
     if (empty($terms)) {
-      echo '<p>No compiled profile terms are available.</p>';
+      echo '<p>No compiled terms are available for this profile taxonomy.</p>';
     } else {
       echo '<div style="max-width:760px;background:#fff;border:1px solid #ccd0d4;padding:12px 16px;">';
 
@@ -1211,9 +1209,14 @@ class CFM
 
         $checked = checked(in_array($uuid, $assigned, true), true, false);
 
-        echo '<label style="display:block;margin:5px 0 5px ' . esc_attr((string) $margin) . 'px;">';
+        $breadcrumb = self::format_term_breadcrumb($term, $terms_by_uuid);
+
+        echo '<label style="display:block;margin:5px 0 5px ' . esc_attr((string) $margin) . 'px;" title="' . esc_attr($breadcrumb) . '">';
         echo '<input type="checkbox" name="cfm_user_terms[]" value="' . esc_attr($uuid) . '" ' . $checked . ' /> ';
         echo esc_html($term->label) . ' <code>' . esc_html($term->slug) . '</code>';
+        if ($breadcrumb !== (string) $term->label) {
+          echo ' <span class="description">' . esc_html($breadcrumb) . '</span>';
+        }
         echo '</label>';
       }
 
@@ -1227,11 +1230,11 @@ class CFM
         : [];
 
       echo '<div style="max-width:760px;margin-top:12px;">';
-      echo '<p><strong>Assigned terms:</strong> ' . esc_html(self::format_term_labels($assigned_terms)) . '</p>';
-      echo '<p><strong>Effective inherited terms:</strong> ' . esc_html(self::format_term_labels($effective_terms)) . '</p>';
+      echo '<p><strong>Assigned directly:</strong> ' . esc_html(self::format_term_breadcrumbs($assigned_terms, $terms_by_uuid)) . '</p>';
+      echo '<p><strong>Inherited audience terms:</strong> ' . esc_html(self::format_term_breadcrumbs($effective_terms, $terms_by_uuid)) . '</p>';
       echo '</div>';
 
-      echo '<p class="description">Only explicit user choices are stored. Ancestors are inherited at query time through compiled closure tables.</p>';
+      echo '<p class="description">Only direct user selections are stored. Parent terms are inherited at query time through compiled closure tables.</p>';
       submit_button('Save Assignments', 'primary', 'submit', false);
       echo ' <a class="button" href="' . esc_url(admin_url('users.php?page=cfm-framework-assignments')) . '">Clear / New Search</a>';
     }
@@ -1397,6 +1400,57 @@ class CFM
     return self::order_terms_as_tree(
       CFM_Framework_Repository::get_terms_by_uuids($framework_id, $effective_uuids)
     );
+  }
+
+  private static function index_terms_by_uuid(array $terms): array
+  {
+    $indexed = [];
+
+    foreach ($terms as $term) {
+      if (!is_object($term) || empty($term->term_uuid)) {
+        continue;
+      }
+
+      $indexed[(string) $term->term_uuid] = $term;
+    }
+
+    return $indexed;
+  }
+
+  private static function format_term_breadcrumb(object $term, array $terms_by_uuid = []): string
+  {
+    $parts = [(string) $term->label];
+    $parent_uuid = isset($term->parent_uuid) && $term->parent_uuid !== null
+      ? (string) $term->parent_uuid
+      : '';
+    $guard = 0;
+
+    while ($parent_uuid !== '' && isset($terms_by_uuid[$parent_uuid]) && $guard < 25) {
+      $parent = $terms_by_uuid[$parent_uuid];
+      array_unshift($parts, (string) $parent->label);
+      $parent_uuid = isset($parent->parent_uuid) && $parent->parent_uuid !== null
+        ? (string) $parent->parent_uuid
+        : '';
+      $guard++;
+    }
+
+    return implode(' › ', array_values(array_filter($parts)));
+  }
+
+  private static function format_term_breadcrumbs(array $terms, array $terms_by_uuid = []): string
+  {
+    if (empty($terms)) {
+      return 'None.';
+    }
+
+    $labels = array_map(
+      static fn($term): string => is_object($term)
+        ? self::format_term_breadcrumb($term, $terms_by_uuid)
+        : '',
+      $terms
+    );
+
+    return implode(', ', array_values(array_unique(array_filter($labels))));
   }
 
   private static function format_term_labels(array $terms): string

@@ -135,13 +135,13 @@ class CFM_Admin
     $framework_id = absint($_POST['framework_id'] ?? 0);
 
     if ($framework_id <= 0) {
-      wp_die('Missing profile vocabulary ID.');
+      wp_die('Missing profile taxonomy ID.');
     }
 
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile vocabulary not found.');
+      wp_die('Profile profile taxonomy not found.');
     }
 
     $active_version = CFM_Framework_Repository::get_active_version($framework_id);
@@ -217,7 +217,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile vocabulary not found.');
+      wp_die('Profile profile taxonomy not found.');
     }
 
     $tree = self::get_framework_tree($framework);
@@ -275,7 +275,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile vocabulary not found.');
+      wp_die('Profile profile taxonomy not found.');
     }
 
     $tree = self::get_framework_tree($framework);
@@ -353,7 +353,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile vocabulary not found.');
+      wp_die('Profile profile taxonomy not found.');
     }
 
     $tree = self::get_framework_tree($framework);
@@ -448,7 +448,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile vocabulary not found.');
+      wp_die('Profile profile taxonomy not found.');
     }
 
     $tree = self::get_framework_tree($framework);
@@ -554,7 +554,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile vocabulary not found.');
+      wp_die('Profile profile taxonomy not found.');
     }
 
     $tree = self::get_framework_tree($framework);
@@ -933,7 +933,7 @@ class CFM_Admin
       return [
         'success' => false,
         'code' => 'profile_vocabulary_not_found',
-        'message' => 'Profile vocabulary not found.',
+        'message' => 'Profile profile taxonomy not found.',
         'status' => 404,
       ];
     }
@@ -1302,7 +1302,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile vocabulary not found.');
+      wp_die('Profile profile taxonomy not found.');
     }
 
     $version = CFM_Framework_Repository::get_version((int) $framework->id, $version_id);
@@ -1562,7 +1562,7 @@ class CFM_Admin
 
       <?php if (isset($_GET['cfm_created'])) : ?>
         <div class="notice notice-success is-dismissible">
-          <p>Profile vocabulary created.</p>
+          <p>Profile taxonomy created.</p>
         </div>
       <?php endif; ?>
 
@@ -1573,14 +1573,14 @@ class CFM_Admin
       <?php endif; ?>
 
       <p>
-        Define the profile vocabulary used across Teachers.Net. Other plugins and themes can consume these profile terms through Profilaxes APIs.
+        Define the profile taxonomy used across Teachers.Net. Other plugins and themes can consume these profile terms through Profilaxes APIs.
       </p>
 
       <?php if (!$framework) : ?>
         <div class="card" style="max-width: 760px;">
-          <h2>Profile Vocabulary</h2>
+          <h2>Profile Taxonomy</h2>
           <p>
-            This site does not have a profile vocabulary yet. Create the primary site vocabulary before adding axes or terms.
+            This site does not have a profile taxonomy yet. Create the primary site profile taxonomy before adding axes or terms.
           </p>
 
           <form method="post">
@@ -1588,9 +1588,9 @@ class CFM_Admin
             <input type="hidden" name="cfm_action" value="create_framework">
             <input type="hidden" name="cfm_name" value="Sandbox Profiles">
             <input type="hidden" name="cfm_slug" value="primary">
-            <input type="hidden" name="cfm_description" value="Primary site profile vocabulary.">
+            <input type="hidden" name="cfm_description" value="Primary site profile taxonomy.">
 
-            <?php submit_button('Create Profile Vocabulary'); ?>
+            <?php submit_button('Create Profile Taxonomy'); ?>
           </form>
         </div>
       <?php else : ?>
@@ -1639,7 +1639,7 @@ class CFM_Admin
 
           <?php if ($framework_count > 1) : ?>
             <p class="description">
-              Maintenance note: additional internal vocabulary records exist. The normal admin flow uses the primary vocabulary only.
+              Maintenance note: additional internal profile taxonomy records exist. The normal admin flow uses the primary profile taxonomy only.
             </p>
           <?php endif; ?>
         </div>
@@ -1779,7 +1779,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile vocabulary not found.');
+      wp_die('Profile profile taxonomy not found.');
     }
 
     $per_page = 20;
@@ -1879,7 +1879,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile vocabulary not found.');
+      wp_die('Profile profile taxonomy not found.');
     }
 
     $version = CFM_Framework_Repository::get_version((int) $framework->id, $version_id);
@@ -1985,7 +1985,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile vocabulary not found.');
+      wp_die('Profile profile taxonomy not found.');
     }
 
     $version = CFM_Framework_Repository::get_version((int) $framework->id, $version_id);
@@ -2037,7 +2037,7 @@ class CFM_Admin
       <table class="widefat striped" style="max-width: 900px;">
         <tbody>
           <tr>
-            <th style="width: 180px;">Profile Vocabulary</th>
+            <th style="width: 180px;">Profile Taxonomy</th>
             <td><?php echo esc_html($framework->name); ?></td>
           </tr>
           <tr>
@@ -2090,7 +2090,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile vocabulary not found.');
+      wp_die('Profile profile taxonomy not found.');
     }
 
     $tree = self::get_framework_tree($framework);
@@ -2134,7 +2134,7 @@ class CFM_Admin
       <table class="widefat striped" style="max-width: 900px;">
         <tbody>
           <tr>
-            <th style="width: 180px;">Profile Vocabulary</th>
+            <th style="width: 180px;">Profile Taxonomy</th>
             <td><?php echo esc_html($framework->name); ?></td>
           </tr>
           <tr>
@@ -2196,7 +2196,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile vocabulary not found.');
+      wp_die('Profile profile taxonomy not found.');
     }
 
     $tree = self::get_framework_tree($framework);
@@ -2287,7 +2287,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile vocabulary not found.');
+      wp_die('Profile profile taxonomy not found.');
     }
 
     $tree = self::get_framework_tree($framework);
@@ -2324,7 +2324,7 @@ class CFM_Admin
       <table class="widefat striped" style="max-width: 900px;">
         <tbody>
           <tr>
-            <th style="width: 180px;">Profile Vocabulary</th>
+            <th style="width: 180px;">Profile Taxonomy</th>
             <td><?php echo esc_html($framework->name); ?></td>
           </tr>
           <tr>
@@ -2401,7 +2401,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile vocabulary not found.');
+      wp_die('Profile profile taxonomy not found.');
     }
 
     $active_version = CFM_Framework_Repository::get_active_version((int) $framework->id);
@@ -2576,7 +2576,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile vocabulary not found.');
+      wp_die('Profile profile taxonomy not found.');
     }
 
     $tree = self::get_framework_tree($framework);
