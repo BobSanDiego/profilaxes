@@ -284,6 +284,20 @@ class CFM_Admin
       $tree['children'] = [];
     }
 
+    if (self::has_child_slug_conflict($tree, $parent_uuid, $term_slug)) {
+      wp_safe_redirect(
+        admin_url(
+          'admin.php?page=cfm-frameworks'
+            . '&action=edit'
+            . '&framework_id=' . $framework_id
+            . '&cfm_error=duplicate_sibling_slug'
+            . '&cfm_parent_uuid=' . rawurlencode($parent_uuid)
+            . '#cfm-add-term'
+        )
+      );
+      exit;
+    }
+
     $term = [
       'uuid' => wp_generate_uuid4(),
       'label' => $term_label,
@@ -360,6 +374,11 @@ class CFM_Admin
 
     if (self::node_contains_uuid($term_info['node'], $parent_uuid)) {
       wp_die('A term cannot be moved under itself or one of its descendants.');
+    }
+
+    if (self::has_child_slug_conflict($tree, $parent_uuid, $term_slug, $term_uuid)) {
+      wp_safe_redirect(admin_url('admin.php?page=cfm-frameworks&action=edit_term&framework_id=' . $framework_id . '&term_uuid=' . rawurlencode($term_uuid) . '&cfm_error=duplicate_sibling_slug'));
+      exit;
     }
 
     $current_parent_uuid = '';
@@ -456,6 +475,25 @@ class CFM_Admin
       wp_die('A term cannot be moved under one of its own descendants.');
     }
 
+    $moving_slug = sanitize_title((string) ($term_info['node']['slug'] ?? ''));
+
+    if ($moving_slug === '') {
+      wp_die('Term slug is missing. Move aborted.');
+    }
+
+    if (self::has_child_slug_conflict($tree, $new_parent_uuid, $moving_slug, $term_uuid)) {
+      wp_safe_redirect(
+        admin_url(
+          'admin.php?page=cfm-frameworks'
+            . '&action=move_term'
+            . '&framework_id=' . $framework_id
+            . '&term_uuid=' . rawurlencode($term_uuid)
+            . '&cfm_error=duplicate_sibling_slug'
+        )
+      );
+      exit;
+    }
+
     $current_parent_uuid = '';
     if (!empty($term_info['parent']) && is_array($term_info['parent'])) {
       $current_parent_uuid = (string) ($term_info['parent']['uuid'] ?? '');
@@ -528,6 +566,23 @@ class CFM_Admin
 
     if (($term_info['node']['type'] ?? '') !== 'term') {
       wp_die('Only terms can be archived. Axes cannot be archived.');
+    }
+
+    $archive_uuids = self::collect_node_uuids($term_info['node']);
+    $assignment_count = self::count_user_term_assignments($archive_uuids);
+
+    if ($assignment_count > 0) {
+      wp_safe_redirect(
+        admin_url(
+          'admin.php?page=cfm-frameworks'
+            . '&action=edit'
+            . '&framework_id=' . $framework_id
+            . '&cfm_error=archive_has_assignments'
+            . '&cfm_assignment_count=' . $assignment_count
+            . '#cfm-existing-terms'
+        )
+      );
+      exit;
     }
 
     $parent_uuid = '';
@@ -698,6 +753,90 @@ class CFM_Admin
 
     unset($candidate);
     return false;
+  }
+
+  private static function has_child_slug_conflict(array $tree, string $parent_uuid, string $slug, string $exclude_uuid = ''): bool
+  {
+    $slug = sanitize_title($slug);
+
+    if ($parent_uuid === '' || $slug === '') {
+      return false;
+    }
+
+    $parent_info = self::find_node_with_parent($tree, $parent_uuid);
+
+    if (!$parent_info || empty($parent_info['node']) || !is_array($parent_info['node'])) {
+      return false;
+    }
+
+    $children = $parent_info['node']['children'] ?? [];
+
+    if (empty($children) || !is_array($children)) {
+      return false;
+    }
+
+    foreach ($children as $child) {
+      if (!is_array($child)) {
+        continue;
+      }
+
+      $child_uuid = (string) ($child['uuid'] ?? '');
+
+      if ($exclude_uuid !== '' && $child_uuid === $exclude_uuid) {
+        continue;
+      }
+
+      if (sanitize_title((string) ($child['slug'] ?? '')) === $slug) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private static function collect_node_uuids(array $node): array
+  {
+    $uuids = [];
+    $uuid = (string) ($node['uuid'] ?? '');
+
+    if ($uuid !== '') {
+      $uuids[] = $uuid;
+    }
+
+    $children = $node['children'] ?? [];
+
+    if (is_array($children)) {
+      foreach ($children as $child) {
+        if (!is_array($child)) {
+          continue;
+        }
+
+        $uuids = array_merge($uuids, self::collect_node_uuids($child));
+      }
+    }
+
+    return array_values(array_unique(array_filter($uuids)));
+  }
+
+  private static function count_user_term_assignments(array $term_uuids): int
+  {
+    global $wpdb;
+
+    $term_uuids = array_values(array_unique(array_filter(array_map('strval', $term_uuids))));
+
+    if (empty($term_uuids)) {
+      return 0;
+    }
+
+    $user_terms_table = $wpdb->prefix . 'cfm_user_terms';
+    $placeholders = implode(',', array_fill(0, count($term_uuids), '%s'));
+
+    return (int) $wpdb->get_var(
+      $wpdb->prepare(
+        "SELECT COUNT(*) FROM {$user_terms_table} WHERE term_uuid IN ({$placeholders})",
+        ...$term_uuids
+      )
+    );
   }
 
   public static function handle_ajax_reorder_terms(): void
@@ -2525,6 +2664,18 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
       <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'missing_move_fields') : ?>
         <div class="notice notice-error is-dismissible">
           <p>Term and new parent are required.</p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'duplicate_sibling_slug') : ?>
+        <div class="notice notice-error is-dismissible">
+          <p>That slug already exists under the selected parent. Choose a different slug or move the existing term first.</p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'archive_has_assignments') : ?>
+        <div class="notice notice-error is-dismissible">
+          <p>This term cannot be archived because it or one of its descendants has active user assignments. Move or reassign users first.</p>
         </div>
       <?php endif; ?>
 
