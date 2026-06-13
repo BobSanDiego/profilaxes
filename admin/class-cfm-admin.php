@@ -1261,11 +1261,19 @@ class CFM_Admin
   private static function collect_ordering_groups(array $node, array &$groups, string $path = ''): void
   {
     $label = (string) ($node['label'] ?? 'Root');
+    $type = (string) ($node['type'] ?? '');
     $uuid = (string) ($node['uuid'] ?? '');
     $children = isset($node['children']) && is_array($node['children']) ? $node['children'] : [];
-    $current_path = $path === '' ? $label : ($path . ' / ' . $label);
 
-    if ($uuid !== '' && count($children) > 1) {
+    if ($path === '' && $type === 'framework') {
+      $current_path = '';
+    } elseif ($path === '') {
+      $current_path = $label;
+    } else {
+      $current_path = $path . ' › ' . $label;
+    }
+
+    if ($uuid !== '' && $type !== 'framework' && count($children) > 1) {
       $groups[] = [
         'parent_uuid' => $uuid,
         'label' => $current_path,
@@ -1527,6 +1535,12 @@ class CFM_Admin
     $framework = !empty($frameworks) ? $frameworks[0] : null;
     $framework_count = is_array($frameworks) ? count($frameworks) : 0;
 
+    if ($framework) {
+      $_GET['framework_id'] = (int) $framework->id;
+      self::render_framework_edit_page();
+      return;
+    }
+
     $axis_count = 0;
     $term_count = 0;
     $assigned_user_count = 0;
@@ -1595,7 +1609,7 @@ class CFM_Admin
         </div>
       <?php else : ?>
         <div class="card" style="max-width: 760px;">
-          <h2>Current Vocabulary</h2>
+          <h2>Current Profile Taxonomy</h2>
 
           <table class="widefat striped" style="max-width: 680px;">
             <tbody>
@@ -1801,7 +1815,7 @@ class CFM_Admin
                         . '&framework_id=' . (int) $framework->id
                     )
                   ); ?>">
-          ← Back to Edit Profiles
+          ← Back to Profile Taxonomy
         </a>
       </p>
 
@@ -1908,7 +1922,7 @@ class CFM_Admin
                         . '&action=edit'
                         . '&framework_id=' . (int) $framework->id
                     )
-                  ); ?>">Back to Edit Profiles</a>
+                  ); ?>">Back to Profile Taxonomy</a>
       </p>
 
       <table class="widefat striped" style="max-width: 900px;">
@@ -2121,7 +2135,7 @@ class CFM_Admin
                         . '&action=edit'
                         . '&framework_id=' . (int) $framework->id
                     )
-                  ); ?>">← Back to Edit Profiles</a>
+                  ); ?>">← Back to Profile Taxonomy</a>
       </p>
 
       <div class="notice notice-warning">
@@ -2221,7 +2235,7 @@ class CFM_Admin
       <h1>Edit Term: <?php echo esc_html($term['label'] ?? ''); ?></h1>
 
       <p>
-        <a href="<?php echo esc_url(admin_url('admin.php?page=cfm-frameworks&action=edit&framework_id=' . (int) $framework->id)); ?>">← Back to Edit Profiles</a>
+        <a href="<?php echo esc_url(admin_url('admin.php?page=cfm-frameworks&action=edit&framework_id=' . (int) $framework->id)); ?>">← Back to Profile Taxonomy</a>
       </p>
 
       <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'missing_edit_fields') : ?>
@@ -2318,7 +2332,7 @@ class CFM_Admin
                         . '&action=edit'
                         . '&framework_id=' . (int) $framework->id
                     )
-                  ); ?>">← Back to Edit Profiles</a>
+                  ); ?>">← Back to Profile Taxonomy</a>
       </p>
 
       <table class="widefat striped" style="max-width: 900px;">
@@ -2433,7 +2447,7 @@ class CFM_Admin
 
       <p>
         <a href="<?php echo esc_url(admin_url('admin.php?page=cfm-frameworks&action=edit&framework_id=' . (int) $framework->id)); ?>">
-          ← Back to Edit Profiles
+          ← Back to Profile Taxonomy
         </a>
       </p>
 
@@ -2451,7 +2465,7 @@ class CFM_Admin
         <table class="widefat striped" style="max-width: 760px;">
           <tbody>
             <tr>
-              <th style="width: 180px;">Vocabulary Slug</th>
+              <th style="width: 180px;">Profile Taxonomy Slug</th>
               <td><code><?php echo esc_html($framework->slug); ?></code></td>
             </tr>
             <tr>
@@ -2591,13 +2605,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
 
   ?>
     <div class="wrap">
-      <h1>Edit Profiles</h1>
-
-      <p>
-        <a href="<?php echo esc_url(admin_url('admin.php?page=cfm-frameworks')); ?>">
-          ← Back to Profiles
-        </a>
-      </p>
+      <h1>Profile Taxonomy</h1>
 
       <?php if (isset($_GET['cfm_axis_added'])) : ?>
         <div class="notice notice-success is-dismissible">
@@ -2836,7 +2844,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
 
       <hr>
 
-      <h2 id="cfm-existing-terms">Existing Axes and Terms</h2>
+      <h2 id="cfm-existing-terms">Profile Taxonomy Tree</h2>
 
       <?php if (empty($axes)) : ?>
         <p>No axes created yet.</p>
@@ -2844,10 +2852,10 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
         <table class="widefat striped" style="max-width: 1000px;">
           <thead>
             <tr>
-              <th>Axis</th>
+              <th>Term</th>
               <th>Slug</th>
-              <th>UUID</th>
-              <th>Terms</th>
+              <th>Identifier</th>
+              <th>Child Terms</th>
             </tr>
           </thead>
 
@@ -2856,7 +2864,11 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
               <tr>
                 <td><strong><?php echo esc_html($axis['label'] ?? ''); ?></strong></td>
                 <td><code><?php echo esc_html($axis['slug'] ?? ''); ?></code></td>
-                <td><code><?php echo esc_html($axis['uuid'] ?? ''); ?></code></td>
+                <td>
+                  <details>
+                    <summary>UUID</summary><code><?php echo esc_html($axis['uuid'] ?? ''); ?></code>
+                  </details>
+                </td>
                 <td>
                   <?php $terms = $axis['children'] ?? []; ?>
 

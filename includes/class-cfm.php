@@ -1235,8 +1235,33 @@ class CFM
       echo '</div>';
 
       echo '<p class="description">Only direct user selections are stored. Parent terms are inherited at query time through compiled closure tables.</p>';
+      echo '<p class="cfm-assignment-actions" style="margin-top:12px;">';
+      echo '<span class="cfm-save-assignments-wrap" style="display:none;">';
       submit_button('Save Assignments', 'primary', 'submit', false);
+      echo '</span>';
       echo ' <a class="button" href="' . esc_url(admin_url('users.php?page=cfm-framework-assignments')) . '">Clear / New Search</a>';
+      echo ' <span class="description cfm-assignment-dirty-note" style="display:none;margin-left:8px;">Unsaved assignment changes.</span>';
+      echo '</p>';
+      echo '<script>';
+      echo '(function(){';
+      echo 'var form=document.currentScript.closest("form");';
+      echo 'if(!form){return;}';
+      echo 'var checkboxes=form.querySelectorAll("input[name=\"cfm_user_terms[]\"]");';
+      echo 'var saveWrap=form.querySelector(".cfm-save-assignments-wrap");';
+      echo 'var dirtyNote=form.querySelector(".cfm-assignment-dirty-note");';
+      echo 'if(!saveWrap||!checkboxes.length){return;}';
+      echo 'var initial=[];';
+      echo 'checkboxes.forEach(function(cb,index){initial[index]=cb.checked;});';
+      echo 'function update(){';
+      echo 'var dirty=false;';
+      echo 'checkboxes.forEach(function(cb,index){if(cb.checked!==initial[index]){dirty=true;}});';
+      echo 'saveWrap.style.display=dirty?"inline-block":"none";';
+      echo 'if(dirtyNote){dirtyNote.style.display=dirty?"inline":"none";}';
+      echo '}';
+      echo 'checkboxes.forEach(function(cb){cb.addEventListener("change",update);});';
+      echo 'update();';
+      echo '})();';
+      echo '</script>';
     }
 
     echo '</form>';
