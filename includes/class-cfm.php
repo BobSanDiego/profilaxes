@@ -884,8 +884,8 @@ class CFM
     echo '</form>';
 
     echo '<hr />';
-    echo '<h2>Profiles</h2>';
-    echo '<p><strong>' . esc_html((string) $selected_framework->name) . '</strong> <code>' . esc_html($framework_slug) . '</code></p>';
+    echo '<h2>Profile Matrix</h2>';
+
 
     if (empty($terms)) {
       echo '<p>No compiled terms available.</p>';
@@ -927,16 +927,6 @@ class CFM
       }
     }
 
-    echo '<p style="font-size:14px;line-height:1.7;margin-top:10px;">';
-    echo '<strong>Total Users:</strong> ' . esc_html((string) $total_users) . '<br />';
-    echo '<strong>Profile Categories:</strong> ' . esc_html((string) count($terms)) . '<br />';
-
-    foreach ($axis_rows as $axis_row) {
-      $axis_term = $axis_row['term'];
-      echo '<strong>' . esc_html((string) $axis_term->label) . ':</strong> ' . esc_html((string) $axis_row['users_count']) . ' users<br />';
-    }
-
-    echo '</p>';
 
     $search_row = null;
     $search_term = null;
@@ -996,9 +986,11 @@ class CFM
     echo '<div style="max-height:620px;overflow:auto;border:1px solid #ccd0d4;background:#fff;max-width:1050px;">';
     echo '<table class="widefat striped" style="border:0;">';
     echo '<thead><tr>';
-    echo '<th><a href="' . $tree_url . '">Profile Category</a></th>';
+    $profile_category_count = count($rows);
+
+    echo '<th><a href="' . $tree_url . '">Profile Categories (' . esc_html((string) $profile_category_count) . ')</a></th>';
     echo '<th><a href="' . $slug_url . '">Slug</a></th>';
-    echo '<th><a href="' . $users_url . '">Users</a></th>';
+    echo '<th><a href="' . $users_url . '">Users (' . esc_html((string) $total_users) . ')</a></th>';
     echo '<th>%</th>';
     echo '</tr></thead><tbody>';
 
@@ -1033,7 +1025,7 @@ class CFM
 
     echo '</tbody></table>';
     echo '</div>';
-    echo '<p class="description">Click Profile Category to restore tree order. Slug sorts alphabetically. Users sorts by audience size. The highlighted search row stays pinned above the table.</p>';
+    echo '<p class="description">Click Profile Categories to restore tree order. Slug sorts alphabetically. Users sorts by audience size. The highlighted search row stays pinned above the table.</p>';
     echo '<p class="description">This page is analytics/read-only. Assignment changes happen under Users → Assign Profiles.</p>';
     echo '</div>';
   }

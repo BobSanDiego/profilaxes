@@ -932,8 +932,8 @@ class CFM_Admin
     if (!$framework) {
       return [
         'success' => false,
-        'code' => 'profile_vocabulary_not_found',
-        'message' => 'Profile profile taxonomy not found.',
+        'code' => 'profile_taxonomy_not_found',
+        'message' => 'Profile Taxonomy not found.',
         'status' => 404,
       ];
     }
@@ -1638,7 +1638,7 @@ class CFM_Admin
 
           <div style="margin-top: 16px;">
             <a class="button button-primary" href="<?php echo esc_url(self::edit_url((int) $framework->id)); ?>">
-              View/Edit Profiles
+              Manage Profile Taxonomy
             </a>
 
             <?php if (!empty($active_version)) : ?>
@@ -1646,7 +1646,7 @@ class CFM_Admin
                 <?php wp_nonce_field('cfm_compile_active_version', 'cfm_nonce'); ?>
                 <input type="hidden" name="cfm_action" value="compile_active_version">
                 <input type="hidden" name="framework_id" value="<?php echo esc_attr((string) $framework->id); ?>">
-                <?php submit_button('Retry Compile', 'secondary', 'submit', false); ?>
+                <?php submit_button('Rebuild Profile Taxonomy', 'secondary', 'submit', false); ?>
               </form>
             <?php endif; ?>
           </div>
@@ -2837,7 +2837,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
           <?php wp_nonce_field('cfm_compile_active_version', 'cfm_nonce'); ?>
           <input type="hidden" name="cfm_action" value="compile_active_version">
           <input type="hidden" name="framework_id" value="<?php echo esc_attr($framework->id); ?>">
-          <?php submit_button('Retry Compile', 'secondary', 'submit', false); ?>
+          <?php submit_button('Rebuild Profile Taxonomy', 'secondary', 'submit', false); ?>
           <a class="button" href="<?php echo esc_url(self::compiled_debug_url((int) $framework->id)); ?>" style="margin-left: 8px;">Open Compiled Query Debug</a>
         </form>
       <?php endif; ?>
