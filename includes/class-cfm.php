@@ -465,7 +465,7 @@ class CFM
     echo '<p>Find users who match one or more profile terms, including inherited parent/child profile meaning.</p>';
 
     if (empty($frameworks)) {
-      echo '<div class="notice notice-warning inline"><p>No compiled frameworks are available.</p></div>';
+      echo '<div class="notice notice-warning inline"><p>No compiled profile vocabularies are available.</p></div>';
       echo '</div>';
       return;
     }
@@ -520,7 +520,7 @@ class CFM
     echo '<pre style="max-width:760px;background:#fff;border:1px solid #ccd0d4;padding:12px;overflow:auto;">' . esc_html(self::format_audience_query_example($framework_slug, $target_terms, $operator, $limit)) . '</pre>';
 
     if (!$selected_framework) {
-      echo '<div class="notice notice-error inline"><p>Invalid framework.</p></div>';
+      echo '<div class="notice notice-error inline"><p>Invalid profile vocabulary.</p></div>';
       echo '</div>';
       return;
     }
@@ -661,7 +661,7 @@ class CFM
         echo '<p><a class="button" href="' . esc_url($manage_url) . '">Manage profile assignments</a></p>';
       }
 
-      echo '<p class="description">Assignments are stored by stable term UUID and read through compiled framework tables.</p>';
+      echo '<p class="description">Assignments are stored by stable term UUID and read through compiled profile tables.</p>';
       echo '</td>';
       echo '</tr>';
     }
@@ -682,7 +682,7 @@ class CFM
     echo '<p>Read-only view of one user’s assigned profile selections and inherited effective terms.</p>';
 
     if (empty($frameworks)) {
-      echo '<div class="notice notice-warning inline"><p>No compiled frameworks are available.</p></div>';
+      echo '<div class="notice notice-warning inline"><p>No compiled profile vocabularies are available.</p></div>';
       echo '</div>';
       return;
     }
@@ -751,13 +751,13 @@ class CFM
     echo '</form>';
 
     if (!$selected_framework) {
-      echo '<div class="notice notice-error inline"><p>Invalid framework.</p></div>';
+      echo '<div class="notice notice-error inline"><p>Invalid profile vocabulary.</p></div>';
       echo '</div>';
       return;
     }
 
     echo '<hr />';
-    echo '<h2>Framework</h2>';
+    echo '<h2>Profile Vocabulary</h2>';
     echo '<p><strong>' . esc_html((string) $selected_framework->name) . '</strong> <code>' . esc_html($framework_slug) . '</code></p>';
 
     echo '<p class="description">Use Profile Statistics for population counts and distribution reports. Use Find Audience to locate matching users.</p>';
@@ -784,7 +784,7 @@ class CFM
         echo '<p><strong>Test term:</strong> <code>' . esc_html($term_query) . '</code></p>';
 
         if (!$custom_term) {
-          echo '<div class="notice notice-warning inline"><p>No compiled term with this slug exists in the selected framework. Counts and matching should be treated as invalid/zero.</p></div>';
+          echo '<div class="notice notice-warning inline"><p>No compiled term with this slug exists in the active profile vocabulary. Counts and matching should be treated as invalid/zero.</p></div>';
         }
 
         echo '<table class="widefat striped" style="max-width:760px;"><thead><tr><th>Question</th><th>Result</th></tr></thead><tbody>';
@@ -808,7 +808,7 @@ class CFM
       }
 
       if (empty($checks)) {
-        echo '<tr><td colspan="2">No matching checks available for this framework yet.</td></tr>';
+        echo '<tr><td colspan="2">No matching checks available for this profile vocabulary yet.</td></tr>';
       } else {
         foreach ($checks as $check) {
           $is_true = $check['result'] === 'true' || (is_numeric($check['result']) && (int) $check['result'] > 0);
@@ -836,10 +836,10 @@ class CFM
 
     echo '<div class="wrap">';
     echo '<h1>Community Profile Snapshot</h1>';
-    echo '<p>This page summarizes user profile composition across compiled Community Framework terms.</p>';
+    echo '<p>This page summarizes user profile composition across compiled profile terms.</p>';
 
     if (empty($frameworks)) {
-      echo '<div class="notice notice-warning inline"><p>No compiled frameworks are available.</p></div>';
+      echo '<div class="notice notice-warning inline"><p>No compiled profile vocabularies are available.</p></div>';
       echo '</div>';
       return;
     }
@@ -864,7 +864,7 @@ class CFM
     $selected_framework = CFM_Framework_Repository::get_framework($selected_framework_id);
 
     if (!$selected_framework) {
-      echo '<div class="notice notice-error inline"><p>Invalid framework.</p></div>';
+      echo '<div class="notice notice-error inline"><p>Invalid profile vocabulary.</p></div>';
       echo '</div>';
       return;
     }
@@ -1044,13 +1044,13 @@ class CFM
   public static function render_assignment_admin_page(): void
   {
     if (!current_user_can('list_users')) {
-      wp_die('You do not have permission to manage framework assignments.');
+      wp_die('You do not have permission to manage profile assignments.');
     }
 
     $frameworks = self::get_profile_frameworks();
 
     if (empty($frameworks)) {
-      echo '<div class="wrap"><h1>Assign Profiles</h1><p>No compiled frameworks are available.</p></div>';
+      echo '<div class="wrap"><h1>Assign Profiles</h1><p>No compiled profile vocabularies are available.</p></div>';
       return;
     }
 
@@ -1074,7 +1074,7 @@ class CFM
         $notice = 'Assignment save failed: invalid or inaccessible user.';
         $notice_type = 'error';
       } elseif (!self::framework_id_exists($frameworks, $selected_framework_id)) {
-        $notice = 'Assignment save failed: invalid framework.';
+        $notice = 'Assignment save failed: invalid profile vocabulary.';
         $notice_type = 'error';
       } else {
         $posted_terms = isset($_POST['cfm_user_terms']) && is_array($_POST['cfm_user_terms'])
@@ -1087,8 +1087,8 @@ class CFM
           $saved_user = get_userdata($selected_user_id);
           $saved_framework = CFM_Framework_Repository::get_framework($selected_framework_id);
           $saved_user_label = $saved_user ? (($saved_user->display_name ?: $saved_user->user_login) . ' / ' . $saved_user->user_email) : ('User ID ' . $selected_user_id);
-          $saved_framework_label = $saved_framework ? (string) $saved_framework->name : ('Framework ID ' . $selected_framework_id);
-          $notice = 'Framework assignments saved for ' . $saved_user_label . ' in ' . $saved_framework_label . '.';
+          $saved_framework_label = $saved_framework ? (string) $saved_framework->name : ('Profile vocabulary ID ' . $selected_framework_id);
+          $notice = 'Profile assignments saved for ' . $saved_user_label . ' in ' . $saved_framework_label . '.';
         } else {
           $notice = 'Assignment save failed.';
           $notice_type = 'error';
@@ -1172,7 +1172,7 @@ class CFM
     }
 
     if (!$selected_user || !$selected_framework) {
-      echo '<div class="notice notice-error inline"><p>Cannot load assignments: invalid user or framework.</p></div>';
+      echo '<div class="notice notice-error inline"><p>Cannot load assignments: invalid user or profile vocabulary.</p></div>';
       echo '</div>';
       return;
     }
@@ -1190,10 +1190,10 @@ class CFM
     echo '<input type="hidden" name="user_id" value="' . esc_attr((string) $selected_user_id) . '" />';
     echo '<input type="hidden" name="framework_id" value="' . esc_attr((string) $selected_framework_id) . '" />';
 
-    echo '<h2>' . esc_html(($selected_framework ? $selected_framework->name : 'Framework') . ' Assignments') . '</h2>';
+    echo '<h2>' . esc_html(($selected_framework ? $selected_framework->name : 'Profiles') . ' Assignments') . '</h2>';
 
     if (empty($terms)) {
-      echo '<p>No compiled terms are available for this framework.</p>';
+      echo '<p>No compiled profile terms are available.</p>';
     } else {
       echo '<div style="max-width:760px;background:#fff;border:1px solid #ccd0d4;padding:12px 16px;">';
 

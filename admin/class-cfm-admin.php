@@ -10,6 +10,8 @@ class CFM_Admin
   {
     add_action('admin_menu', [__CLASS__, 'register_menu']);
     add_action('admin_init', [__CLASS__, 'handle_actions']);
+    add_action('admin_enqueue_scripts', [__CLASS__, 'enqueue_admin_assets']);
+    add_action('wp_ajax_cfm_reorder_terms', [__CLASS__, 'handle_ajax_reorder_terms']);
   }
 
   public static function register_menu(): void
@@ -27,6 +29,10 @@ class CFM_Admin
 
   public static function handle_actions(): void
   {
+    if (function_exists('wp_doing_ajax') && wp_doing_ajax()) {
+      return;
+    }
+
     if (!is_admin() || empty($_POST['cfm_action'])) {
       return;
     }
@@ -53,6 +59,10 @@ class CFM_Admin
       return;
     }
 
+    if ($action === 'reorder_terms') {
+      self::handle_reorder_terms();
+      return;
+    }
 
     if ($action === 'move_term') {
       self::handle_move_term();
@@ -76,8 +86,20 @@ class CFM_Admin
   }
 
 
+  public static function enqueue_admin_assets(string $hook_suffix): void
+  {
+    if ($hook_suffix !== 'toplevel_page_cfm-frameworks') {
+      return;
+    }
+
+    wp_enqueue_script('jquery-ui-sortable');
+  }
+
+
   private static function save_active_tree_and_compile(int $framework_id, array $tree): array
   {
+    self::normalize_tree_children($tree);
+
     $version_id = CFM_Framework_Repository::save_active_version_tree($framework_id, $tree);
 
     if ($version_id <= 0) {
@@ -113,13 +135,13 @@ class CFM_Admin
     $framework_id = absint($_POST['framework_id'] ?? 0);
 
     if ($framework_id <= 0) {
-      wp_die('Missing framework ID.');
+      wp_die('Missing profile vocabulary ID.');
     }
 
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Framework not found.');
+      wp_die('Profile vocabulary not found.');
     }
 
     $active_version = CFM_Framework_Repository::get_active_version($framework_id);
@@ -195,7 +217,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Framework not found.');
+      wp_die('Profile vocabulary not found.');
     }
 
     $tree = self::get_framework_tree($framework);
@@ -212,6 +234,8 @@ class CFM_Admin
       'description' => '',
       'children' => [],
     ];
+
+    self::bump_order_revision($framework_id, (string) ($tree['uuid'] ?? ''));
 
     $compile_result = self::save_active_tree_and_compile($framework_id, $tree);
 
@@ -251,7 +275,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Framework not found.');
+      wp_die('Profile vocabulary not found.');
     }
 
     $tree = self::get_framework_tree($framework);
@@ -274,6 +298,8 @@ class CFM_Admin
     if (!$term_added) {
       wp_die('Parent not found.');
     }
+
+    self::bump_order_revision($framework_id, $parent_uuid);
 
     $compile_result = self::save_active_tree_and_compile($framework_id, $tree);
 
@@ -313,7 +339,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Framework not found.');
+      wp_die('Profile vocabulary not found.');
     }
 
     $tree = self::get_framework_tree($framework);
@@ -363,6 +389,11 @@ class CFM_Admin
       if (!$added) {
         wp_die('Unable to add term to selected parent.');
       }
+
+      if ($current_parent_uuid !== '') {
+        self::bump_order_revision($framework_id, $current_parent_uuid);
+      }
+      self::bump_order_revision($framework_id, $parent_uuid);
     }
 
     $compile_result = self::save_active_tree_and_compile($framework_id, $tree);
@@ -398,7 +429,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Framework not found.');
+      wp_die('Profile vocabulary not found.');
     }
 
     $tree = self::get_framework_tree($framework);
@@ -425,6 +456,11 @@ class CFM_Admin
       wp_die('A term cannot be moved under one of its own descendants.');
     }
 
+    $current_parent_uuid = '';
+    if (!empty($term_info['parent']) && is_array($term_info['parent'])) {
+      $current_parent_uuid = (string) ($term_info['parent']['uuid'] ?? '');
+    }
+
     $removed_term = null;
     $removed = self::remove_child_node_by_uuid($tree, $term_uuid, $removed_term);
 
@@ -437,6 +473,11 @@ class CFM_Admin
     if (!$added) {
       wp_die('Unable to add term to new parent.');
     }
+
+    if ($current_parent_uuid !== '') {
+      self::bump_order_revision($framework_id, $current_parent_uuid);
+    }
+    self::bump_order_revision($framework_id, $new_parent_uuid);
 
     $compile_result = self::save_active_tree_and_compile($framework_id, $tree);
 
@@ -475,7 +516,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Framework not found.');
+      wp_die('Profile vocabulary not found.');
     }
 
     $tree = self::get_framework_tree($framework);
@@ -489,11 +530,20 @@ class CFM_Admin
       wp_die('Only terms can be archived. Axes cannot be archived.');
     }
 
+    $parent_uuid = '';
+    if (!empty($term_info['parent']) && is_array($term_info['parent'])) {
+      $parent_uuid = (string) ($term_info['parent']['uuid'] ?? '');
+    }
+
     $removed_term = null;
     $removed = self::remove_child_node_by_uuid($tree, $term_uuid, $removed_term);
 
     if (!$removed || !is_array($removed_term)) {
       wp_die('Unable to archive term.');
+    }
+
+    if ($parent_uuid !== '') {
+      self::bump_order_revision($framework_id, $parent_uuid);
     }
 
     $compile_result = self::save_active_tree_and_compile($framework_id, $tree);
@@ -650,6 +700,447 @@ class CFM_Admin
     return false;
   }
 
+  public static function handle_ajax_reorder_terms(): void
+  {
+    if (!current_user_can('manage_options')) {
+      wp_send_json_error([
+        'message' => 'You do not have permission to reorder terms.',
+      ], 403);
+    }
+
+    check_ajax_referer('cfm_reorder_terms', 'cfm_nonce');
+
+    $framework_id = absint($_POST['framework_id'] ?? 0);
+    $parent_uuid = sanitize_text_field(wp_unslash($_POST['parent_uuid'] ?? ''));
+    $submitted_revision = absint($_POST['order_revision'] ?? 0);
+    $submitted_order = isset($_POST['term_order']) && is_array($_POST['term_order'])
+      ? array_values(array_map(static function ($uuid): string {
+        return sanitize_text_field(wp_unslash($uuid));
+      }, $_POST['term_order']))
+      : [];
+
+    $result = self::process_reorder_terms($framework_id, $parent_uuid, $submitted_revision, $submitted_order);
+
+    if (empty($result['success'])) {
+      wp_send_json_error([
+        'message' => (string) ($result['message'] ?? 'Order could not be saved.'),
+        'code' => (string) ($result['code'] ?? 'reorder_failed'),
+        'current_revision' => (int) ($result['current_revision'] ?? 0),
+      ], (int) ($result['status'] ?? 400));
+    }
+
+    wp_send_json_success([
+      'message' => '✓ Saved',
+      'revision' => (int) ($result['revision'] ?? 0),
+    ]);
+  }
+
+  private static function handle_reorder_terms(): void
+  {
+    check_admin_referer('cfm_reorder_terms', 'cfm_nonce');
+
+    $framework_id = absint($_POST['framework_id'] ?? 0);
+    $parent_uuid = sanitize_text_field(wp_unslash($_POST['parent_uuid'] ?? ''));
+    $submitted_revision = absint($_POST['order_revision'] ?? 0);
+    $submitted_order = isset($_POST['term_order']) && is_array($_POST['term_order'])
+      ? array_values(array_map(static function ($uuid): string {
+        return sanitize_text_field(wp_unslash($uuid));
+      }, $_POST['term_order']))
+      : [];
+
+    $result = self::process_reorder_terms($framework_id, $parent_uuid, $submitted_revision, $submitted_order);
+
+    if (empty($result['success'])) {
+      $error = (string) ($result['code'] ?? 'reorder_failed');
+
+      wp_safe_redirect(
+        admin_url(
+          'admin.php?page=cfm-frameworks'
+            . '&action=edit'
+            . '&framework_id=' . $framework_id
+            . '&cfm_error=' . rawurlencode($error)
+            . '#cfm-ordering'
+        )
+      );
+      exit;
+    }
+
+    wp_safe_redirect(
+      admin_url(
+        'admin.php?page=cfm-frameworks'
+          . '&action=edit'
+          . '&framework_id=' . $framework_id
+          . '&cfm_terms_reordered=1'
+          . '#cfm-ordering'
+      )
+    );
+    exit;
+  }
+
+  private static function process_reorder_terms(int $framework_id, string $parent_uuid, int $submitted_revision, array $submitted_order): array
+  {
+    if ($framework_id <= 0 || $parent_uuid === '' || empty($submitted_order)) {
+      return [
+        'success' => false,
+        'code' => 'missing_reorder_fields',
+        'message' => 'Order save request was incomplete.',
+        'status' => 400,
+      ];
+    }
+
+    $framework = CFM_Framework_Repository::get_framework($framework_id);
+
+    if (!$framework) {
+      return [
+        'success' => false,
+        'code' => 'profile_vocabulary_not_found',
+        'message' => 'Profile vocabulary not found.',
+        'status' => 404,
+      ];
+    }
+
+    $current_revision = self::get_order_revision($framework_id, $parent_uuid);
+
+    if ($submitted_revision !== $current_revision) {
+      return [
+        'success' => false,
+        'code' => 'stale_order',
+        'message' => 'Order changed elsewhere.',
+        'status' => 409,
+        'current_revision' => $current_revision,
+      ];
+    }
+
+    $tree = self::get_framework_tree($framework);
+    $reordered = self::reorder_children_by_parent_uuid($tree, $parent_uuid, $submitted_order);
+
+    if (!$reordered) {
+      return [
+        'success' => false,
+        'code' => 'invalid_reorder',
+        'message' => 'Unable to reorder this sibling group.',
+        'status' => 400,
+      ];
+    }
+
+    self::bump_order_revision($framework_id, $parent_uuid);
+
+    $compile_result = self::save_active_tree_and_compile($framework_id, $tree);
+
+    if (empty($compile_result['success'])) {
+      return [
+        'success' => false,
+        'code' => 'compile_failed',
+        'message' => 'Order was saved, but runtime tables could not be rebuilt.',
+        'status' => 500,
+        'revision' => self::get_order_revision($framework_id, $parent_uuid),
+      ];
+    }
+
+    return [
+      'success' => true,
+      'revision' => self::get_order_revision($framework_id, $parent_uuid),
+    ];
+  }
+
+  private static function normalize_tree_children(array &$node): void
+  {
+    if (empty($node['children']) || !is_array($node['children'])) {
+      $node['children'] = [];
+      return;
+    }
+
+    $normalized = [];
+
+    foreach ($node['children'] as $child) {
+      if (!is_array($child)) {
+        continue;
+      }
+
+      self::normalize_tree_children($child);
+      $normalized[] = $child;
+    }
+
+    $node['children'] = array_values($normalized);
+  }
+
+  private static function reorder_children_by_parent_uuid(array &$node, string $parent_uuid, array $ordered_uuids): bool
+  {
+    if (($node['uuid'] ?? '') === $parent_uuid) {
+      if (empty($node['children']) || !is_array($node['children'])) {
+        return false;
+      }
+
+      $ordered_uuids = array_values(array_unique(array_filter(array_map('strval', $ordered_uuids))));
+      $children_by_uuid = [];
+      $existing_uuids = [];
+
+      foreach ($node['children'] as $child) {
+        if (!is_array($child)) {
+          continue;
+        }
+
+        $child_uuid = (string) ($child['uuid'] ?? '');
+
+        if ($child_uuid === '') {
+          continue;
+        }
+
+        $children_by_uuid[$child_uuid] = $child;
+        $existing_uuids[] = $child_uuid;
+      }
+
+      sort($existing_uuids);
+      $submitted_sorted = $ordered_uuids;
+      sort($submitted_sorted);
+
+      if ($existing_uuids !== $submitted_sorted) {
+        return false;
+      }
+
+      $reordered = [];
+
+      foreach ($ordered_uuids as $uuid) {
+        $reordered[] = $children_by_uuid[$uuid];
+      }
+
+      $node['children'] = array_values($reordered);
+      return true;
+    }
+
+    if (empty($node['children']) || !is_array($node['children'])) {
+      return false;
+    }
+
+    foreach ($node['children'] as &$child) {
+      if (!is_array($child)) {
+        continue;
+      }
+
+      if (self::reorder_children_by_parent_uuid($child, $parent_uuid, $ordered_uuids)) {
+        unset($child);
+        return true;
+      }
+    }
+
+    unset($child);
+    return false;
+  }
+
+  private static function get_order_revision(int $framework_id, string $parent_uuid): int
+  {
+    $revisions = get_option('cfm_order_revisions', []);
+
+    if (!is_array($revisions)) {
+      return 0;
+    }
+
+    $key = self::order_revision_key($framework_id, $parent_uuid);
+
+    return isset($revisions[$key]) ? max(0, (int) $revisions[$key]) : 0;
+  }
+
+  private static function bump_order_revision(int $framework_id, string $parent_uuid): void
+  {
+    if ($framework_id <= 0 || $parent_uuid === '') {
+      return;
+    }
+
+    $revisions = get_option('cfm_order_revisions', []);
+
+    if (!is_array($revisions)) {
+      $revisions = [];
+    }
+
+    $key = self::order_revision_key($framework_id, $parent_uuid);
+    $revisions[$key] = isset($revisions[$key]) ? ((int) $revisions[$key] + 1) : 1;
+
+    update_option('cfm_order_revisions', $revisions, false);
+  }
+
+  private static function bump_all_order_revisions(int $framework_id, array $tree): void
+  {
+    $groups = [];
+    self::collect_ordering_groups($tree, $groups);
+
+    foreach ($groups as $group) {
+      $parent_uuid = (string) ($group['parent_uuid'] ?? '');
+
+      if ($parent_uuid !== '') {
+        self::bump_order_revision($framework_id, $parent_uuid);
+      }
+    }
+  }
+
+  private static function order_revision_key(int $framework_id, string $parent_uuid): string
+  {
+    return 'framework:' . $framework_id . '|parent:' . $parent_uuid;
+  }
+
+  private static function render_ordering_controls(int $framework_id, array $tree): void
+  {
+    $groups = [];
+    self::collect_ordering_groups($tree, $groups);
+
+    if (empty($groups)) {
+      echo '<p>No sortable sibling groups yet.</p>';
+      return;
+    }
+
+    echo '<div class="cfm-ordering-groups" style="max-width: 900px;">';
+
+    foreach ($groups as $index => $group) {
+      $parent_uuid = (string) ($group['parent_uuid'] ?? '');
+      $children = isset($group['children']) && is_array($group['children']) ? $group['children'] : [];
+
+      if ($parent_uuid === '' || count($children) < 2) {
+        continue;
+      }
+
+      $revision = self::get_order_revision($framework_id, $parent_uuid);
+      $list_id = 'cfm-sortable-' . $index;
+
+      echo '<form method="post" class="cfm-order-form" style="background:#fff; border:1px solid #ccd0d4; padding:12px; margin:0 0 14px;">';
+      wp_nonce_field('cfm_reorder_terms', 'cfm_nonce');
+      echo '<input type="hidden" name="cfm_action" value="reorder_terms">';
+      echo '<input type="hidden" name="framework_id" value="' . esc_attr((string) $framework_id) . '">';
+      echo '<input type="hidden" name="parent_uuid" value="' . esc_attr($parent_uuid) . '">';
+      echo '<input type="hidden" name="order_revision" value="' . esc_attr((string) $revision) . '">';
+      echo '<h3 style="margin-top:0;">' . esc_html((string) ($group['label'] ?? 'Sibling Group')) . '</h3>';
+      echo '<p class="description">Drag direct children into the desired order. Changes save automatically on drop; parent changes still use Move.</p>';
+      echo '<ul id="' . esc_attr($list_id) . '" class="cfm-sortable-list" style="margin:0 0 10px; max-width:520px;">';
+
+      foreach ($children as $child) {
+        if (!is_array($child)) {
+          continue;
+        }
+
+        $child_uuid = (string) ($child['uuid'] ?? '');
+
+        if ($child_uuid === '') {
+          continue;
+        }
+
+        echo '<li style="cursor:move; background:#f6f7f7; border:1px solid #ccd0d4; padding:8px 10px; margin:0 0 6px;">';
+        echo '<span aria-hidden="true" style="color:#646970; margin-right:6px;">☰</span>';
+        echo '<strong>' . esc_html((string) ($child['label'] ?? '')) . '</strong> ';
+        echo '<code>' . esc_html((string) ($child['slug'] ?? '')) . '</code>';
+        echo '<input type="hidden" name="term_order[]" value="' . esc_attr($child_uuid) . '">';
+        echo '</li>';
+      }
+
+      echo '</ul>';
+      echo '<p class="cfm-order-status description" aria-live="polite">Drag to reorder. Saved automatically.</p>';
+      echo '<noscript>';
+      submit_button('Save Order', 'secondary', 'submit', false);
+      echo '</noscript>';
+      echo '</form>';
+    }
+
+    echo '</div>';
+?>
+    <script>
+      jQuery(function($) {
+        $('.cfm-sortable-list').sortable({
+          axis: 'y',
+          containment: 'parent',
+          tolerance: 'pointer',
+          update: function() {
+            var $list = $(this);
+            var $form = $list.closest('.cfm-order-form');
+            var $status = $form.find('.cfm-order-status');
+            var requestData = $.grep($form.serializeArray(), function(field) {
+              return field.name !== 'cfm_action';
+            });
+
+            requestData.push({
+              name: 'action',
+              value: 'cfm_reorder_terms'
+            });
+
+            function reloadOrderingUrl() {
+              var base = window.location.href.split('#')[0];
+              var separator = base.indexOf('?') === -1 ? '?' : '&';
+              return base + separator + 'cfm_order_reload=' + Date.now() + '#cfm-ordering';
+            }
+
+            function setReloadStatus(message) {
+              $status.empty()
+                .append(document.createTextNode(message + ' '))
+                .append($('<a>', {
+                  href: reloadOrderingUrl(),
+                  text: 'Reload ordering'
+                }));
+            }
+
+            function setFailureStatus(data, fallbackMessage) {
+              var message = data && data.message ? data.message : fallbackMessage;
+              var code = data && data.code ? data.code : '';
+
+              if (code === 'stale_order') {
+                $list.data('cfm-stale-order', true);
+                setReloadStatus(message || 'Order changed elsewhere.');
+                return;
+              }
+
+              $status.text(message);
+            }
+
+            $list.data('cfm-stale-order', false);
+            $list.sortable('disable');
+            $status.text('Saving...');
+
+            $.post(ajaxurl, requestData)
+              .done(function(response) {
+                if (response && response.success && response.data && typeof response.data.revision !== 'undefined') {
+                  $form.find('input[name="order_revision"]').val(response.data.revision);
+                  $list.data('cfm-stale-order', false);
+                  $status.text(response.data.message || '✓ Saved');
+                  return;
+                }
+
+                setFailureStatus(response && response.data ? response.data : null, 'Order could not be saved.');
+              })
+              .fail(function(xhr) {
+                setFailureStatus(
+                  xhr.responseJSON && xhr.responseJSON.data ? xhr.responseJSON.data : null,
+                  'Order could not be saved.'
+                );
+              })
+              .always(function() {
+                if (!$list.data('cfm-stale-order')) {
+                  $list.sortable('enable');
+                }
+              });
+          }
+        });
+      });
+    </script>
+  <?php
+  }
+
+  private static function collect_ordering_groups(array $node, array &$groups, string $path = ''): void
+  {
+    $label = (string) ($node['label'] ?? 'Root');
+    $uuid = (string) ($node['uuid'] ?? '');
+    $children = isset($node['children']) && is_array($node['children']) ? $node['children'] : [];
+    $current_path = $path === '' ? $label : ($path . ' / ' . $label);
+
+    if ($uuid !== '' && count($children) > 1) {
+      $groups[] = [
+        'parent_uuid' => $uuid,
+        'label' => $current_path,
+        'children' => $children,
+      ];
+    }
+
+    foreach ($children as $child) {
+      if (is_array($child)) {
+        self::collect_ordering_groups($child, $groups, $current_path);
+      }
+    }
+  }
+
   private static function handle_restore_version(): void
   {
     check_admin_referer('cfm_restore_version', 'cfm_nonce');
@@ -672,7 +1163,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Framework not found.');
+      wp_die('Profile vocabulary not found.');
     }
 
     $version = CFM_Framework_Repository::get_version((int) $framework->id, $version_id);
@@ -686,6 +1177,8 @@ class CFM_Admin
     if (!is_array($tree)) {
       wp_die('Stored tree JSON could not be decoded. Restore aborted.');
     }
+
+    self::bump_all_order_revisions((int) $framework->id, $tree);
 
     $compile_result = self::save_active_tree_and_compile((int) $framework->id, $tree);
 
@@ -924,7 +1417,7 @@ class CFM_Admin
       }
     }
 
-?>
+  ?>
     <div class="wrap">
       <h1>Profiles</h1>
 
@@ -1147,7 +1640,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Framework not found.');
+      wp_die('Profile vocabulary not found.');
     }
 
     $per_page = 20;
@@ -1169,7 +1662,7 @@ class CFM_Admin
                         . '&framework_id=' . (int) $framework->id
                     )
                   ); ?>">
-          ← Back to Edit Framework
+          ← Back to Edit Profiles
         </a>
       </p>
 
@@ -1247,7 +1740,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Framework not found.');
+      wp_die('Profile vocabulary not found.');
     }
 
     $version = CFM_Framework_Repository::get_version((int) $framework->id, $version_id);
@@ -1276,7 +1769,7 @@ class CFM_Admin
                         . '&action=edit'
                         . '&framework_id=' . (int) $framework->id
                     )
-                  ); ?>">Back to Edit Framework</a>
+                  ); ?>">Back to Edit Profiles</a>
       </p>
 
       <table class="widefat striped" style="max-width: 900px;">
@@ -1353,7 +1846,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Framework not found.');
+      wp_die('Profile vocabulary not found.');
     }
 
     $version = CFM_Framework_Repository::get_version((int) $framework->id, $version_id);
@@ -1372,7 +1865,7 @@ class CFM_Admin
   ?>
     <div class="wrap">
       <h1>
-        Restore Framework Version: <?php echo esc_html($framework->name); ?>
+        Restore Profile Version: <?php echo esc_html($framework->name); ?>
         v<?php echo esc_html((string) $version->version_number); ?>
       </h1>
 
@@ -1405,7 +1898,7 @@ class CFM_Admin
       <table class="widefat striped" style="max-width: 900px;">
         <tbody>
           <tr>
-            <th style="width: 180px;">Framework</th>
+            <th style="width: 180px;">Profile Vocabulary</th>
             <td><?php echo esc_html($framework->name); ?></td>
           </tr>
           <tr>
@@ -1458,7 +1951,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Framework not found.');
+      wp_die('Profile vocabulary not found.');
     }
 
     $tree = self::get_framework_tree($framework);
@@ -1489,7 +1982,7 @@ class CFM_Admin
                         . '&action=edit'
                         . '&framework_id=' . (int) $framework->id
                     )
-                  ); ?>">← Back to Edit Framework</a>
+                  ); ?>">← Back to Edit Profiles</a>
       </p>
 
       <div class="notice notice-warning">
@@ -1502,7 +1995,7 @@ class CFM_Admin
       <table class="widefat striped" style="max-width: 900px;">
         <tbody>
           <tr>
-            <th style="width: 180px;">Framework</th>
+            <th style="width: 180px;">Profile Vocabulary</th>
             <td><?php echo esc_html($framework->name); ?></td>
           </tr>
           <tr>
@@ -1564,7 +2057,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Framework not found.');
+      wp_die('Profile vocabulary not found.');
     }
 
     $tree = self::get_framework_tree($framework);
@@ -1655,7 +2148,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Framework not found.');
+      wp_die('Profile vocabulary not found.');
     }
 
     $tree = self::get_framework_tree($framework);
@@ -1686,13 +2179,13 @@ class CFM_Admin
                         . '&action=edit'
                         . '&framework_id=' . (int) $framework->id
                     )
-                  ); ?>">← Back to Edit Framework</a>
+                  ); ?>">← Back to Edit Profiles</a>
       </p>
 
       <table class="widefat striped" style="max-width: 900px;">
         <tbody>
           <tr>
-            <th style="width: 180px;">Framework</th>
+            <th style="width: 180px;">Profile Vocabulary</th>
             <td><?php echo esc_html($framework->name); ?></td>
           </tr>
           <tr>
@@ -1769,7 +2262,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Framework not found.');
+      wp_die('Profile vocabulary not found.');
     }
 
     $active_version = CFM_Framework_Repository::get_active_version((int) $framework->id);
@@ -1797,11 +2290,11 @@ class CFM_Admin
 
   ?>
     <div class="wrap">
-      <h1>Compiled Query Debug: <?php echo esc_html($framework->name); ?></h1>
+      <h1>Compiled Query Debug</h1>
 
       <p>
         <a href="<?php echo esc_url(admin_url('admin.php?page=cfm-frameworks&action=edit&framework_id=' . (int) $framework->id)); ?>">
-          ← Back to Edit Framework
+          ← Back to Edit Profiles
         </a>
       </p>
 
@@ -1819,7 +2312,7 @@ class CFM_Admin
         <table class="widefat striped" style="max-width: 760px;">
           <tbody>
             <tr>
-              <th style="width: 180px;">Framework Slug</th>
+              <th style="width: 180px;">Vocabulary Slug</th>
               <td><code><?php echo esc_html($framework->slug); ?></code></td>
             </tr>
             <tr>
@@ -1944,19 +2437,26 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Framework not found.');
+      wp_die('Profile vocabulary not found.');
     }
 
     $tree = self::get_framework_tree($framework);
     $axes = $tree['children'] ?? [];
+    $ordering_reload_url = admin_url(
+      'admin.php?page=cfm-frameworks'
+        . '&action=edit'
+        . '&framework_id=' . $framework_id
+        . '&cfm_order_reload=' . time()
+        . '#cfm-ordering'
+    );
 
   ?>
     <div class="wrap">
-      <h1>Edit Framework: <?php echo esc_html($framework->name); ?></h1>
+      <h1>Edit Profiles</h1>
 
       <p>
         <a href="<?php echo esc_url(admin_url('admin.php?page=cfm-frameworks')); ?>">
-          ← Back to Community Frameworks
+          ← Back to Profiles
         </a>
       </p>
 
@@ -1979,6 +2479,12 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
         </div>
       <?php endif; ?>
 
+      <?php if (isset($_GET['cfm_terms_reordered'])) : ?>
+        <div class="notice notice-success is-dismissible">
+          <p>Term order saved and runtime tables rebuilt.</p>
+        </div>
+      <?php endif; ?>
+
       <?php if (isset($_GET['cfm_term_archived'])) : ?>
         <div class="notice notice-success is-dismissible">
           <p>Term archived from the active tree. Historical versions are unchanged.</p>
@@ -1987,7 +2493,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
 
       <?php if (isset($_GET['cfm_version_restored'])) : ?>
         <div class="notice notice-success is-dismissible">
-          <p>Framework version restored by creating a new active version.</p>
+          <p>Profile version restored by creating a new active version.</p>
         </div>
       <?php endif; ?>
 
@@ -2019,6 +2525,24 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
       <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'missing_move_fields') : ?>
         <div class="notice notice-error is-dismissible">
           <p>Term and new parent are required.</p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'missing_reorder_fields') : ?>
+        <div class="notice notice-error is-dismissible">
+          <p>Order save request was incomplete. <a href="<?php echo esc_url($ordering_reload_url); ?>">Reload ordering</a>.</p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'stale_order') : ?>
+        <div class="notice notice-warning is-dismissible">
+          <p>Order changed elsewhere. <a href="<?php echo esc_url($ordering_reload_url); ?>">Reload ordering</a>.</p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'invalid_reorder') : ?>
+        <div class="notice notice-error is-dismissible">
+          <p>Unable to reorder this sibling group. <a href="<?php echo esc_url($ordering_reload_url); ?>">Reload ordering</a>.</p>
         </div>
       <?php endif; ?>
 
@@ -2196,6 +2720,12 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
           </tbody>
         </table>
       <?php endif; ?>
+
+      <hr>
+
+      <h2 id="cfm-ordering">Ordering</h2>
+      <p class="description">Ordering is sibling-scoped. Dragging changes display order only; use Move to change parentage.</p>
+      <?php self::render_ordering_controls((int) $framework->id, $tree); ?>
 
       <hr>
 
