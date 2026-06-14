@@ -52,6 +52,11 @@ class CFM_Admin
 
     $action = sanitize_key(wp_unslash($_POST['cfm_action']));
 
+    if ($action === 'import_taxonomy_preview') {
+      self::handle_import_taxonomy_preview();
+      return;
+    }
+
     if ($action === 'create_framework') {
       self::handle_create_framework();
       return;
@@ -226,6 +231,78 @@ class CFM_Admin
     header('Content-Length: ' . strlen($json));
 
     echo $json;
+    exit;
+  }
+
+
+  private static function handle_import_taxonomy_preview(): void
+  {
+    if (!current_user_can('manage_options')) {
+      wp_die('You do not have permission to import this profile taxonomy.');
+    }
+
+    check_admin_referer('cfm_import_taxonomy_preview', 'cfm_nonce');
+
+    $framework_id = absint($_POST['framework_id'] ?? 0);
+
+    if ($framework_id <= 0) {
+      wp_safe_redirect(admin_url('admin.php?page=cfm-frameworks&cfm_error=missing_import_framework'));
+      exit;
+    }
+
+    $framework = CFM_Framework_Repository::get_framework($framework_id);
+
+    if (!$framework) {
+      wp_die('Profile taxonomy not found.');
+    }
+
+    if (empty($_FILES['taxonomy_import_file']) || !is_array($_FILES['taxonomy_import_file'])) {
+      wp_safe_redirect(self::edit_url($framework_id) . '&cfm_error=missing_import_file#cfm-import');
+      exit;
+    }
+
+    $file = $_FILES['taxonomy_import_file'];
+    $upload_error = isset($file['error']) ? (int) $file['error'] : UPLOAD_ERR_NO_FILE;
+
+    if ($upload_error !== UPLOAD_ERR_OK) {
+      wp_safe_redirect(self::edit_url($framework_id) . '&cfm_error=import_upload_failed#cfm-import');
+      exit;
+    }
+
+    $tmp_name = isset($file['tmp_name']) ? (string) $file['tmp_name'] : '';
+    $size = isset($file['size']) ? (int) $file['size'] : 0;
+
+    if ($tmp_name === '' || !is_uploaded_file($tmp_name) || $size <= 0) {
+      wp_safe_redirect(self::edit_url($framework_id) . '&cfm_error=missing_import_file#cfm-import');
+      exit;
+    }
+
+    if ($size > 2 * 1024 * 1024) {
+      wp_safe_redirect(self::edit_url($framework_id) . '&cfm_error=import_file_too_large#cfm-import');
+      exit;
+    }
+
+    $raw_json = file_get_contents($tmp_name);
+
+    if (!is_string($raw_json) || trim($raw_json) === '') {
+      wp_safe_redirect(self::edit_url($framework_id) . '&cfm_error=import_file_empty#cfm-import');
+      exit;
+    }
+
+    $decoded = json_decode($raw_json, true);
+
+    if (!is_array($decoded)) {
+      wp_safe_redirect(self::edit_url($framework_id) . '&cfm_error=import_invalid_json#cfm-import');
+      exit;
+    }
+
+    $current_tree = self::get_framework_tree($framework);
+    self::normalize_tree_children($current_tree);
+
+    $preview = self::build_taxonomy_import_preview($decoded, $current_tree);
+    set_transient(self::import_preview_transient_key($framework_id), $preview, 10 * MINUTE_IN_SECONDS);
+
+    wp_safe_redirect(self::edit_url($framework_id) . '&cfm_import_preview=1#cfm-import');
     exit;
   }
 
@@ -1764,6 +1841,270 @@ class CFM_Admin
   <?php
   }
 
+  private static function import_preview_transient_key(int $framework_id): string
+  {
+    return 'cfm_import_preview_' . get_current_user_id() . '_' . $framework_id;
+  }
+
+  private static function build_taxonomy_import_preview(array $import, array $current_tree): array
+  {
+    $warnings = [];
+    $errors = [];
+
+    $export_type = (string) ($import['export_type'] ?? '');
+    $valid_export_types = [
+      'profilaxes_profile_taxonomy',
+      'profilaxes_taxonomy',
+    ];
+
+    if (!in_array($export_type, $valid_export_types, true)) {
+      $errors[] = 'Export type is missing or not recognized as a Profilaxes profile taxonomy export.';
+    }
+
+    $schema_version = isset($import['export_schema_version']) ? (int) $import['export_schema_version'] : 0;
+
+    if ($schema_version !== 1) {
+      $warnings[] = 'This preview was built for export schema version 1. Review carefully before a future write-capable import is used.';
+    }
+
+    $import_tree = [];
+
+    if (!empty($import['tree']) && is_array($import['tree'])) {
+      $import_tree = $import['tree'];
+    } elseif (!empty($import['taxonomy_tree']) && is_array($import['taxonomy_tree'])) {
+      $import_tree = $import['taxonomy_tree'];
+    } else {
+      $errors[] = 'No taxonomy tree was found in the uploaded JSON.';
+    }
+
+    if (!empty($import_tree)) {
+      self::normalize_tree_children($import_tree);
+    }
+
+    $import_counts = !empty($import_tree)
+      ? self::count_profile_tree_nodes($import_tree)
+      : ['axes' => 0, 'terms' => 0];
+
+    $current_counts = self::count_profile_tree_nodes($current_tree);
+    $import_uuids = !empty($import_tree) ? self::collect_node_uuids($import_tree) : [];
+    $current_uuids = self::collect_node_uuids($current_tree);
+    $duplicate_import_uuids = self::find_duplicate_values($import_uuids);
+    $uuid_collisions = array_values(array_intersect(array_unique($import_uuids), array_unique($current_uuids)));
+    $archived_count = !empty($import_tree) ? self::count_archived_nodes($import_tree) : 0;
+
+    if (!empty($duplicate_import_uuids)) {
+      $errors[] = 'The uploaded taxonomy contains duplicate UUIDs. A write-capable import should reject this file.';
+    }
+
+    if (!empty($uuid_collisions)) {
+      $warnings[] = 'Some uploaded UUIDs already exist in the current taxonomy. This is expected when previewing an export from this same site.';
+    }
+
+    if (empty($errors)) {
+      $warnings[] = 'Preview only. No database rows were changed.';
+    }
+
+    $framework = [];
+
+    if (!empty($import['framework']) && is_array($import['framework'])) {
+      $framework = $import['framework'];
+    }
+
+    $active_version = [];
+
+    if (!empty($import['active_version']) && is_array($import['active_version'])) {
+      $active_version = $import['active_version'];
+    }
+
+    return [
+      'is_valid' => empty($errors),
+      'errors' => $errors,
+      'warnings' => $warnings,
+      'export_type' => $export_type,
+      'export_schema_version' => $schema_version,
+      'exported_at' => (string) ($import['exported_at'] ?? ''),
+      'site_url' => (string) ($import['site_url'] ?? ''),
+      'plugin_version' => isset($import['plugin']['version']) ? (string) $import['plugin']['version'] : '',
+      'framework_name' => (string) ($framework['name'] ?? ''),
+      'framework_slug' => (string) ($framework['slug'] ?? ''),
+      'framework_uuid' => (string) ($framework['uuid'] ?? ''),
+      'active_version_number' => isset($active_version['version_number']) ? (int) $active_version['version_number'] : null,
+      'import_counts' => $import_counts,
+      'current_counts' => $current_counts,
+      'archived_count' => $archived_count,
+      'uuid_total' => count($import_uuids),
+      'uuid_collision_count' => count($uuid_collisions),
+      'uuid_collision_samples' => array_slice($uuid_collisions, 0, 8),
+      'duplicate_uuid_count' => count($duplicate_import_uuids),
+      'duplicate_uuid_samples' => array_slice($duplicate_import_uuids, 0, 8),
+    ];
+  }
+
+  private static function find_duplicate_values(array $values): array
+  {
+    $seen = [];
+    $duplicates = [];
+
+    foreach ($values as $value) {
+      $value = (string) $value;
+
+      if ($value === '') {
+        continue;
+      }
+
+      if (isset($seen[$value])) {
+        $duplicates[] = $value;
+        continue;
+      }
+
+      $seen[$value] = true;
+    }
+
+    return array_values(array_unique($duplicates));
+  }
+
+  private static function count_archived_nodes(array $node): int
+  {
+    $count = 0;
+    $status = (string) ($node['status'] ?? '');
+
+    if (!empty($node['archived']) || !empty($node['archived_at']) || $status === 'archived') {
+      $count++;
+    }
+
+    $children = $node['children'] ?? [];
+
+    if (is_array($children)) {
+      foreach ($children as $child) {
+        if (!is_array($child)) {
+          continue;
+        }
+
+        $count += self::count_archived_nodes($child);
+      }
+    }
+
+    return $count;
+  }
+
+  private static function render_taxonomy_import_preview(array $preview): void
+  {
+  ?>
+    <div class="notice <?php echo !empty($preview['is_valid']) ? 'notice-info' : 'notice-error'; ?>" style="padding: 12px 16px; margin-top: 12px;">
+      <h3 style="margin-top: 0;">Import Preview</h3>
+
+      <?php if (empty($preview['is_valid'])) : ?>
+        <p><strong>This file is not ready for import.</strong></p>
+      <?php else : ?>
+        <p><strong>Preview only.</strong> No database rows were changed. The import action remains disabled in this milestone.</p>
+      <?php endif; ?>
+
+      <table class="widefat striped" style="max-width: 900px;">
+        <tbody>
+          <tr>
+            <th style="width: 220px;">Export Type</th>
+            <td><code><?php echo esc_html((string) ($preview['export_type'] ?? '')); ?></code></td>
+          </tr>
+          <tr>
+            <th>Export Schema Version</th>
+            <td><?php echo esc_html((string) ($preview['export_schema_version'] ?? '')); ?></td>
+          </tr>
+          <tr>
+            <th>Export Date</th>
+            <td><?php echo esc_html((string) ($preview['exported_at'] ?? '')); ?></td>
+          </tr>
+          <tr>
+            <th>Source Site</th>
+            <td><?php echo esc_html((string) ($preview['site_url'] ?? '')); ?></td>
+          </tr>
+          <tr>
+            <th>Framework</th>
+            <td>
+              <?php echo esc_html((string) ($preview['framework_name'] ?? '')); ?>
+              <?php if (!empty($preview['framework_slug'])) : ?>
+                (<code><?php echo esc_html((string) $preview['framework_slug']); ?></code>)
+              <?php endif; ?>
+            </td>
+          </tr>
+          <tr>
+            <th>Framework UUID</th>
+            <td><code><?php echo esc_html((string) ($preview['framework_uuid'] ?? '')); ?></code></td>
+          </tr>
+          <tr>
+            <th>Active Version</th>
+            <td><?php echo esc_html(isset($preview['active_version_number']) && $preview['active_version_number'] !== null ? 'v' . $preview['active_version_number'] : 'Unknown'); ?></td>
+          </tr>
+          <tr>
+            <th>Uploaded Profile Categories</th>
+            <td><?php echo esc_html((string) ($preview['import_counts']['axes'] ?? 0)); ?></td>
+          </tr>
+          <tr>
+            <th>Uploaded Terms</th>
+            <td><?php echo esc_html((string) ($preview['import_counts']['terms'] ?? 0)); ?></td>
+          </tr>
+          <tr>
+            <th>Archived Terms</th>
+            <td><?php echo esc_html((string) ($preview['archived_count'] ?? 0)); ?></td>
+          </tr>
+          <tr>
+            <th>Current Profile Categories</th>
+            <td><?php echo esc_html((string) ($preview['current_counts']['axes'] ?? 0)); ?></td>
+          </tr>
+          <tr>
+            <th>Current Terms</th>
+            <td><?php echo esc_html((string) ($preview['current_counts']['terms'] ?? 0)); ?></td>
+          </tr>
+          <tr>
+            <th>UUIDs in Upload</th>
+            <td><?php echo esc_html((string) ($preview['uuid_total'] ?? 0)); ?></td>
+          </tr>
+          <tr>
+            <th>UUID Collisions with Current Tree</th>
+            <td><?php echo esc_html((string) ($preview['uuid_collision_count'] ?? 0)); ?></td>
+          </tr>
+          <tr>
+            <th>Duplicate UUIDs in Upload</th>
+            <td><?php echo esc_html((string) ($preview['duplicate_uuid_count'] ?? 0)); ?></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <?php if (!empty($preview['uuid_collision_samples']) && is_array($preview['uuid_collision_samples'])) : ?>
+        <p><strong>Collision samples:</strong></p>
+        <ul>
+          <?php foreach ($preview['uuid_collision_samples'] as $uuid) : ?>
+            <li><code><?php echo esc_html((string) $uuid); ?></code></li>
+          <?php endforeach; ?>
+        </ul>
+      <?php endif; ?>
+
+      <?php if (!empty($preview['errors']) && is_array($preview['errors'])) : ?>
+        <p><strong>Errors:</strong></p>
+        <ul>
+          <?php foreach ($preview['errors'] as $error) : ?>
+            <li><?php echo esc_html((string) $error); ?></li>
+          <?php endforeach; ?>
+        </ul>
+      <?php endif; ?>
+
+      <?php if (!empty($preview['warnings']) && is_array($preview['warnings'])) : ?>
+        <p><strong>Warnings:</strong></p>
+        <ul>
+          <?php foreach ($preview['warnings'] as $warning) : ?>
+            <li><?php echo esc_html((string) $warning); ?></li>
+          <?php endforeach; ?>
+        </ul>
+      <?php endif; ?>
+
+      <p>
+        <a class="button" href="<?php echo esc_url(remove_query_arg('cfm_import_preview') . '#cfm-import'); ?>">Cancel</a>
+        <button type="button" class="button button-primary" disabled>Import disabled — preview only</button>
+      </p>
+    </div>
+  <?php
+  }
+
+
   private static function count_profile_tree_nodes(array $node): array
   {
     $counts = [
@@ -2717,6 +3058,16 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
         . '#cfm-ordering'
     );
 
+    $import_preview = null;
+
+    if (isset($_GET['cfm_import_preview'])) {
+      $maybe_preview = get_transient(self::import_preview_transient_key($framework_id));
+
+      if (is_array($maybe_preview)) {
+        $import_preview = $maybe_preview;
+      }
+    }
+
   ?>
     <div class="wrap">
       <h1>Profile Taxonomy</h1>
@@ -2834,6 +3185,12 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
       <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'compile_failed') : ?>
         <div class="notice notice-error is-dismissible">
           <p>Runtime rebuild failed. The saved profile tree may not match the query tables. Check PHP error logs, then retry compile.</p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_error']) && in_array($_GET['cfm_error'], ['missing_import_framework', 'missing_import_file', 'import_upload_failed', 'import_file_too_large', 'import_file_empty', 'import_invalid_json'], true)) : ?>
+        <div class="notice notice-error is-dismissible">
+          <p>Import preview could not be generated. Confirm you selected a valid Profilaxes taxonomy JSON export and try again.</p>
         </div>
       <?php endif; ?>
 
@@ -2967,6 +3324,37 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
           Export Profile Taxonomy JSON
         </a>
       </p>
+
+      <hr>
+
+      <h2 id="cfm-import">Import</h2>
+      <p class="description">
+        Upload a Profilaxes taxonomy JSON export to validate it and preview what it contains. This milestone does not write imported taxonomy data.
+      </p>
+
+      <form method="post" enctype="multipart/form-data">
+        <?php wp_nonce_field('cfm_import_taxonomy_preview', 'cfm_nonce'); ?>
+        <input type="hidden" name="cfm_action" value="import_taxonomy_preview">
+        <input type="hidden" name="framework_id" value="<?php echo esc_attr((string) $framework->id); ?>">
+
+        <table class="form-table" role="presentation">
+          <tr>
+            <th scope="row">
+              <label for="taxonomy_import_file">Import Profile Taxonomy JSON</label>
+            </th>
+            <td>
+              <input name="taxonomy_import_file" id="taxonomy_import_file" type="file" accept="application/json,.json" required>
+              <p class="description">Preview only. No taxonomy rows, compiled rows, or user assignments are changed.</p>
+            </td>
+          </tr>
+        </table>
+
+        <?php submit_button('Preview Import', 'secondary', 'submit', false); ?>
+      </form>
+
+      <?php if (is_array($import_preview)) : ?>
+        <?php self::render_taxonomy_import_preview($import_preview); ?>
+      <?php endif; ?>
 
       <hr>
 
