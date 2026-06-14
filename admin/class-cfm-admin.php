@@ -57,6 +57,11 @@ class CFM_Admin
       return;
     }
 
+    if ($action === 'import_taxonomy_replace') {
+      self::handle_import_taxonomy_replace();
+      return;
+    }
+
     if ($action === 'create_framework') {
       self::handle_create_framework();
       return;
@@ -303,6 +308,74 @@ class CFM_Admin
     set_transient(self::import_preview_transient_key($framework_id), $preview, 10 * MINUTE_IN_SECONDS);
 
     wp_safe_redirect(self::edit_url($framework_id) . '&cfm_import_preview=1#cfm-import');
+    exit;
+  }
+
+
+  private static function handle_import_taxonomy_replace(): void
+  {
+    if (!current_user_can('manage_options')) {
+      wp_die('You do not have permission to import this profile taxonomy.');
+    }
+
+    check_admin_referer('cfm_import_taxonomy_replace', 'cfm_nonce');
+
+    $framework_id = absint($_POST['framework_id'] ?? 0);
+
+    if ($framework_id <= 0) {
+      wp_safe_redirect(admin_url('admin.php?page=cfm-frameworks&cfm_error=missing_import_framework'));
+      exit;
+    }
+
+    $framework = CFM_Framework_Repository::get_framework($framework_id);
+
+    if (!$framework) {
+      wp_die('Profile taxonomy not found.');
+    }
+
+    $confirmed = !empty($_POST['confirm_replace_taxonomy']) && (string) $_POST['confirm_replace_taxonomy'] === '1';
+
+    if (!$confirmed) {
+      wp_safe_redirect(self::edit_url($framework_id) . '&cfm_error=import_replace_not_confirmed#cfm-import');
+      exit;
+    }
+
+    $preview = get_transient(self::import_preview_transient_key($framework_id));
+
+    if (!is_array($preview) || empty($preview['is_valid']) || empty($preview['tree']) || !is_array($preview['tree'])) {
+      wp_safe_redirect(self::edit_url($framework_id) . '&cfm_error=import_preview_expired#cfm-import');
+      exit;
+    }
+
+    $import_tree = $preview['tree'];
+    self::normalize_tree_children($import_tree);
+
+    $current_tree = self::get_framework_tree($framework);
+    self::normalize_tree_children($current_tree);
+
+    $current_snapshot_id = CFM_Framework_Repository::create_version($framework_id, $current_tree, 'pre_import_snapshot');
+
+    if ($current_snapshot_id <= 0) {
+      wp_safe_redirect(self::edit_url($framework_id) . '&cfm_error=import_snapshot_failed#cfm-import');
+      exit;
+    }
+
+    $compile_result = self::save_active_tree_and_compile($framework_id, $import_tree);
+
+    delete_transient(self::import_preview_transient_key($framework_id));
+
+    if (empty($compile_result['success'])) {
+      wp_safe_redirect(self::edit_url($framework_id) . '&cfm_error=import_compile_failed' . $compile_result['query_arg'] . '#cfm-import');
+      exit;
+    }
+
+    wp_safe_redirect(
+      self::edit_url($framework_id)
+        . '&cfm_import_replaced=1'
+        . '&cfm_import_snapshot_id=' . (int) $current_snapshot_id
+        . $compile_result['query_arg']
+        . '#cfm-import'
+    );
     exit;
   }
 
@@ -1984,6 +2057,7 @@ class CFM_Admin
       'missing_slug_count' => $missing_slug_count,
       'invalid_type_count' => $invalid_type_count,
       'non_array_child_count' => $non_array_child_count,
+      'tree' => !empty($import_tree) ? $import_tree : [],
     ];
   }
 
@@ -2163,7 +2237,7 @@ class CFM_Admin
       <?php if (empty($preview['is_valid'])) : ?>
         <p><strong>This file is not ready for import.</strong></p>
       <?php else : ?>
-        <p><strong>Preview only.</strong> No database rows were changed. The import action remains disabled in this milestone.</p>
+        <p><strong>Validated.</strong> No database rows were changed by preview. You may now replace the current Profile Taxonomy with the uploaded tree.</p>
       <?php endif; ?>
 
       <table class="widefat striped" style="max-width: 900px;">
@@ -2294,8 +2368,28 @@ class CFM_Admin
 
       <p>
         <a class="button" href="<?php echo esc_url(remove_query_arg('cfm_import_preview') . '#cfm-import'); ?>">Cancel</a>
-        <button type="button" class="button button-primary" disabled>Import disabled — preview only</button>
       </p>
+
+      <?php if (!empty($preview['is_valid'])) : ?>
+        <form method="post" style="margin-top: 12px; padding: 12px; border: 1px solid #d63638; background: #fff; max-width: 900px;">
+          <?php wp_nonce_field('cfm_import_taxonomy_replace', 'cfm_nonce'); ?>
+          <input type="hidden" name="cfm_action" value="import_taxonomy_replace">
+          <input type="hidden" name="framework_id" value="<?php echo esc_attr((string) ($_GET['framework_id'] ?? '')); ?>">
+
+          <p><strong>Danger zone:</strong> this will replace the current canonical editable Profile Taxonomy tree, save the current tree as a pre-import snapshot version, and rebuild runtime tables.</p>
+
+          <label>
+            <input type="checkbox" name="confirm_replace_taxonomy" value="1" required>
+            I understand this will replace the current Profile Taxonomy.
+          </label>
+
+          <p style="margin-top: 12px;">
+            <?php submit_button('Import as Replacement', 'primary', 'submit', false); ?>
+          </p>
+        </form>
+      <?php else : ?>
+        <p><button type="button" class="button button-primary" disabled>Import unavailable — validation failed</button></p>
+      <?php endif; ?>
     </div>
   <?php
   }
@@ -3317,6 +3411,12 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
         </div>
       <?php endif; ?>
 
+      <?php if (isset($_GET['cfm_import_replaced'])) : ?>
+        <div class="notice notice-success is-dismissible">
+          <p>Profile taxonomy imported as a replacement and runtime tables rebuilt. A pre-import snapshot version was saved.</p>
+        </div>
+      <?php endif; ?>
+
       <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'missing_axis_fields') : ?>
         <div class="notice notice-error is-dismissible">
           <p>Axis label and slug are required.</p>
@@ -3387,6 +3487,12 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
       <?php if (isset($_GET['cfm_error']) && in_array($_GET['cfm_error'], ['missing_import_framework', 'missing_import_file', 'import_upload_failed', 'import_file_too_large', 'import_file_empty', 'import_invalid_json'], true)) : ?>
         <div class="notice notice-error is-dismissible">
           <p>Import preview could not be generated. Confirm you selected a valid Profilaxes taxonomy JSON export and try again.</p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_error']) && in_array($_GET['cfm_error'], ['import_replace_not_confirmed', 'import_preview_expired', 'import_snapshot_failed', 'import_compile_failed'], true)) : ?>
+        <div class="notice notice-error is-dismissible">
+          <p>Import replacement could not be completed. Preview the export again, confirm replacement, and retry. No replacement was completed if snapshot creation failed.</p>
         </div>
       <?php endif; ?>
 
@@ -3525,7 +3631,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
 
       <h2 id="cfm-import">Import</h2>
       <p class="description">
-        Upload a Profilaxes taxonomy JSON export to validate it and preview what it contains. This milestone does not write imported taxonomy data.
+        Upload a Profilaxes taxonomy JSON export to validate it and preview what it contains. After a valid preview, you may import it as a full replacement. Replacement saves the current tree as a pre-import snapshot and rebuilds runtime tables.
       </p>
 
       <form method="post" enctype="multipart/form-data">
