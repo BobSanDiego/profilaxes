@@ -77,6 +77,11 @@ class CFM_Admin
       return;
     }
 
+    if ($action === 'add_terms_batch') {
+      self::handle_add_terms_batch();
+      return;
+    }
+
     if ($action === 'update_term') {
       self::handle_update_term();
       return;
@@ -602,6 +607,130 @@ class CFM_Admin
           . '&cfm_parent_uuid=' . rawurlencode($parent_uuid)
           . $compile_result['query_arg']
           . '#cfm-add-term'
+      )
+    );
+    exit;
+  }
+
+  private static function handle_add_terms_batch(): void
+  {
+    check_admin_referer('cfm_add_terms_batch', 'cfm_nonce');
+
+    $framework_id = absint($_POST['framework_id'] ?? 0);
+    $parent_uuid = sanitize_text_field(wp_unslash($_POST['parent_uuid'] ?? ''));
+    $batch_input = (string) wp_unslash($_POST['batch_term_labels'] ?? '');
+
+    $raw_labels = preg_split('/\r\n|\r|\n/', $batch_input);
+    $terms_to_add = [];
+    $seen_slugs = [];
+
+    if (is_array($raw_labels)) {
+      foreach ($raw_labels as $raw_label) {
+        $label = sanitize_text_field($raw_label);
+
+        if ($label === '') {
+          continue;
+        }
+
+        $slug = self::normalize_slug($label);
+
+        if ($slug === '') {
+          self::redirect_batch_error(
+            $framework_id,
+            $parent_uuid,
+            'One of the batch labels could not produce a valid slug. No terms were added.',
+            $batch_input
+          );
+        }
+
+        if (isset($seen_slugs[$slug])) {
+          self::redirect_batch_error(
+            $framework_id,
+            $parent_uuid,
+            'The batch contains duplicate term slugs. No terms were added.',
+            $batch_input
+          );
+        }
+
+        $seen_slugs[$slug] = true;
+        $terms_to_add[] = [
+          'uuid' => wp_generate_uuid4(),
+          'label' => $label,
+          'slug' => $slug,
+          'short_label' => $label,
+          'type' => 'term',
+          'description' => $label,
+          'children' => [],
+        ];
+      }
+    }
+
+    if ($framework_id <= 0 || $parent_uuid === '' || empty($terms_to_add)) {
+      self::redirect_batch_error(
+        $framework_id,
+        $parent_uuid,
+        'Select a parent and enter at least one term label for batch creation. No terms were added.',
+        $batch_input
+      );
+    }
+
+    $framework = CFM_Framework_Repository::get_framework($framework_id);
+
+    if (!$framework) {
+      wp_die('Profile profile taxonomy not found.');
+    }
+
+    $tree = self::get_framework_tree($framework);
+
+    if (!isset($tree['children']) || !is_array($tree['children'])) {
+      $tree['children'] = [];
+    }
+
+    $parent_info = self::find_node_with_parent($tree, $parent_uuid);
+
+    if (!$parent_info || empty($parent_info['node']) || !is_array($parent_info['node'])) {
+      wp_die('Parent not found.');
+    }
+
+    foreach ($terms_to_add as $term) {
+      if (self::has_child_slug_conflict($tree, $parent_uuid, (string) $term['slug'])) {
+        self::redirect_batch_error(
+          $framework_id,
+          $parent_uuid,
+          'A batch term conflicts with an existing sibling slug: ' . (string) $term['slug'] . '. No terms were added.',
+          $batch_input
+        );
+      }
+    }
+
+    foreach ($terms_to_add as $term) {
+      if (!self::append_child_to_node_by_uuid($tree, $parent_uuid, $term)) {
+        wp_die('Parent not found.');
+      }
+    }
+
+    self::bump_order_revision($framework_id, $parent_uuid);
+
+    $compile_result = self::save_active_tree_and_compile($framework_id, $tree);
+
+    $parent_label = (string) ($parent_info['node']['label'] ?? 'selected parent');
+    $transient_key = self::batch_added_terms_transient_key($framework_id);
+
+    set_transient($transient_key, [
+      'parent_uuid' => $parent_uuid,
+      'parent_label' => $parent_label,
+      'terms' => $terms_to_add,
+    ], 5 * MINUTE_IN_SECONDS);
+
+    wp_safe_redirect(
+      admin_url(
+        'admin.php?page=cfm-frameworks'
+          . '&action=edit'
+          . '&framework_id=' . $framework_id
+          . '&cfm_terms_batch_added=1'
+          . '&cfm_parent_uuid=' . rawurlencode($parent_uuid)
+          . $compile_result['query_arg']
+          . '#cfm-batch-added'
       )
     );
     exit;
@@ -2041,6 +2170,39 @@ class CFM_Admin
       <?php endif; ?>
     </div>
   <?php
+  }
+
+  private static function batch_added_terms_transient_key(int $framework_id): string
+  {
+    return 'cfm_batch_added_terms_' . $framework_id . '_' . get_current_user_id();
+  }
+
+  private static function batch_error_transient_key(int $framework_id): string
+  {
+    return 'cfm_batch_error_' . $framework_id . '_' . get_current_user_id();
+  }
+
+  private static function redirect_batch_error(int $framework_id, string $parent_uuid, string $message, string $batch_input): void
+  {
+    if ($framework_id > 0) {
+      set_transient(self::batch_error_transient_key($framework_id), [
+        'message' => $message,
+        'parent_uuid' => $parent_uuid,
+        'batch_input' => $batch_input,
+      ], 5 * MINUTE_IN_SECONDS);
+    }
+
+    wp_safe_redirect(
+      admin_url(
+        'admin.php?page=cfm-frameworks'
+          . '&action=edit'
+          . '&framework_id=' . $framework_id
+          . '&cfm_batch_error=1'
+          . '&cfm_parent_uuid=' . rawurlencode($parent_uuid)
+          . '#cfm-add-term'
+      )
+    );
+    exit;
   }
 
   private static function import_preview_transient_key(int $framework_id): string
@@ -3921,9 +4083,72 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
       }
     }
 
+    $batch_added_terms = null;
+
+    if (isset($_GET['cfm_terms_batch_added'])) {
+      $maybe_batch_added_terms = get_transient(self::batch_added_terms_transient_key($framework_id));
+
+      if (is_array($maybe_batch_added_terms)) {
+        $batch_added_terms = $maybe_batch_added_terms;
+        delete_transient(self::batch_added_terms_transient_key($framework_id));
+      }
+    }
+
+    $batch_error = null;
+
+    if (isset($_GET['cfm_batch_error'])) {
+      $maybe_batch_error = get_transient(self::batch_error_transient_key($framework_id));
+
+      if (is_array($maybe_batch_error)) {
+        $batch_error = $maybe_batch_error;
+        delete_transient(self::batch_error_transient_key($framework_id));
+      }
+    }
+
   ?>
     <div class="wrap">
       <h1>Profile Taxonomy</h1>
+
+      <?php if (is_array($batch_error)) : ?>
+        <style>
+          .cfm-modal-overlay {
+            align-items: center;
+            background: rgba(0, 0, 0, 0.45);
+            bottom: 0;
+            display: flex;
+            justify-content: center;
+            left: 0;
+            position: fixed;
+            right: 0;
+            top: 0;
+            z-index: 100000;
+          }
+
+          .cfm-modal-card {
+            background: #fff;
+            border-radius: 4px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+            max-width: 520px;
+            padding: 24px;
+            width: calc(100% - 48px);
+          }
+
+          .cfm-modal-card h2 {
+            margin-top: 0;
+          }
+        </style>
+        <div id="cfm-batch-error-modal" class="cfm-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="cfm-batch-error-title">
+          <div class="cfm-modal-card">
+            <h2 id="cfm-batch-error-title">Unable to add terms</h2>
+            <p><?php echo esc_html((string) ($batch_error['message'] ?? 'No terms were added.')); ?></p>
+            <p><strong>No terms were added.</strong></p>
+            <p>Review the batch and submit again.</p>
+            <p>
+              <button type="button" class="button button-primary" id="cfm-batch-error-review">Review Batch</button>
+            </p>
+          </div>
+        </div>
+      <?php endif; ?>
 
       <?php if (isset($_GET['cfm_axis_added'])) : ?>
         <div class="notice notice-success is-dismissible">
@@ -4441,6 +4666,79 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
 
           <?php submit_button('Add Term'); ?>
         </form>
+
+        <h3>Add Multiple Terms</h3>
+        <form method="post">
+          <?php wp_nonce_field('cfm_add_terms_batch', 'cfm_nonce'); ?>
+
+          <input type="hidden" name="cfm_action" value="add_terms_batch">
+          <input type="hidden" name="framework_id" value="<?php echo esc_attr($framework->id); ?>">
+
+          <table class="form-table" role="presentation">
+            <tr>
+              <th scope="row">
+                <label for="batch_parent_uuid">Parent</label>
+              </th>
+              <td>
+                <select name="parent_uuid" id="batch_parent_uuid" required>
+                  <option value="">Select a parent</option>
+                  <?php self::render_parent_options($axes, sanitize_text_field($_GET['cfm_parent_uuid'] ?? '')); ?>
+                </select>
+                <p class="description">All batch terms will be added under this parent.</p>
+              </td>
+            </tr>
+
+            <tr>
+              <th scope="row">
+                <label for="batch_term_labels">Term Labels</label>
+              </th>
+              <td>
+                <textarea name="batch_term_labels" id="batch_term_labels" class="large-text" rows="6" placeholder="Grade 4&#10;Grade 5&#10;Grade 6"><?php echo esc_textarea(is_array($batch_error) ? (string) ($batch_error['batch_input'] ?? '') : ''); ?></textarea>
+                <p class="description">One term label per line. Slug, short label, and description are generated from each label. The whole batch is rejected if any row conflicts.</p>
+              </td>
+            </tr>
+          </table>
+
+          <?php submit_button('Add Multiple Terms'); ?>
+        </form>
+
+        <?php if (is_array($batch_error)) : ?>
+          <script>
+            (function() {
+              var review = document.getElementById('cfm-batch-error-review');
+              var modal = document.getElementById('cfm-batch-error-modal');
+              var textarea = document.getElementById('batch_term_labels');
+
+              function returnToBatch() {
+                if (modal) {
+                  modal.style.display = 'none';
+                }
+                if (textarea) {
+                  textarea.focus();
+                }
+              }
+
+              if (review) {
+                review.addEventListener('click', returnToBatch);
+                review.focus();
+              }
+
+              if (modal) {
+                modal.addEventListener('click', function(event) {
+                  if (event.target === modal) {
+                    returnToBatch();
+                  }
+                });
+              }
+
+              document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape' && modal && modal.style.display !== 'none') {
+                  returnToBatch();
+                }
+              });
+            })();
+          </script>
+        <?php endif; ?>
       <?php endif; ?>
 
       <?php self::render_term_metadata_autofill_script(); ?>
