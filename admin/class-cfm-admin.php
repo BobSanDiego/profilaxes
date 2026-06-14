@@ -307,7 +307,7 @@ class CFM_Admin
     $preview = self::build_taxonomy_import_preview($decoded, $current_tree);
     set_transient(self::import_preview_transient_key($framework_id), $preview, 10 * MINUTE_IN_SECONDS);
 
-    wp_safe_redirect(self::edit_url($framework_id) . '&cfm_import_preview=1#cfm-import');
+    wp_safe_redirect(self::edit_url($framework_id) . '&cfm_import_preview=1#cfm-import-preview');
     exit;
   }
 
@@ -374,7 +374,7 @@ class CFM_Admin
         . '&cfm_import_replaced=1'
         . '&cfm_import_snapshot_id=' . (int) $current_snapshot_id
         . $compile_result['query_arg']
-        . '#cfm-import'
+
     );
     exit;
   }
@@ -2231,7 +2231,7 @@ class CFM_Admin
   private static function render_taxonomy_import_preview(array $preview): void
   {
   ?>
-    <div class="notice <?php echo !empty($preview['is_valid']) ? 'notice-info' : 'notice-error'; ?>" style="padding: 12px 16px; margin-top: 12px;">
+    <div id="cfm-import-preview" class="notice <?php echo !empty($preview['is_valid']) ? 'notice-info' : 'notice-error'; ?>" style="padding: 12px 16px; margin-top: 12px;">
       <h3 style="margin-top: 0;">Import Preview</h3>
 
       <?php if (empty($preview['is_valid'])) : ?>
