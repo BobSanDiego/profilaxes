@@ -1852,19 +1852,23 @@ class CFM_Admin
     $errors = [];
 
     $export_type = (string) ($import['export_type'] ?? '');
-    $valid_export_types = [
-      'profilaxes_profile_taxonomy',
-      'profilaxes_taxonomy',
-    ];
 
-    if (!in_array($export_type, $valid_export_types, true)) {
-      $errors[] = 'Export type is missing or not recognized as a Profilaxes profile taxonomy export.';
+    if ($export_type !== 'profilaxes_profile_taxonomy') {
+      $errors[] = 'Export type must be profilaxes_profile_taxonomy.';
     }
 
     $schema_version = isset($import['export_schema_version']) ? (int) $import['export_schema_version'] : 0;
 
     if ($schema_version !== 1) {
-      $warnings[] = 'This preview was built for export schema version 1. Review carefully before a future write-capable import is used.';
+      $errors[] = 'Export schema version must be 1 for this validator.';
+    }
+
+    if (empty($import['exported_at']) || !is_string($import['exported_at'])) {
+      $warnings[] = 'Export date is missing or unreadable.';
+    }
+
+    if (empty($import['source_of_truth']) || !is_array($import['source_of_truth'])) {
+      $warnings[] = 'Source-of-truth metadata is missing. Confirm this file was produced by the Profilaxes exporter.';
     }
 
     $import_tree = [];
@@ -1873,27 +1877,61 @@ class CFM_Admin
       $import_tree = $import['tree'];
     } elseif (!empty($import['taxonomy_tree']) && is_array($import['taxonomy_tree'])) {
       $import_tree = $import['taxonomy_tree'];
+      $warnings[] = 'Legacy taxonomy_tree key detected. Current exports should use tree.';
     } else {
       $errors[] = 'No taxonomy tree was found in the uploaded JSON.';
     }
 
+    $shape_errors = [];
+    $shape_warnings = [];
+    $duplicate_sibling_slug_paths = [];
+    $missing_uuid_count = 0;
+    $missing_label_count = 0;
+    $missing_slug_count = 0;
+    $invalid_type_count = 0;
+    $non_array_child_count = 0;
+
     if (!empty($import_tree)) {
       self::normalize_tree_children($import_tree);
+      $shape = self::validate_taxonomy_import_tree_shape($import_tree);
+      $shape_errors = $shape['errors'];
+      $shape_warnings = $shape['warnings'];
+      $duplicate_sibling_slug_paths = $shape['duplicate_sibling_slug_paths'];
+      $missing_uuid_count = $shape['missing_uuid_count'];
+      $missing_label_count = $shape['missing_label_count'];
+      $missing_slug_count = $shape['missing_slug_count'];
+      $invalid_type_count = $shape['invalid_type_count'];
+      $non_array_child_count = $shape['non_array_child_count'];
     }
+
+    $errors = array_merge($errors, $shape_errors);
+    $warnings = array_merge($warnings, $shape_warnings);
 
     $import_counts = !empty($import_tree)
       ? self::count_profile_tree_nodes($import_tree)
       : ['axes' => 0, 'terms' => 0];
 
+    if (!empty($import_tree) && (int) $import_counts['axes'] <= 0) {
+      $warnings[] = 'Uploaded taxonomy does not contain any profile categories.';
+    }
+
+    if (!empty($import_tree) && (int) $import_counts['terms'] <= 0) {
+      $warnings[] = 'Uploaded taxonomy does not contain any terms.';
+    }
+
     $current_counts = self::count_profile_tree_nodes($current_tree);
-    $import_uuids = !empty($import_tree) ? self::collect_node_uuids($import_tree) : [];
+    $import_uuids = !empty($import_tree) ? self::collect_node_uuids_including_duplicates($import_tree) : [];
     $current_uuids = self::collect_node_uuids($current_tree);
     $duplicate_import_uuids = self::find_duplicate_values($import_uuids);
     $uuid_collisions = array_values(array_intersect(array_unique($import_uuids), array_unique($current_uuids)));
     $archived_count = !empty($import_tree) ? self::count_archived_nodes($import_tree) : 0;
 
     if (!empty($duplicate_import_uuids)) {
-      $errors[] = 'The uploaded taxonomy contains duplicate UUIDs. A write-capable import should reject this file.';
+      $errors[] = 'The uploaded taxonomy contains duplicate UUIDs.';
+    }
+
+    if (!empty($duplicate_sibling_slug_paths)) {
+      $errors[] = 'The uploaded taxonomy contains duplicate slugs under the same parent.';
     }
 
     if (!empty($uuid_collisions)) {
@@ -1908,6 +1946,8 @@ class CFM_Admin
 
     if (!empty($import['framework']) && is_array($import['framework'])) {
       $framework = $import['framework'];
+    } else {
+      $warnings[] = 'Framework metadata is missing.';
     }
 
     $active_version = [];
@@ -1918,8 +1958,8 @@ class CFM_Admin
 
     return [
       'is_valid' => empty($errors),
-      'errors' => $errors,
-      'warnings' => $warnings,
+      'errors' => array_values(array_unique($errors)),
+      'warnings' => array_values(array_unique($warnings)),
       'export_type' => $export_type,
       'export_schema_version' => $schema_version,
       'exported_at' => (string) ($import['exported_at'] ?? ''),
@@ -1932,11 +1972,18 @@ class CFM_Admin
       'import_counts' => $import_counts,
       'current_counts' => $current_counts,
       'archived_count' => $archived_count,
-      'uuid_total' => count($import_uuids),
+      'uuid_total' => count(array_filter($import_uuids)),
       'uuid_collision_count' => count($uuid_collisions),
       'uuid_collision_samples' => array_slice($uuid_collisions, 0, 8),
       'duplicate_uuid_count' => count($duplicate_import_uuids),
       'duplicate_uuid_samples' => array_slice($duplicate_import_uuids, 0, 8),
+      'duplicate_sibling_slug_count' => count($duplicate_sibling_slug_paths),
+      'duplicate_sibling_slug_samples' => array_slice($duplicate_sibling_slug_paths, 0, 8),
+      'missing_uuid_count' => $missing_uuid_count,
+      'missing_label_count' => $missing_label_count,
+      'missing_slug_count' => $missing_slug_count,
+      'invalid_type_count' => $invalid_type_count,
+      'non_array_child_count' => $non_array_child_count,
     ];
   }
 
@@ -1961,6 +2008,126 @@ class CFM_Admin
     }
 
     return array_values(array_unique($duplicates));
+  }
+
+  private static function collect_node_uuids_including_duplicates(array $node): array
+  {
+    $uuids = [];
+    $uuid = (string) ($node['uuid'] ?? '');
+
+    if ($uuid !== '') {
+      $uuids[] = $uuid;
+    }
+
+    $children = $node['children'] ?? [];
+
+    if (is_array($children)) {
+      foreach ($children as $child) {
+        if (!is_array($child)) {
+          continue;
+        }
+
+        $uuids = array_merge($uuids, self::collect_node_uuids_including_duplicates($child));
+      }
+    }
+
+    return $uuids;
+  }
+
+  private static function validate_taxonomy_import_tree_shape(array $tree): array
+  {
+    $result = [
+      'errors' => [],
+      'warnings' => [],
+      'duplicate_sibling_slug_paths' => [],
+      'missing_uuid_count' => 0,
+      'missing_label_count' => 0,
+      'missing_slug_count' => 0,
+      'invalid_type_count' => 0,
+      'non_array_child_count' => 0,
+    ];
+
+    self::validate_taxonomy_import_node($tree, 'root', true, $result);
+
+    if ($result['missing_uuid_count'] > 0) {
+      $result['errors'][] = 'One or more uploaded taxonomy nodes are missing UUIDs.';
+    }
+
+    if ($result['missing_label_count'] > 0) {
+      $result['errors'][] = 'One or more uploaded taxonomy nodes are missing labels.';
+    }
+
+    if ($result['missing_slug_count'] > 0) {
+      $result['errors'][] = 'One or more uploaded taxonomy nodes are missing slugs.';
+    }
+
+    if ($result['invalid_type_count'] > 0) {
+      $result['errors'][] = 'One or more uploaded taxonomy nodes have invalid types.';
+    }
+
+    if ($result['non_array_child_count'] > 0) {
+      $result['errors'][] = 'One or more uploaded taxonomy children are malformed.';
+    }
+
+    return $result;
+  }
+
+  private static function validate_taxonomy_import_node(array $node, string $path, bool $is_root, array &$result): void
+  {
+    $type = (string) ($node['type'] ?? '');
+    $uuid = trim((string) ($node['uuid'] ?? ''));
+    $label = trim((string) ($node['label'] ?? ''));
+    $slug = sanitize_title((string) ($node['slug'] ?? ''));
+
+    if ($uuid === '') {
+      $result['missing_uuid_count']++;
+    }
+
+    if (!$is_root && $label === '') {
+      $result['missing_label_count']++;
+    }
+
+    if (!$is_root && $slug === '') {
+      $result['missing_slug_count']++;
+    }
+
+    if ($is_root) {
+      if ($type !== '' && $type !== 'root') {
+        $result['warnings'][] = 'Root node type is not root. Review before using a future write-capable import.';
+      }
+    } elseif (!in_array($type, ['axis', 'term'], true)) {
+      $result['invalid_type_count']++;
+    }
+
+    $children = $node['children'] ?? [];
+
+    if (!is_array($children)) {
+      $result['non_array_child_count']++;
+      return;
+    }
+
+    $sibling_slugs = [];
+
+    foreach ($children as $index => $child) {
+      if (!is_array($child)) {
+        $result['non_array_child_count']++;
+        continue;
+      }
+
+      $child_label = trim((string) ($child['label'] ?? ''));
+      $child_slug = sanitize_title((string) ($child['slug'] ?? ''));
+      $child_path = $path . ' > ' . ($child_label !== '' ? $child_label : 'child-' . ((int) $index + 1));
+
+      if ($child_slug !== '') {
+        if (isset($sibling_slugs[$child_slug])) {
+          $result['duplicate_sibling_slug_paths'][] = $path . ' / ' . $child_slug;
+        } else {
+          $sibling_slugs[$child_slug] = true;
+        }
+      }
+
+      self::validate_taxonomy_import_node($child, $child_path, false, $result);
+    }
   }
 
   private static function count_archived_nodes(array $node): int
@@ -2066,6 +2233,26 @@ class CFM_Admin
             <th>Duplicate UUIDs in Upload</th>
             <td><?php echo esc_html((string) ($preview['duplicate_uuid_count'] ?? 0)); ?></td>
           </tr>
+          <tr>
+            <th>Duplicate Sibling Slugs</th>
+            <td><?php echo esc_html((string) ($preview['duplicate_sibling_slug_count'] ?? 0)); ?></td>
+          </tr>
+          <tr>
+            <th>Missing UUIDs</th>
+            <td><?php echo esc_html((string) ($preview['missing_uuid_count'] ?? 0)); ?></td>
+          </tr>
+          <tr>
+            <th>Missing Labels</th>
+            <td><?php echo esc_html((string) ($preview['missing_label_count'] ?? 0)); ?></td>
+          </tr>
+          <tr>
+            <th>Missing Slugs</th>
+            <td><?php echo esc_html((string) ($preview['missing_slug_count'] ?? 0)); ?></td>
+          </tr>
+          <tr>
+            <th>Invalid Types</th>
+            <td><?php echo esc_html((string) ($preview['invalid_type_count'] ?? 0)); ?></td>
+          </tr>
         </tbody>
       </table>
 
@@ -2074,6 +2261,15 @@ class CFM_Admin
         <ul>
           <?php foreach ($preview['uuid_collision_samples'] as $uuid) : ?>
             <li><code><?php echo esc_html((string) $uuid); ?></code></li>
+          <?php endforeach; ?>
+        </ul>
+      <?php endif; ?>
+
+      <?php if (!empty($preview['duplicate_sibling_slug_samples']) && is_array($preview['duplicate_sibling_slug_samples'])) : ?>
+        <p><strong>Duplicate sibling slug samples:</strong></p>
+        <ul>
+          <?php foreach ($preview['duplicate_sibling_slug_samples'] as $slug_path) : ?>
+            <li><code><?php echo esc_html((string) $slug_path); ?></code></li>
           <?php endforeach; ?>
         </ul>
       <?php endif; ?>
