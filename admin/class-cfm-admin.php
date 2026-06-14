@@ -2640,6 +2640,254 @@ class CFM_Admin
   <?php
   }
 
+
+  private static function compare_taxonomy_trees(array $snapshot_tree, array $current_tree): array
+  {
+    $snapshot_nodes = self::flatten_taxonomy_tree_for_comparison($snapshot_tree);
+    $current_nodes = self::flatten_taxonomy_tree_for_comparison($current_tree);
+
+    $snapshot_uuids = array_keys($snapshot_nodes);
+    $current_uuids = array_keys($current_nodes);
+
+    $added_uuids = array_values(array_diff($current_uuids, $snapshot_uuids));
+    $removed_uuids = array_values(array_diff($snapshot_uuids, $current_uuids));
+    $shared_uuids = array_values(array_intersect($snapshot_uuids, $current_uuids));
+
+    $label_changes = [];
+    $slug_changes = [];
+    $parent_changes = [];
+    $archive_changes = [];
+
+    foreach ($shared_uuids as $uuid) {
+      $snapshot = $snapshot_nodes[$uuid];
+      $current = $current_nodes[$uuid];
+
+      if ((string) $snapshot['label'] !== (string) $current['label']) {
+        $label_changes[] = [
+          'uuid' => $uuid,
+          'before' => (string) $snapshot['label'],
+          'after' => (string) $current['label'],
+        ];
+      }
+
+      if ((string) $snapshot['slug'] !== (string) $current['slug']) {
+        $slug_changes[] = [
+          'uuid' => $uuid,
+          'before' => (string) $snapshot['slug'],
+          'after' => (string) $current['slug'],
+        ];
+      }
+
+      if ((string) $snapshot['parent_uuid'] !== (string) $current['parent_uuid']) {
+        $parent_changes[] = [
+          'uuid' => $uuid,
+          'label' => (string) $current['label'],
+          'before' => (string) $snapshot['parent_label'],
+          'after' => (string) $current['parent_label'],
+        ];
+      }
+
+      if ((bool) $snapshot['archived'] !== (bool) $current['archived']) {
+        $archive_changes[] = [
+          'uuid' => $uuid,
+          'label' => (string) $current['label'],
+          'before' => !empty($snapshot['archived']) ? 'Archived' : 'Active',
+          'after' => !empty($current['archived']) ? 'Archived' : 'Active',
+        ];
+      }
+    }
+
+    return [
+      'snapshot_total' => count($snapshot_nodes),
+      'current_total' => count($current_nodes),
+      'added' => count($added_uuids),
+      'removed' => count($removed_uuids),
+      'label_changed' => count($label_changes),
+      'slug_changed' => count($slug_changes),
+      'parent_changed' => count($parent_changes),
+      'archive_changed' => count($archive_changes),
+      'added_samples' => self::sample_comparison_nodes($added_uuids, $current_nodes),
+      'removed_samples' => self::sample_comparison_nodes($removed_uuids, $snapshot_nodes),
+      'label_change_samples' => array_slice($label_changes, 0, 8),
+      'slug_change_samples' => array_slice($slug_changes, 0, 8),
+      'parent_change_samples' => array_slice($parent_changes, 0, 8),
+      'archive_change_samples' => array_slice($archive_changes, 0, 8),
+    ];
+  }
+
+  private static function flatten_taxonomy_tree_for_comparison(array $node, string $parent_uuid = '', string $parent_label = ''): array
+  {
+    $nodes = [];
+    $uuid = trim((string) ($node['uuid'] ?? ''));
+    $type = (string) ($node['type'] ?? '');
+    $status = (string) ($node['status'] ?? '');
+
+    if ($uuid !== '') {
+      $nodes[$uuid] = [
+        'uuid' => $uuid,
+        'type' => $type,
+        'label' => (string) ($node['label'] ?? ''),
+        'slug' => (string) ($node['slug'] ?? ''),
+        'parent_uuid' => $parent_uuid,
+        'parent_label' => $parent_label,
+        'archived' => (!empty($node['archived']) || !empty($node['archived_at']) || $status === 'archived'),
+      ];
+    }
+
+    $children = $node['children'] ?? [];
+
+    if (!is_array($children)) {
+      return $nodes;
+    }
+
+    foreach ($children as $child) {
+      if (!is_array($child)) {
+        continue;
+      }
+
+      $child_nodes = self::flatten_taxonomy_tree_for_comparison(
+        $child,
+        $uuid,
+        (string) ($node['label'] ?? '')
+      );
+
+      foreach ($child_nodes as $child_uuid => $child_node) {
+        $nodes[$child_uuid] = $child_node;
+      }
+    }
+
+    return $nodes;
+  }
+
+  private static function sample_comparison_nodes(array $uuids, array $nodes): array
+  {
+    $samples = [];
+
+    foreach (array_slice($uuids, 0, 8) as $uuid) {
+      if (!isset($nodes[$uuid])) {
+        continue;
+      }
+
+      $samples[] = [
+        'uuid' => (string) $uuid,
+        'label' => (string) ($nodes[$uuid]['label'] ?? ''),
+        'slug' => (string) ($nodes[$uuid]['slug'] ?? ''),
+      ];
+    }
+
+    return $samples;
+  }
+
+  private static function render_taxonomy_comparison_summary(array $comparison): void
+  {
+  ?>
+    <h2>Compare Snapshot to Current Taxonomy</h2>
+
+    <p>This read-only comparison shows how the current Profile Taxonomy differs from this snapshot.</p>
+
+    <?php
+    $total_differences = (int) ($comparison['added'] ?? 0)
+      + (int) ($comparison['removed'] ?? 0)
+      + (int) ($comparison['label_changed'] ?? 0)
+      + (int) ($comparison['slug_changed'] ?? 0)
+      + (int) ($comparison['parent_changed'] ?? 0)
+      + (int) ($comparison['archive_changed'] ?? 0);
+    ?>
+
+    <?php if ($total_differences === 0) : ?>
+      <div class="notice notice-success inline" style="max-width: 900px;">
+        <p>No differences between this snapshot and the current Profile Taxonomy.</p>
+      </div>
+    <?php endif; ?>
+
+    <table class="widefat striped" style="max-width: 900px;">
+      <tbody>
+        <tr>
+          <th style="width: 260px;">Snapshot terms</th>
+          <td><?php echo esc_html((string) ($comparison['snapshot_total'] ?? 0)); ?></td>
+        </tr>
+        <tr>
+          <th>Current terms</th>
+          <td><?php echo esc_html((string) ($comparison['current_total'] ?? 0)); ?></td>
+        </tr>
+        <tr>
+          <th>Terms added since snapshot</th>
+          <td><?php echo esc_html((string) ($comparison['added'] ?? 0)); ?></td>
+        </tr>
+        <tr>
+          <th>Terms removed since snapshot</th>
+          <td><?php echo esc_html((string) ($comparison['removed'] ?? 0)); ?></td>
+        </tr>
+        <tr>
+          <th>Labels changed</th>
+          <td><?php echo esc_html((string) ($comparison['label_changed'] ?? 0)); ?></td>
+        </tr>
+        <tr>
+          <th>Slugs changed</th>
+          <td><?php echo esc_html((string) ($comparison['slug_changed'] ?? 0)); ?></td>
+        </tr>
+        <tr>
+          <th>Parent changes</th>
+          <td><?php echo esc_html((string) ($comparison['parent_changed'] ?? 0)); ?></td>
+        </tr>
+        <tr>
+          <th>Archive status changes</th>
+          <td><?php echo esc_html((string) ($comparison['archive_changed'] ?? 0)); ?></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <?php self::render_comparison_samples('Added term samples', $comparison['added_samples'] ?? []); ?>
+    <?php self::render_comparison_samples('Removed term samples', $comparison['removed_samples'] ?? []); ?>
+    <?php self::render_field_change_samples('Label change samples', $comparison['label_change_samples'] ?? []); ?>
+    <?php self::render_field_change_samples('Slug change samples', $comparison['slug_change_samples'] ?? []); ?>
+    <?php self::render_field_change_samples('Parent change samples', $comparison['parent_change_samples'] ?? []); ?>
+    <?php self::render_field_change_samples('Archive status change samples', $comparison['archive_change_samples'] ?? []); ?>
+  <?php
+  }
+
+  private static function render_comparison_samples(string $heading, array $samples): void
+  {
+    if (empty($samples)) {
+      return;
+    }
+
+  ?>
+    <h3><?php echo esc_html($heading); ?></h3>
+    <ul>
+      <?php foreach ($samples as $sample) : ?>
+        <li>
+          <?php echo esc_html((string) ($sample['label'] ?? '')); ?>
+          <code><?php echo esc_html((string) ($sample['slug'] ?? '')); ?></code>
+        </li>
+      <?php endforeach; ?>
+    </ul>
+  <?php
+  }
+
+  private static function render_field_change_samples(string $heading, array $samples): void
+  {
+    if (empty($samples)) {
+      return;
+    }
+
+  ?>
+    <h3><?php echo esc_html($heading); ?></h3>
+    <ul>
+      <?php foreach ($samples as $sample) : ?>
+        <li>
+          <?php if (!empty($sample['label'])) : ?>
+            <?php echo esc_html((string) $sample['label']); ?>:
+          <?php endif; ?>
+          <code><?php echo esc_html((string) ($sample['before'] ?? '')); ?></code>
+          →
+          <code><?php echo esc_html((string) ($sample['after'] ?? '')); ?></code>
+        </li>
+      <?php endforeach; ?>
+    </ul>
+  <?php
+  }
+
   public static function render_version_snapshot_page(): void
   {
     if (!current_user_can('manage_options')) {
@@ -2669,6 +2917,12 @@ class CFM_Admin
     $tree = json_decode((string) $version->tree_json, true);
     $is_active_version = ((int) $framework->active_version_id === (int) $version->id);
     $pretty_json = wp_json_encode($tree, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    $comparison = [];
+
+    if (is_array($tree)) {
+      $current_tree = self::get_framework_tree($framework);
+      $comparison = self::compare_taxonomy_trees($tree, $current_tree);
+    }
 
   ?>
     <div class="wrap">
@@ -2725,6 +2979,11 @@ class CFM_Admin
             Restore This Recovery Snapshot
           </a>
         </p>
+      <?php endif; ?>
+
+      <?php if (is_array($tree) && !empty($comparison)) : ?>
+        <hr>
+        <?php self::render_taxonomy_comparison_summary($comparison); ?>
       <?php endif; ?>
 
       <hr>
