@@ -33,7 +33,20 @@ class CFM_Admin
       return;
     }
 
-    if (!is_admin() || empty($_POST['cfm_action'])) {
+    if (!is_admin()) {
+      return;
+    }
+
+    if (!empty($_GET['cfm_action'])) {
+      $action = sanitize_key(wp_unslash($_GET['cfm_action']));
+
+      if ($action === 'export_taxonomy') {
+        self::handle_export_taxonomy();
+        return;
+      }
+    }
+
+    if (empty($_POST['cfm_action'])) {
       return;
     }
 
@@ -125,6 +138,95 @@ class CFM_Admin
       'version_id' => $version_id,
       'query_arg' => '&cfm_autocompiled=1',
     ];
+  }
+
+
+  private static function handle_export_taxonomy(): void
+  {
+    if (!current_user_can('manage_options')) {
+      wp_die('You do not have permission to export this profile taxonomy.');
+    }
+
+    $framework_id = isset($_GET['framework_id']) ? absint($_GET['framework_id']) : 0;
+
+    if ($framework_id <= 0) {
+      wp_die('Missing profile taxonomy ID.');
+    }
+
+    check_admin_referer('cfm_export_taxonomy_' . $framework_id);
+
+    $framework = CFM_Framework_Repository::get_framework($framework_id);
+
+    if (!$framework) {
+      wp_die('Profile taxonomy not found.');
+    }
+
+    $active_version = CFM_Framework_Repository::get_active_version($framework_id);
+    $tree = self::get_framework_tree($framework);
+    self::normalize_tree_children($tree);
+
+    $export = [
+      'export_type' => 'profilaxes_profile_taxonomy',
+      'export_schema_version' => 1,
+      'exported_at' => current_time('mysql'),
+      'site_url' => site_url(),
+      'plugin' => [
+        'name' => 'Profilaxes',
+        'version' => defined('CFM_VERSION') ? CFM_VERSION : '',
+      ],
+      'framework' => [
+        'id' => (int) $framework->id,
+        'uuid' => (string) $framework->framework_uuid,
+        'name' => (string) $framework->name,
+        'slug' => (string) $framework->slug,
+        'description' => (string) $framework->description,
+        'active_version_id' => !empty($framework->active_version_id) ? (int) $framework->active_version_id : null,
+      ],
+      'active_version' => $active_version ? [
+        'id' => (int) $active_version->id,
+        'version_number' => (int) $active_version->version_number,
+        'status' => (string) $active_version->status,
+        'compiled_at' => $active_version->compiled_at ?: null,
+        'created_by' => !empty($active_version->created_by) ? (int) $active_version->created_by : null,
+        'created_at' => (string) $active_version->created_at,
+      ] : null,
+      'source_of_truth' => [
+        'canonical_data' => 'framework_versions.tree_json',
+        'runtime_tables' => [
+          'cfm_terms_compiled',
+          'cfm_term_closure',
+        ],
+        'runtime_tables_rebuildable' => true,
+        'assignment_storage' => 'cfm_user_terms stores user assignments by stable term UUID',
+      ],
+      'tree' => $tree,
+    ];
+
+    $json = wp_json_encode($export, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+
+    if (!is_string($json) || $json === '') {
+      wp_die('Profile taxonomy export could not be encoded.');
+    }
+
+    $filename_parts = array_filter([
+      'profilaxes-taxonomy',
+      sanitize_title((string) $framework->slug),
+      gmdate('Ymd-His'),
+    ]);
+
+    $filename = implode('-', $filename_parts) . '.json';
+
+    if (ob_get_length()) {
+      ob_end_clean();
+    }
+
+    nocache_headers();
+    header('Content-Type: application/json; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Content-Length: ' . strlen($json));
+
+    echo $json;
+    exit;
   }
 
 
@@ -1780,6 +1882,18 @@ class CFM_Admin
     );
   }
 
+
+  private static function export_taxonomy_url(int $framework_id): string
+  {
+    $url = add_query_arg([
+      'page' => 'cfm-frameworks',
+      'cfm_action' => 'export_taxonomy',
+      'framework_id' => $framework_id,
+    ], admin_url('admin.php'));
+
+    return wp_nonce_url($url, 'cfm_export_taxonomy_' . $framework_id);
+  }
+
   public static function render_versions_page(): void
   {
     if (!current_user_can('manage_options')) {
@@ -2841,6 +2955,18 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
           <a class="button" href="<?php echo esc_url(self::compiled_debug_url((int) $framework->id)); ?>" style="margin-left: 8px;">Open Compiled Query Debug</a>
         </form>
       <?php endif; ?>
+
+      <hr>
+
+      <h2>Export</h2>
+      <p class="description">
+        Download the canonical editable profile taxonomy tree as JSON. This export preserves UUIDs, hierarchy, order, archive state when present, and active version metadata. Runtime compiler tables are intentionally not exported because they can be rebuilt.
+      </p>
+      <p>
+        <a class="button" href="<?php echo esc_url(self::export_taxonomy_url((int) $framework->id)); ?>">
+          Export Profile Taxonomy JSON
+        </a>
+      </p>
 
       <hr>
 
