@@ -2376,7 +2376,7 @@ class CFM_Admin
           <input type="hidden" name="cfm_action" value="import_taxonomy_replace">
           <input type="hidden" name="framework_id" value="<?php echo esc_attr((string) ($_GET['framework_id'] ?? '')); ?>">
 
-          <p><strong>Danger zone:</strong> this will replace the current canonical editable Profile Taxonomy tree, save the current tree as a pre-import snapshot version, and rebuild runtime tables.</p>
+          <p><strong>Danger zone:</strong> this will replace the current canonical editable Profile Taxonomy tree, automatically save the current tree as a recovery snapshot, and rebuild runtime tables.</p>
 
           <label>
             <input type="checkbox" name="confirm_replace_taxonomy" value="1" required>
@@ -3413,7 +3413,13 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
 
       <?php if (isset($_GET['cfm_import_replaced'])) : ?>
         <div class="notice notice-success is-dismissible">
-          <p>Profile taxonomy imported as a replacement and runtime tables rebuilt. A pre-import snapshot version was saved.</p>
+          <p>
+            Profile taxonomy imported as a replacement and runtime tables rebuilt.
+            A recovery snapshot was saved automatically before the import.
+            <?php if (!empty($_GET['cfm_import_snapshot_id'])) : ?>
+              <a href="<?php echo esc_url(self::version_snapshot_url((int) $framework->id, absint($_GET['cfm_import_snapshot_id']))); ?>">View recovery snapshot</a>.
+            <?php endif; ?>
+          </p>
         </div>
       <?php endif; ?>
 
@@ -3523,7 +3529,10 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
 
       <hr>
 
-      <h2>Version History</h2>
+      <h2>History</h2>
+      <p class="description">
+        History records active taxonomy versions and automatic recovery snapshots, including snapshots created before replacement imports.
+      </p>
 
       <?php
       $version_count = CFM_Framework_Repository::count_versions((int) $framework->id);
@@ -3543,7 +3552,8 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
         <table class="widefat striped" style="max-width: 760px;">
           <thead>
             <tr>
-              <th>Recent Version</th>
+              <th>Recent Item</th>
+              <th>Status</th>
               <th>Created</th>
               <th>JSON Size</th>
               <th>Actions</th>
@@ -3556,7 +3566,14 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
                 <td>
                   <strong>v<?php echo esc_html((string) $version_row->version_number); ?></strong>
                   <?php if ($is_active_version) : ?>
-                    <span style="color: #008a20; margin-left: 6px;">Active</span>
+                    <span style="color: #008a20; margin-left: 6px;">Current</span>
+                  <?php endif; ?>
+                </td>
+                <td>
+                  <?php if ((string) $version_row->status === 'pre_import_snapshot') : ?>
+                    Recovery snapshot
+                  <?php else : ?>
+                    <?php echo esc_html(ucwords(str_replace('_', ' ', (string) $version_row->status))); ?>
                   <?php endif; ?>
                 </td>
                 <td><?php echo esc_html($version_row->created_at); ?></td>
@@ -3572,7 +3589,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
 
       <p>
         <a class="button" href="<?php echo esc_url(self::versions_url((int) $framework->id)); ?>">
-          View Full Version History
+          View Full History
         </a>
       </p>
 
@@ -3631,7 +3648,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
 
       <h2 id="cfm-import">Import</h2>
       <p class="description">
-        Upload a Profilaxes taxonomy JSON export to validate it and preview what it contains. After a valid preview, you may import it as a full replacement. Replacement saves the current tree as a pre-import snapshot and rebuilds runtime tables.
+        Upload a Profilaxes taxonomy JSON export to validate it and preview what it contains. After a valid preview, you may import it as a full replacement. Replacement automatically saves the current tree as a recovery snapshot and rebuilds runtime tables.
       </p>
 
       <form method="post" enctype="multipart/form-data">
@@ -3651,8 +3668,26 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
           </tr>
         </table>
 
-        <?php submit_button('Preview Import', 'secondary', 'submit', false); ?>
+        <?php submit_button('Preview Import', 'secondary', 'submit', false, ['id' => 'cfm-preview-import-button', 'disabled' => 'disabled']); ?>
       </form>
+
+      <script>
+        (function() {
+          var fileInput = document.getElementById('taxonomy_import_file');
+          var previewButton = document.getElementById('cfm-preview-import-button');
+
+          if (!fileInput || !previewButton) {
+            return;
+          }
+
+          var refreshPreviewButton = function() {
+            previewButton.disabled = !fileInput.files || fileInput.files.length === 0;
+          };
+
+          fileInput.addEventListener('change', refreshPreviewButton);
+          refreshPreviewButton();
+        }());
+      </script>
 
       <?php if (is_array($import_preview)) : ?>
         <?php self::render_taxonomy_import_preview($import_preview); ?>
