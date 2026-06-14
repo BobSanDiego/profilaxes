@@ -3416,6 +3416,78 @@ class CFM_Admin
   <?php
   }
 
+  private static function render_term_metadata_autofill_script(): void
+  {
+  ?>
+    <script>
+      (function() {
+        if (window.cfmTermMetadataAutofillLoaded) {
+          return;
+        }
+        window.cfmTermMetadataAutofillLoaded = true;
+
+        var normalizeSlug = function(value) {
+          value = String(value || '');
+          value = value.replace(/&/g, ' and ');
+          value = value.replace(/[\'’`]/g, '');
+          value = value.toLowerCase();
+          value = value.replace(/[^a-z0-9]+/g, '-');
+          value = value.replace(/-+/g, '-');
+          value = value.replace(/^-+|-+$/g, '');
+          return value;
+        };
+
+        var fillTarget = function(labelInput, target, detached) {
+          if (detached[target.name]) {
+            return;
+          }
+
+          var type = target.getAttribute('data-cfm-autofill-type');
+          target.value = type === 'slug' ? normalizeSlug(labelInput.value) : labelInput.value;
+        };
+
+        var wireGroup = function(groupName) {
+          var labelInput = document.querySelector('[data-cfm-autofill-label="' + groupName + '"]');
+          var targets = Array.prototype.slice.call(document.querySelectorAll('[data-cfm-autofill-target="' + groupName + '"]'));
+          var detached = {};
+
+          if (!labelInput || targets.length === 0) {
+            return;
+          }
+
+          targets.forEach(function(target) {
+            detached[target.name] = target.value.trim() !== '';
+
+            target.addEventListener('input', function() {
+              detached[target.name] = target.value.trim() !== '';
+              if (!detached[target.name]) {
+                fillTarget(labelInput, target, detached);
+              }
+            });
+          });
+
+          labelInput.addEventListener('input', function() {
+            targets.forEach(function(target) {
+              fillTarget(labelInput, target, detached);
+            });
+          });
+        };
+
+        wireGroup('add-axis');
+        wireGroup('add-term');
+        wireGroup('edit-term');
+
+        if (window.location.hash === '#cfm-add-term') {
+          var addTermLabel = document.querySelector('[data-cfm-autofill-label="add-term"]');
+          if (addTermLabel) {
+            addTermLabel.focus();
+          }
+        }
+      }());
+    </script>
+  <?php
+  }
+
   public static function render_edit_term_page(): void
   {
     if (!current_user_can('manage_options')) {
@@ -3473,14 +3545,14 @@ class CFM_Admin
           <tr>
             <th scope="row"><label for="term_label">Term Label</label></th>
             <td>
-              <input name="term_label" id="term_label" type="text" class="regular-text" value="<?php echo esc_attr($term['label'] ?? ''); ?>" required>
+              <input name="term_label" id="term_label" type="text" class="regular-text" value="<?php echo esc_attr($term['label'] ?? ''); ?>" data-cfm-autofill-label="edit-term" required>
             </td>
           </tr>
 
           <tr>
             <th scope="row"><label for="term_slug">Term Slug</label></th>
             <td>
-              <input name="term_slug" id="term_slug" type="text" class="regular-text" value="<?php echo esc_attr($term['slug'] ?? ''); ?>">
+              <input name="term_slug" id="term_slug" type="text" class="regular-text" value="<?php echo esc_attr($term['slug'] ?? ''); ?>" data-cfm-autofill-target="edit-term" data-cfm-autofill-type="slug">
               <p class="description">Keep this stable unless you intentionally need to change API-facing references.</p>
             </td>
           </tr>
@@ -3488,7 +3560,7 @@ class CFM_Admin
           <tr>
             <th scope="row"><label for="term_short_label">Short Label</label></th>
             <td>
-              <input name="term_short_label" id="term_short_label" type="text" class="regular-text" value="<?php echo esc_attr(self::display_short_label_for_node($term)); ?>">
+              <input name="term_short_label" id="term_short_label" type="text" class="regular-text" value="<?php echo esc_attr(self::display_short_label_for_node($term)); ?>" data-cfm-autofill-target="edit-term" data-cfm-autofill-type="copy">
               <p class="description">Compact display text for narrow UI placements. Leave blank to use the term label.</p>
             </td>
           </tr>
@@ -3496,7 +3568,7 @@ class CFM_Admin
           <tr>
             <th scope="row"><label for="term_description">Description</label></th>
             <td>
-              <textarea name="term_description" id="term_description" class="large-text" rows="3"><?php echo esc_textarea(self::display_description_for_node($term)); ?></textarea>
+              <textarea name="term_description" id="term_description" class="large-text" rows="3" data-cfm-autofill-target="edit-term" data-cfm-autofill-type="copy"><?php echo esc_textarea(self::display_description_for_node($term)); ?></textarea>
               <p class="description">Plain-text explanation for hover/help text and richer display contexts. Leave blank to use the term label.</p>
             </td>
           </tr>
@@ -3514,6 +3586,8 @@ class CFM_Admin
 
         <?php submit_button('Save Term'); ?>
       </form>
+
+      <?php self::render_term_metadata_autofill_script(); ?>
     </div>
   <?php
   }
@@ -4258,7 +4332,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
               <label for="axis_label">Axis Label</label>
             </th>
             <td>
-              <input name="axis_label" id="axis_label" type="text" class="regular-text" required>
+              <input name="axis_label" id="axis_label" type="text" class="regular-text" data-cfm-autofill-label="add-axis" required>
               <p class="description">Example: Grade Level, Curriculum, Region, Practice Area</p>
             </td>
           </tr>
@@ -4268,7 +4342,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
               <label for="axis_slug">Axis Slug</label>
             </th>
             <td>
-              <input name="axis_slug" id="axis_slug" type="text" class="regular-text">
+              <input name="axis_slug" id="axis_slug" type="text" class="regular-text" data-cfm-autofill-target="add-axis" data-cfm-autofill-type="slug">
               <p class="description">Example: grade-level, curriculum, region</p>
             </td>
           </tr>
@@ -4278,7 +4352,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
               <label for="axis_short_label">Short Label</label>
             </th>
             <td>
-              <input name="axis_short_label" id="axis_short_label" type="text" class="regular-text">
+              <input name="axis_short_label" id="axis_short_label" type="text" class="regular-text" data-cfm-autofill-target="add-axis" data-cfm-autofill-type="copy">
               <p class="description">Compact display text. Leave blank to use the axis label.</p>
             </td>
           </tr>
@@ -4288,7 +4362,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
               <label for="axis_description">Description</label>
             </th>
             <td>
-              <textarea name="axis_description" id="axis_description" class="large-text" rows="3"></textarea>
+              <textarea name="axis_description" id="axis_description" class="large-text" rows="3" data-cfm-autofill-target="add-axis" data-cfm-autofill-type="copy"></textarea>
               <p class="description">Plain-text explanation. Leave blank to use the axis label.</p>
             </td>
           </tr>
@@ -4329,7 +4403,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
                 <label for="term_label">Term Label</label>
               </th>
               <td>
-                <input name="term_label" id="term_label" type="text" class="regular-text" required>
+                <input name="term_label" id="term_label" type="text" class="regular-text" data-cfm-autofill-label="add-term" required>
                 <p class="description">Example: Grade 1, Elementary, Algebra, California</p>
               </td>
             </tr>
@@ -4339,7 +4413,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
                 <label for="term_slug">Term Slug</label>
               </th>
               <td>
-                <input name="term_slug" id="term_slug" type="text" class="regular-text">
+                <input name="term_slug" id="term_slug" type="text" class="regular-text" data-cfm-autofill-target="add-term" data-cfm-autofill-type="slug">
                 <p class="description">Example: grade-1, elementary, algebra, california</p>
               </td>
             </tr>
@@ -4349,7 +4423,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
                 <label for="term_short_label">Short Label</label>
               </th>
               <td>
-                <input name="term_short_label" id="term_short_label" type="text" class="regular-text">
+                <input name="term_short_label" id="term_short_label" type="text" class="regular-text" data-cfm-autofill-target="add-term" data-cfm-autofill-type="copy">
                 <p class="description">Compact display text. Leave blank to use the term label.</p>
               </td>
             </tr>
@@ -4359,7 +4433,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
                 <label for="term_description">Description</label>
               </th>
               <td>
-                <textarea name="term_description" id="term_description" class="large-text" rows="3"></textarea>
+                <textarea name="term_description" id="term_description" class="large-text" rows="3" data-cfm-autofill-target="add-term" data-cfm-autofill-type="copy"></textarea>
                 <p class="description">Plain-text explanation. Leave blank to use the term label.</p>
               </td>
             </tr>
@@ -4368,6 +4442,8 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
           <?php submit_button('Add Term'); ?>
         </form>
       <?php endif; ?>
+
+      <?php self::render_term_metadata_autofill_script(); ?>
     </div>
 <?php
   }
