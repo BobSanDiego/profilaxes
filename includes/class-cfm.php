@@ -8,9 +8,20 @@ class CFM
 {
   public static function init(): void
   {
+    add_action('init', [__CLASS__, 'maybe_upgrade_schema']);
     add_action('show_user_profile', [__CLASS__, 'render_user_profile_terms']);
     add_action('edit_user_profile', [__CLASS__, 'render_user_profile_terms']);
     add_action('admin_menu', [__CLASS__, 'register_assignment_admin_page']);
+  }
+
+  public static function maybe_upgrade_schema(): void
+  {
+    if (get_option('cfm_schema_term_metadata_v1') === '1') {
+      return;
+    }
+
+    CFM_Schema::install();
+    update_option('cfm_schema_term_metadata_v1', '1');
   }
 
   public static function get_framework(string $framework_slug): ?object

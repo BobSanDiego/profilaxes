@@ -111,6 +111,16 @@ class CFM_Compiler
     $uuid = isset($node['uuid']) ? (string) $node['uuid'] : '';
     $label = isset($node['label']) ? (string) $node['label'] : '';
     $slug = isset($node['slug']) ? sanitize_title((string) $node['slug']) : '';
+    $short_label = trim((string) ($node['short_label'] ?? ''));
+    $description = trim((string) ($node['description'] ?? ''));
+
+    if ($short_label === '') {
+      $short_label = $label;
+    }
+
+    if ($description === '') {
+      $description = $label;
+    }
     $type = isset($node['type']) ? (string) $node['type'] : 'term';
 
     if ($uuid === '' || $label === '' || $slug === '') {
@@ -136,8 +146,9 @@ class CFM_Compiler
         'parent_uuid' => $parent_uuid,
         'axis_uuid' => $axis_uuid,
         'label' => $label,
+        'short_label' => $short_label,
         'slug' => $slug,
-        'description' => isset($node['description']) ? (string) $node['description'] : '',
+        'description' => $description,
         'sort_order' => $sort_order,
         'depth' => $depth,
         'path' => $path,
@@ -149,6 +160,7 @@ class CFM_Compiler
       [
         '%d',
         '%d',
+        '%s',
         '%s',
         '%s',
         '%s',

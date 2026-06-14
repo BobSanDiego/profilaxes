@@ -62,6 +62,7 @@ class CFM_Schema
                 parent_uuid CHAR(36) NULL,
                 axis_uuid CHAR(36) NULL,
                 label VARCHAR(190) NOT NULL,
+                short_label VARCHAR(190) NULL,
                 slug VARCHAR(190) NOT NULL,
                 description TEXT NULL,
                 sort_order INT UNSIGNED NOT NULL DEFAULT 0,

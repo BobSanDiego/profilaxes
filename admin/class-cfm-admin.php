@@ -452,7 +452,18 @@ class CFM_Admin
 
     $framework_id = absint($_POST['framework_id'] ?? 0);
     $axis_label = sanitize_text_field(wp_unslash($_POST['axis_label'] ?? ''));
-    $axis_slug = sanitize_title(wp_unslash($_POST['axis_slug'] ?? ''));
+    $axis_slug_input = wp_unslash($_POST['axis_slug'] ?? '');
+    $axis_slug = self::normalize_slug($axis_slug_input !== '' ? (string) $axis_slug_input : $axis_label);
+    $axis_short_label = sanitize_text_field(wp_unslash($_POST['axis_short_label'] ?? ''));
+    $axis_description = sanitize_textarea_field(wp_unslash($_POST['axis_description'] ?? ''));
+
+    if ($axis_short_label === '') {
+      $axis_short_label = $axis_label;
+    }
+
+    if ($axis_description === '') {
+      $axis_description = $axis_label;
+    }
 
     if ($framework_id <= 0 || $axis_label === '' || $axis_slug === '') {
       wp_safe_redirect(
@@ -482,8 +493,9 @@ class CFM_Admin
       'uuid' => wp_generate_uuid4(),
       'label' => $axis_label,
       'slug' => $axis_slug,
+      'short_label' => $axis_short_label,
       'type' => 'axis',
-      'description' => '',
+      'description' => $axis_description,
       'children' => [],
     ];
 
@@ -510,7 +522,18 @@ class CFM_Admin
     $framework_id = absint($_POST['framework_id'] ?? 0);
     $parent_uuid = sanitize_text_field(wp_unslash($_POST['parent_uuid'] ?? ''));
     $term_label = sanitize_text_field(wp_unslash($_POST['term_label'] ?? ''));
-    $term_slug = sanitize_title(wp_unslash($_POST['term_slug'] ?? ''));
+    $term_slug_input = wp_unslash($_POST['term_slug'] ?? '');
+    $term_slug = self::normalize_slug($term_slug_input !== '' ? (string) $term_slug_input : $term_label);
+    $term_short_label = sanitize_text_field(wp_unslash($_POST['term_short_label'] ?? ''));
+    $term_description = sanitize_textarea_field(wp_unslash($_POST['term_description'] ?? ''));
+
+    if ($term_short_label === '') {
+      $term_short_label = $term_label;
+    }
+
+    if ($term_description === '') {
+      $term_description = $term_label;
+    }
 
     if ($framework_id <= 0 || $parent_uuid === '' || $term_label === '' || $term_slug === '') {
       wp_safe_redirect(
@@ -554,8 +577,9 @@ class CFM_Admin
       'uuid' => wp_generate_uuid4(),
       'label' => $term_label,
       'slug' => $term_slug,
+      'short_label' => $term_short_label,
       'type' => 'term',
-      'description' => '',
+      'description' => $term_description,
       'children' => [],
     ];
 
@@ -591,7 +615,18 @@ class CFM_Admin
     $term_uuid = sanitize_text_field(wp_unslash($_POST['term_uuid'] ?? ''));
     $parent_uuid = sanitize_text_field(wp_unslash($_POST['parent_uuid'] ?? ''));
     $term_label = sanitize_text_field(wp_unslash($_POST['term_label'] ?? ''));
-    $term_slug = sanitize_title(wp_unslash($_POST['term_slug'] ?? ''));
+    $term_slug_input = wp_unslash($_POST['term_slug'] ?? '');
+    $term_slug = self::normalize_slug($term_slug_input !== '' ? (string) $term_slug_input : $term_label);
+    $term_short_label = sanitize_text_field(wp_unslash($_POST['term_short_label'] ?? ''));
+    $term_description = sanitize_textarea_field(wp_unslash($_POST['term_description'] ?? ''));
+
+    if ($term_short_label === '') {
+      $term_short_label = $term_label;
+    }
+
+    if ($term_description === '') {
+      $term_description = $term_label;
+    }
 
     if ($framework_id <= 0 || $term_uuid === '' || $parent_uuid === '' || $term_label === '' || $term_slug === '') {
       wp_safe_redirect(admin_url('admin.php?page=cfm-frameworks&action=edit_term&framework_id=' . $framework_id . '&term_uuid=' . rawurlencode($term_uuid) . '&cfm_error=missing_edit_fields'));
@@ -639,7 +674,7 @@ class CFM_Admin
     }
 
     if ($current_parent_uuid === $parent_uuid) {
-      $updated = self::update_node_label_slug_by_uuid($tree, $term_uuid, $term_label, $term_slug);
+      $updated = self::update_node_metadata_by_uuid($tree, $term_uuid, $term_label, $term_slug, $term_short_label, $term_description);
 
       if (!$updated) {
         wp_die('Unable to update term.');
@@ -654,6 +689,8 @@ class CFM_Admin
 
       $removed_term['label'] = $term_label;
       $removed_term['slug'] = $term_slug;
+      $removed_term['short_label'] = $term_short_label;
+      $removed_term['description'] = $term_description;
 
       $added = self::append_child_to_node_by_uuid($tree, $parent_uuid, $removed_term);
 
@@ -897,11 +934,13 @@ class CFM_Admin
     return null;
   }
 
-  private static function update_node_label_slug_by_uuid(array &$node, string $uuid, string $label, string $slug): bool
+  private static function update_node_metadata_by_uuid(array &$node, string $uuid, string $label, string $slug, string $short_label, string $description): bool
   {
     if (($node['uuid'] ?? '') === $uuid) {
       $node['label'] = $label;
       $node['slug'] = $slug;
+      $node['short_label'] = $short_label !== '' ? $short_label : $label;
+      $node['description'] = $description !== '' ? $description : $label;
       return true;
     }
 
@@ -914,7 +953,7 @@ class CFM_Admin
         continue;
       }
 
-      if (self::update_node_label_slug_by_uuid($child, $uuid, $label, $slug)) {
+      if (self::update_node_metadata_by_uuid($child, $uuid, $label, $slug, $short_label, $description)) {
         unset($child);
         return true;
       }
@@ -1007,9 +1046,32 @@ class CFM_Admin
     return false;
   }
 
+  private static function normalize_slug(string $value): string
+  {
+    $value = html_entity_decode($value, ENT_QUOTES, 'UTF-8');
+    $value = str_replace('&', ' and ', $value);
+    $value = preg_replace("/[\'’`]/u", '', $value);
+
+    if (function_exists('remove_accents')) {
+      $value = remove_accents($value);
+    }
+
+    if (function_exists('mb_strtolower')) {
+      $value = mb_strtolower($value, 'UTF-8');
+    } else {
+      $value = strtolower($value);
+    }
+
+    $value = preg_replace('/[^a-z0-9]+/i', '-', $value);
+    $value = preg_replace('/-+/', '-', (string) $value);
+    $value = trim((string) $value, '-');
+
+    return $value;
+  }
+
   private static function has_child_slug_conflict(array $tree, string $parent_uuid, string $slug, string $exclude_uuid = ''): bool
   {
-    $slug = sanitize_title($slug);
+    $slug = self::normalize_slug($slug);
 
     if ($parent_uuid === '' || $slug === '') {
       return false;
@@ -1038,7 +1100,7 @@ class CFM_Admin
         continue;
       }
 
-      if (sanitize_title((string) ($child['slug'] ?? '')) === $slug) {
+      if (self::normalize_slug((string) ($child['slug'] ?? '')) === $slug) {
         return true;
       }
     }
@@ -1236,6 +1298,8 @@ class CFM_Admin
 
   private static function normalize_tree_children(array &$node): void
   {
+    self::normalize_node_display_metadata($node);
+
     if (empty($node['children']) || !is_array($node['children'])) {
       $node['children'] = [];
       return;
@@ -1253,6 +1317,51 @@ class CFM_Admin
     }
 
     $node['children'] = array_values($normalized);
+  }
+
+  private static function normalize_node_display_metadata(array &$node): void
+  {
+    $type = (string) ($node['type'] ?? '');
+
+    if (!in_array($type, ['axis', 'term', 'framework'], true)) {
+      return;
+    }
+
+    $label = trim((string) ($node['label'] ?? ''));
+
+    if (!array_key_exists('short_label', $node) || trim((string) $node['short_label']) === '') {
+      $node['short_label'] = $label;
+    } else {
+      $node['short_label'] = sanitize_text_field((string) $node['short_label']);
+    }
+
+    if (!array_key_exists('description', $node) || trim((string) $node['description']) === '') {
+      $node['description'] = $label;
+    } else {
+      $node['description'] = sanitize_textarea_field((string) $node['description']);
+    }
+  }
+
+  private static function display_short_label_for_node(array $node): string
+  {
+    $short_label = trim((string) ($node['short_label'] ?? ''));
+
+    if ($short_label !== '') {
+      return $short_label;
+    }
+
+    return (string) ($node['label'] ?? '');
+  }
+
+  private static function display_description_for_node(array $node): string
+  {
+    $description = trim((string) ($node['description'] ?? ''));
+
+    if ($description !== '') {
+      return $description;
+    }
+
+    return (string) ($node['label'] ?? '');
   }
 
   private static function reorder_children_by_parent_uuid(array &$node, string $parent_uuid, array $ordered_uuids): bool
@@ -1628,8 +1737,9 @@ class CFM_Admin
       'uuid' => $framework->framework_uuid,
       'label' => $framework->name,
       'slug' => $framework->slug,
+      'short_label' => $framework->name,
       'type' => 'framework',
-      'description' => $framework->description,
+      'description' => $framework->description ?: $framework->name,
       'children' => [],
     ];
   }
@@ -1980,6 +2090,8 @@ class CFM_Admin
     $missing_uuid_count = 0;
     $missing_label_count = 0;
     $missing_slug_count = 0;
+    $missing_short_label_count = 0;
+    $missing_description_count = 0;
     $invalid_type_count = 0;
     $non_array_child_count = 0;
 
@@ -1992,6 +2104,8 @@ class CFM_Admin
       $missing_uuid_count = $shape['missing_uuid_count'];
       $missing_label_count = $shape['missing_label_count'];
       $missing_slug_count = $shape['missing_slug_count'];
+      $missing_short_label_count = $shape['missing_short_label_count'];
+      $missing_description_count = $shape['missing_description_count'];
       $invalid_type_count = $shape['invalid_type_count'];
       $non_array_child_count = $shape['non_array_child_count'];
     }
@@ -2074,6 +2188,8 @@ class CFM_Admin
       'missing_uuid_count' => $missing_uuid_count,
       'missing_label_count' => $missing_label_count,
       'missing_slug_count' => $missing_slug_count,
+      'missing_short_label_count' => $missing_short_label_count,
+      'missing_description_count' => $missing_description_count,
       'invalid_type_count' => $invalid_type_count,
       'non_array_child_count' => $non_array_child_count,
       'tree' => !empty($import_tree) ? $import_tree : [],
@@ -2136,6 +2252,8 @@ class CFM_Admin
       'missing_uuid_count' => 0,
       'missing_label_count' => 0,
       'missing_slug_count' => 0,
+      'missing_short_label_count' => 0,
+      'missing_description_count' => 0,
       'invalid_type_count' => 0,
       'non_array_child_count' => 0,
     ];
@@ -2170,7 +2288,9 @@ class CFM_Admin
     $type = (string) ($node['type'] ?? '');
     $uuid = trim((string) ($node['uuid'] ?? ''));
     $label = trim((string) ($node['label'] ?? ''));
-    $slug = sanitize_title((string) ($node['slug'] ?? ''));
+    $slug = self::normalize_slug((string) ($node['slug'] ?? ''));
+    $short_label = trim((string) ($node['short_label'] ?? ''));
+    $description = trim((string) ($node['description'] ?? ''));
 
     if ($uuid === '') {
       $result['missing_uuid_count']++;
@@ -2182,6 +2302,14 @@ class CFM_Admin
 
     if (!$is_root && $slug === '') {
       $result['missing_slug_count']++;
+    }
+
+    if (!$is_root && $short_label === '') {
+      $result['missing_short_label_count']++;
+    }
+
+    if (!$is_root && $description === '') {
+      $result['missing_description_count']++;
     }
 
     if ($is_root) {
@@ -2208,7 +2336,7 @@ class CFM_Admin
       }
 
       $child_label = trim((string) ($child['label'] ?? ''));
-      $child_slug = sanitize_title((string) ($child['slug'] ?? ''));
+      $child_slug = self::normalize_slug((string) ($child['slug'] ?? ''));
       $child_path = $path . ' > ' . ($child_label !== '' ? $child_label : 'child-' . ((int) $index + 1));
 
       if ($child_slug !== '') {
@@ -2341,6 +2469,14 @@ class CFM_Admin
           <tr>
             <th>Missing Slugs</th>
             <td><?php echo esc_html((string) ($preview['missing_slug_count'] ?? 0)); ?></td>
+          </tr>
+          <tr>
+            <th>Missing Short Labels</th>
+            <td><?php echo esc_html((string) ($preview['missing_short_label_count'] ?? 0)); ?></td>
+          </tr>
+          <tr>
+            <th>Missing Descriptions</th>
+            <td><?php echo esc_html((string) ($preview['missing_description_count'] ?? 0)); ?></td>
           </tr>
           <tr>
             <th>Invalid Types</th>
@@ -2655,6 +2791,8 @@ class CFM_Admin
 
     $label_changes = [];
     $slug_changes = [];
+    $short_label_changes = [];
+    $description_changes = [];
     $parent_changes = [];
     $archive_changes = [];
 
@@ -2675,6 +2813,22 @@ class CFM_Admin
           'uuid' => $uuid,
           'before' => (string) $snapshot['slug'],
           'after' => (string) $current['slug'],
+        ];
+      }
+
+      if ((string) $snapshot['short_label'] !== (string) $current['short_label']) {
+        $short_label_changes[] = [
+          'uuid' => $uuid,
+          'before' => (string) $snapshot['short_label'],
+          'after' => (string) $current['short_label'],
+        ];
+      }
+
+      if ((string) $snapshot['description'] !== (string) $current['description']) {
+        $description_changes[] = [
+          'uuid' => $uuid,
+          'before' => (string) $snapshot['description'],
+          'after' => (string) $current['description'],
         ];
       }
 
@@ -2704,12 +2858,16 @@ class CFM_Admin
       'removed' => count($removed_uuids),
       'label_changed' => count($label_changes),
       'slug_changed' => count($slug_changes),
+      'short_label_changed' => count($short_label_changes),
+      'description_changed' => count($description_changes),
       'parent_changed' => count($parent_changes),
       'archive_changed' => count($archive_changes),
       'added_samples' => self::sample_comparison_nodes($added_uuids, $current_nodes),
       'removed_samples' => self::sample_comparison_nodes($removed_uuids, $snapshot_nodes),
       'label_change_samples' => array_slice($label_changes, 0, 8),
       'slug_change_samples' => array_slice($slug_changes, 0, 8),
+      'short_label_change_samples' => array_slice($short_label_changes, 0, 8),
+      'description_change_samples' => array_slice($description_changes, 0, 8),
       'parent_change_samples' => array_slice($parent_changes, 0, 8),
       'archive_change_samples' => array_slice($archive_changes, 0, 8),
     ];
@@ -2728,6 +2886,8 @@ class CFM_Admin
         'type' => $type,
         'label' => (string) ($node['label'] ?? ''),
         'slug' => (string) ($node['slug'] ?? ''),
+        'short_label' => self::display_short_label_for_node($node),
+        'description' => self::display_description_for_node($node),
         'parent_uuid' => $parent_uuid,
         'parent_label' => $parent_label,
         'archived' => (!empty($node['archived']) || !empty($node['archived_at']) || $status === 'archived'),
@@ -2790,6 +2950,8 @@ class CFM_Admin
       + (int) ($comparison['removed'] ?? 0)
       + (int) ($comparison['label_changed'] ?? 0)
       + (int) ($comparison['slug_changed'] ?? 0)
+      + (int) ($comparison['short_label_changed'] ?? 0)
+      + (int) ($comparison['description_changed'] ?? 0)
       + (int) ($comparison['parent_changed'] ?? 0)
       + (int) ($comparison['archive_changed'] ?? 0);
     ?>
@@ -2827,6 +2989,14 @@ class CFM_Admin
           <td><?php echo esc_html((string) ($comparison['slug_changed'] ?? 0)); ?></td>
         </tr>
         <tr>
+          <th>Short labels changed</th>
+          <td><?php echo esc_html((string) ($comparison['short_label_changed'] ?? 0)); ?></td>
+        </tr>
+        <tr>
+          <th>Descriptions changed</th>
+          <td><?php echo esc_html((string) ($comparison['description_changed'] ?? 0)); ?></td>
+        </tr>
+        <tr>
           <th>Parent changes</th>
           <td><?php echo esc_html((string) ($comparison['parent_changed'] ?? 0)); ?></td>
         </tr>
@@ -2841,6 +3011,8 @@ class CFM_Admin
     <?php self::render_comparison_samples('Removed term samples', $comparison['removed_samples'] ?? []); ?>
     <?php self::render_field_change_samples('Label change samples', $comparison['label_change_samples'] ?? []); ?>
     <?php self::render_field_change_samples('Slug change samples', $comparison['slug_change_samples'] ?? []); ?>
+    <?php self::render_field_change_samples('Short label change samples', $comparison['short_label_change_samples'] ?? []); ?>
+    <?php self::render_field_change_samples('Description change samples', $comparison['description_change_samples'] ?? []); ?>
     <?php self::render_field_change_samples('Parent change samples', $comparison['parent_change_samples'] ?? []); ?>
     <?php self::render_field_change_samples('Archive status change samples', $comparison['archive_change_samples'] ?? []); ?>
   <?php
@@ -3308,8 +3480,24 @@ class CFM_Admin
           <tr>
             <th scope="row"><label for="term_slug">Term Slug</label></th>
             <td>
-              <input name="term_slug" id="term_slug" type="text" class="regular-text" value="<?php echo esc_attr($term['slug'] ?? ''); ?>" required>
+              <input name="term_slug" id="term_slug" type="text" class="regular-text" value="<?php echo esc_attr($term['slug'] ?? ''); ?>">
               <p class="description">Keep this stable unless you intentionally need to change API-facing references.</p>
+            </td>
+          </tr>
+
+          <tr>
+            <th scope="row"><label for="term_short_label">Short Label</label></th>
+            <td>
+              <input name="term_short_label" id="term_short_label" type="text" class="regular-text" value="<?php echo esc_attr(self::display_short_label_for_node($term)); ?>">
+              <p class="description">Compact display text for narrow UI placements. Leave blank to use the term label.</p>
+            </td>
+          </tr>
+
+          <tr>
+            <th scope="row"><label for="term_description">Description</label></th>
+            <td>
+              <textarea name="term_description" id="term_description" class="large-text" rows="3"><?php echo esc_textarea(self::display_description_for_node($term)); ?></textarea>
+              <p class="description">Plain-text explanation for hover/help text and richer display contexts. Leave blank to use the term label.</p>
             </td>
           </tr>
 
@@ -4080,8 +4268,28 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
               <label for="axis_slug">Axis Slug</label>
             </th>
             <td>
-              <input name="axis_slug" id="axis_slug" type="text" class="regular-text" required>
+              <input name="axis_slug" id="axis_slug" type="text" class="regular-text">
               <p class="description">Example: grade-level, curriculum, region</p>
+            </td>
+          </tr>
+
+          <tr>
+            <th scope="row">
+              <label for="axis_short_label">Short Label</label>
+            </th>
+            <td>
+              <input name="axis_short_label" id="axis_short_label" type="text" class="regular-text">
+              <p class="description">Compact display text. Leave blank to use the axis label.</p>
+            </td>
+          </tr>
+
+          <tr>
+            <th scope="row">
+              <label for="axis_description">Description</label>
+            </th>
+            <td>
+              <textarea name="axis_description" id="axis_description" class="large-text" rows="3"></textarea>
+              <p class="description">Plain-text explanation. Leave blank to use the axis label.</p>
             </td>
           </tr>
         </table>
@@ -4131,8 +4339,28 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
                 <label for="term_slug">Term Slug</label>
               </th>
               <td>
-                <input name="term_slug" id="term_slug" type="text" class="regular-text" required>
+                <input name="term_slug" id="term_slug" type="text" class="regular-text">
                 <p class="description">Example: grade-1, elementary, algebra, california</p>
+              </td>
+            </tr>
+
+            <tr>
+              <th scope="row">
+                <label for="term_short_label">Short Label</label>
+              </th>
+              <td>
+                <input name="term_short_label" id="term_short_label" type="text" class="regular-text">
+                <p class="description">Compact display text. Leave blank to use the term label.</p>
+              </td>
+            </tr>
+
+            <tr>
+              <th scope="row">
+                <label for="term_description">Description</label>
+              </th>
+              <td>
+                <textarea name="term_description" id="term_description" class="large-text" rows="3"></textarea>
+                <p class="description">Plain-text explanation. Leave blank to use the term label.</p>
               </td>
             </tr>
           </table>
