@@ -1546,6 +1546,7 @@ class CFM_Admin
 
     $framework_id = absint($_POST['framework_id'] ?? 0);
     $version_id = absint($_POST['version_id'] ?? 0);
+    $confirmed = !empty($_POST['confirm_restore_snapshot']);
 
     if ($framework_id <= 0 || $version_id <= 0) {
       wp_safe_redirect(
@@ -1565,16 +1566,33 @@ class CFM_Admin
       wp_die('Profile profile taxonomy not found.');
     }
 
+    if (!$confirmed) {
+      wp_safe_redirect(self::restore_version_url((int) $framework->id, $version_id) . '&cfm_error=restore_not_confirmed');
+      exit;
+    }
+
     $version = CFM_Framework_Repository::get_version((int) $framework->id, $version_id);
 
     if (!$version) {
       wp_die('Version not found.');
     }
 
+    if ((string) $version->status !== 'pre_import_snapshot') {
+      wp_die('Only automatic recovery snapshots may be restored from this workflow.');
+    }
+
     $tree = json_decode((string) $version->tree_json, true);
 
     if (!is_array($tree)) {
       wp_die('Stored tree JSON could not be decoded. Restore aborted.');
+    }
+
+    $current_tree = self::get_framework_tree($framework);
+    $pre_restore_snapshot_id = CFM_Framework_Repository::create_version((int) $framework->id, $current_tree, 'pre_restore_snapshot');
+
+    if ($pre_restore_snapshot_id <= 0) {
+      wp_safe_redirect(self::restore_version_url((int) $framework->id, $version_id) . '&cfm_error=restore_snapshot_failed');
+      exit;
     }
 
     self::bump_all_order_revisions((int) $framework->id, $tree);
@@ -1586,7 +1604,8 @@ class CFM_Admin
         'admin.php?page=cfm-frameworks'
           . '&action=edit'
           . '&framework_id=' . (int) $framework->id
-          . '&cfm_version_restored=1'
+          . '&cfm_recovery_snapshot_restored=1'
+          . '&cfm_pre_restore_snapshot_id=' . (int) $pre_restore_snapshot_id
           . $compile_result['query_arg']
       )
     );
@@ -2700,10 +2719,10 @@ class CFM_Admin
         </tbody>
       </table>
 
-      <?php if (!$is_active_version && is_array($tree)) : ?>
+      <?php if (!$is_active_version && is_array($tree) && (string) $version->status === 'pre_import_snapshot') : ?>
         <p style="margin-top: 16px;">
           <a class="button button-primary" href="<?php echo esc_url(self::restore_version_url((int) $framework->id, (int) $version->id)); ?>">
-            Restore This Version
+            Restore This Recovery Snapshot
           </a>
         </p>
       <?php endif; ?>
@@ -2780,16 +2799,32 @@ class CFM_Admin
         <a href="<?php echo esc_url(self::versions_url((int) $framework->id)); ?>">Back to Version History</a>
       </p>
 
-      <?php if ($is_active_version) : ?>
+      <?php if ((string) $version->status !== 'pre_import_snapshot') : ?>
+        <div class="notice notice-error">
+          <p>Only automatic recovery snapshots may be restored from this workflow.</p>
+        </div>
+      <?php elseif ($is_active_version) : ?>
         <div class="notice notice-info">
           <p>This version is already active. No restore is needed.</p>
         </div>
       <?php else : ?>
         <div class="notice notice-warning">
           <p>
-            This will create a new active version copied from v<?php echo esc_html((string) $version->version_number); ?>.
-            The original version and all other historical versions will remain unchanged.
+            This will restore the Profile Taxonomy from recovery snapshot v<?php echo esc_html((string) $version->version_number); ?>,
+            automatically save the current active tree as a pre-restore snapshot, and rebuild runtime tables.
           </p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'restore_not_confirmed') : ?>
+        <div class="notice notice-error is-dismissible">
+          <p>Please confirm that you understand this restore will replace the current Profile Taxonomy.</p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'restore_snapshot_failed') : ?>
+        <div class="notice notice-error is-dismissible">
+          <p>Restore aborted because the current taxonomy could not be saved as a pre-restore snapshot.</p>
         </div>
       <?php endif; ?>
 
@@ -2817,7 +2852,7 @@ class CFM_Admin
       <h2>Snapshot to Restore</h2>
       <?php self::render_terms_recursive($tree['children'] ?? []); ?>
 
-      <?php if (!$is_active_version) : ?>
+      <?php if (!$is_active_version && (string) $version->status === 'pre_import_snapshot') : ?>
         <form method="post" style="margin-top: 20px;">
           <?php wp_nonce_field('cfm_restore_version', 'cfm_nonce'); ?>
 
@@ -2825,7 +2860,14 @@ class CFM_Admin
           <input type="hidden" name="framework_id" value="<?php echo esc_attr($framework->id); ?>">
           <input type="hidden" name="version_id" value="<?php echo esc_attr($version->id); ?>">
 
-          <?php submit_button('Restore This Version', 'primary'); ?>
+          <p>
+            <label>
+              <input type="checkbox" name="confirm_restore_snapshot" value="1" required>
+              I understand this will replace the current Profile Taxonomy with this recovery snapshot.
+            </label>
+          </p>
+
+          <?php submit_button('Restore This Recovery Snapshot', 'primary'); ?>
         </form>
       <?php endif; ?>
     </div>
@@ -3396,6 +3438,18 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
       <?php if (isset($_GET['cfm_version_restored'])) : ?>
         <div class="notice notice-success is-dismissible">
           <p>Profile version restored by creating a new active version.</p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_recovery_snapshot_restored'])) : ?>
+        <div class="notice notice-success is-dismissible">
+          <p>
+            Recovery snapshot restored and runtime tables rebuilt.
+            A pre-restore snapshot was saved automatically before the restore.
+            <?php if (!empty($_GET['cfm_pre_restore_snapshot_id'])) : ?>
+              <a href="<?php echo esc_url(self::version_snapshot_url((int) $framework->id, absint($_GET['cfm_pre_restore_snapshot_id']))); ?>">View pre-restore snapshot</a>.
+            <?php endif; ?>
+          </p>
         </div>
       <?php endif; ?>
 
