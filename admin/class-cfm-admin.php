@@ -2291,6 +2291,10 @@ class CFM_Admin
     $missing_short_label_count = 0;
     $missing_description_count = 0;
     $invalid_type_count = 0;
+    $invalid_includes_count = 0;
+    $missing_include_reference_count = 0;
+    $duplicate_include_count = 0;
+    $self_include_count = 0;
     $non_array_child_count = 0;
 
     if (!empty($import_tree)) {
@@ -2305,6 +2309,10 @@ class CFM_Admin
       $missing_short_label_count = $shape['missing_short_label_count'];
       $missing_description_count = $shape['missing_description_count'];
       $invalid_type_count = $shape['invalid_type_count'];
+      $invalid_includes_count = $shape['invalid_includes_count'];
+      $missing_include_reference_count = $shape['missing_include_reference_count'];
+      $duplicate_include_count = $shape['duplicate_include_count'];
+      $self_include_count = $shape['self_include_count'];
       $non_array_child_count = $shape['non_array_child_count'];
     }
 
@@ -2385,6 +2393,10 @@ class CFM_Admin
       'missing_short_label_count' => $missing_short_label_count,
       'missing_description_count' => $missing_description_count,
       'invalid_type_count' => $invalid_type_count,
+      'invalid_includes_count' => $invalid_includes_count,
+      'missing_include_reference_count' => $missing_include_reference_count,
+      'duplicate_include_count' => $duplicate_include_count,
+      'self_include_count' => $self_include_count,
       'non_array_child_count' => $non_array_child_count,
       'tree' => !empty($import_tree) ? $import_tree : [],
     ];
@@ -2449,10 +2461,15 @@ class CFM_Admin
       'missing_short_label_count' => 0,
       'missing_description_count' => 0,
       'invalid_type_count' => 0,
+      'invalid_includes_count' => 0,
+      'missing_include_reference_count' => 0,
+      'duplicate_include_count' => 0,
+      'self_include_count' => 0,
       'non_array_child_count' => 0,
     ];
 
     self::validate_taxonomy_import_node($tree, 'root', true, $result);
+    self::validate_taxonomy_import_meta_includes($tree, $result);
 
     if ($result['missing_uuid_count'] > 0) {
       $result['errors'][] = 'One or more uploaded taxonomy nodes are missing UUIDs.';
@@ -2470,11 +2487,115 @@ class CFM_Admin
       $result['errors'][] = 'One or more uploaded taxonomy nodes have invalid type/kind values.';
     }
 
+    if ($result['invalid_includes_count'] > 0) {
+      $result['errors'][] = 'One or more uploaded meta terms have malformed includes values.';
+    }
+
+    if ($result['missing_include_reference_count'] > 0) {
+      $result['errors'][] = 'One or more uploaded meta terms include UUIDs that do not exist in the uploaded taxonomy.';
+    }
+
+    if ($result['duplicate_include_count'] > 0) {
+      $result['errors'][] = 'One or more uploaded meta terms include the same UUID more than once.';
+    }
+
+    if ($result['self_include_count'] > 0) {
+      $result['errors'][] = 'One or more uploaded meta terms include themselves.';
+    }
+
     if ($result['non_array_child_count'] > 0) {
       $result['errors'][] = 'One or more uploaded taxonomy children are malformed.';
     }
 
     return $result;
+  }
+
+  private static function validate_taxonomy_import_meta_includes(array $tree, array &$result): void
+  {
+    $known_uuids = self::collect_node_uuid_map($tree);
+    self::validate_taxonomy_import_meta_includes_node($tree, $known_uuids, $result);
+  }
+
+  private static function collect_node_uuid_map(array $node): array
+  {
+    $uuids = [];
+    $uuid = trim((string) ($node['uuid'] ?? ''));
+
+    if ($uuid !== '') {
+      $uuids[$uuid] = true;
+    }
+
+    $children = $node['children'] ?? [];
+
+    if (is_array($children)) {
+      foreach ($children as $child) {
+        if (!is_array($child)) {
+          continue;
+        }
+
+        $uuids = array_merge($uuids, self::collect_node_uuid_map($child));
+      }
+    }
+
+    return $uuids;
+  }
+
+  private static function validate_taxonomy_import_meta_includes_node(array $node, array $known_uuids, array &$result): void
+  {
+    $kind = self::node_kind($node);
+    $uuid = trim((string) ($node['uuid'] ?? ''));
+
+    if ($kind === 'meta') {
+      $includes = $node['includes'] ?? [];
+
+      if (!is_array($includes)) {
+        $result['invalid_includes_count']++;
+      } else {
+        $seen = [];
+
+        foreach ($includes as $included_uuid) {
+          if (!is_scalar($included_uuid)) {
+            $result['invalid_includes_count']++;
+            continue;
+          }
+
+          $included_uuid = trim((string) $included_uuid);
+
+          if ($included_uuid === '') {
+            $result['invalid_includes_count']++;
+            continue;
+          }
+
+          if ($uuid !== '' && $included_uuid === $uuid) {
+            $result['self_include_count']++;
+          }
+
+          if (isset($seen[$included_uuid])) {
+            $result['duplicate_include_count']++;
+          }
+
+          if (!isset($known_uuids[$included_uuid])) {
+            $result['missing_include_reference_count']++;
+          }
+
+          $seen[$included_uuid] = true;
+        }
+      }
+    }
+
+    $children = $node['children'] ?? [];
+
+    if (!is_array($children)) {
+      return;
+    }
+
+    foreach ($children as $child) {
+      if (!is_array($child)) {
+        continue;
+      }
+
+      self::validate_taxonomy_import_meta_includes_node($child, $known_uuids, $result);
+    }
   }
 
   private static function validate_taxonomy_import_node(array $node, string $path, bool $is_root, array &$result): void
@@ -2997,6 +3118,7 @@ class CFM_Admin
     $parent_changes = [];
     $archive_changes = [];
     $kind_changes = [];
+    $includes_changes = [];
 
     foreach ($shared_uuids as $uuid) {
       $snapshot = $snapshot_nodes[$uuid];
@@ -3008,6 +3130,15 @@ class CFM_Admin
           'label' => (string) $current['label'],
           'before' => (string) ($snapshot['kind'] ?? ''),
           'after' => (string) ($current['kind'] ?? ''),
+        ];
+      }
+
+      if ((string) ($snapshot['includes_key'] ?? '') !== (string) ($current['includes_key'] ?? '')) {
+        $includes_changes[] = [
+          'uuid' => $uuid,
+          'label' => (string) $current['label'],
+          'before' => (string) ($snapshot['includes_label'] ?? ''),
+          'after' => (string) ($current['includes_label'] ?? ''),
         ];
       }
 
@@ -3068,6 +3199,7 @@ class CFM_Admin
       'added' => count($added_uuids),
       'removed' => count($removed_uuids),
       'kind_changed' => count($kind_changes),
+      'includes_changed' => count($includes_changes),
       'label_changed' => count($label_changes),
       'slug_changed' => count($slug_changes),
       'short_label_changed' => count($short_label_changes),
@@ -3077,6 +3209,7 @@ class CFM_Admin
       'added_samples' => self::sample_comparison_nodes($added_uuids, $current_nodes),
       'removed_samples' => self::sample_comparison_nodes($removed_uuids, $snapshot_nodes),
       'kind_change_samples' => array_slice($kind_changes, 0, 8),
+      'includes_change_samples' => array_slice($includes_changes, 0, 8),
       'label_change_samples' => array_slice($label_changes, 0, 8),
       'slug_change_samples' => array_slice($slug_changes, 0, 8),
       'short_label_change_samples' => array_slice($short_label_changes, 0, 8),
@@ -3099,6 +3232,8 @@ class CFM_Admin
         'uuid' => $uuid,
         'type' => $type,
         'kind' => $kind,
+        'includes_key' => self::comparison_includes_key($node),
+        'includes_label' => self::comparison_includes_label($node),
         'label' => (string) ($node['label'] ?? ''),
         'slug' => (string) ($node['slug'] ?? ''),
         'short_label' => self::display_short_label_for_node($node),
@@ -3134,6 +3269,49 @@ class CFM_Admin
     return $nodes;
   }
 
+  private static function comparison_includes_key(array $node): string
+  {
+    $includes = self::normalized_includes_for_comparison($node);
+    sort($includes, SORT_STRING);
+
+    return implode('|', $includes);
+  }
+
+  private static function comparison_includes_label(array $node): string
+  {
+    $includes = self::normalized_includes_for_comparison($node);
+    sort($includes, SORT_STRING);
+
+    return implode(', ', $includes);
+  }
+
+  private static function normalized_includes_for_comparison(array $node): array
+  {
+    $includes = $node['includes'] ?? [];
+
+    if (!is_array($includes)) {
+      return [];
+    }
+
+    $normalized = [];
+
+    foreach ($includes as $uuid) {
+      if (!is_scalar($uuid)) {
+        continue;
+      }
+
+      $uuid = trim((string) $uuid);
+
+      if ($uuid === '') {
+        continue;
+      }
+
+      $normalized[] = $uuid;
+    }
+
+    return array_values(array_unique($normalized));
+  }
+
   private static function sample_comparison_nodes(array $uuids, array $nodes): array
   {
     $samples = [];
@@ -3163,6 +3341,8 @@ class CFM_Admin
     <?php
     $total_differences = (int) ($comparison['added'] ?? 0)
       + (int) ($comparison['removed'] ?? 0)
+      + (int) ($comparison['kind_changed'] ?? 0)
+      + (int) ($comparison['includes_changed'] ?? 0)
       + (int) ($comparison['label_changed'] ?? 0)
       + (int) ($comparison['slug_changed'] ?? 0)
       + (int) ($comparison['short_label_changed'] ?? 0)
@@ -3196,6 +3376,14 @@ class CFM_Admin
           <td><?php echo esc_html((string) ($comparison['removed'] ?? 0)); ?></td>
         </tr>
         <tr>
+          <th>Kind changes</th>
+          <td><?php echo esc_html((string) ($comparison['kind_changed'] ?? 0)); ?></td>
+        </tr>
+        <tr>
+          <th>Meta includes changes</th>
+          <td><?php echo esc_html((string) ($comparison['includes_changed'] ?? 0)); ?></td>
+        </tr>
+        <tr>
           <th>Labels changed</th>
           <td><?php echo esc_html((string) ($comparison['label_changed'] ?? 0)); ?></td>
         </tr>
@@ -3224,6 +3412,8 @@ class CFM_Admin
 
     <?php self::render_comparison_samples('Added term samples', $comparison['added_samples'] ?? []); ?>
     <?php self::render_comparison_samples('Removed term samples', $comparison['removed_samples'] ?? []); ?>
+    <?php self::render_field_change_samples('Kind change samples', $comparison['kind_change_samples'] ?? []); ?>
+    <?php self::render_field_change_samples('Meta includes change samples', $comparison['includes_change_samples'] ?? []); ?>
     <?php self::render_field_change_samples('Label change samples', $comparison['label_change_samples'] ?? []); ?>
     <?php self::render_field_change_samples('Slug change samples', $comparison['slug_change_samples'] ?? []); ?>
     <?php self::render_field_change_samples('Short label change samples', $comparison['short_label_change_samples'] ?? []); ?>
