@@ -82,6 +82,11 @@ class CFM_Admin
       return;
     }
 
+    if ($action === 'add_meta_group') {
+      self::handle_add_meta_group();
+      return;
+    }
+
     if ($action === 'update_term') {
       self::handle_update_term();
       return;
@@ -732,6 +737,130 @@ class CFM_Admin
           . '&cfm_parent_uuid=' . rawurlencode($parent_uuid)
           . $compile_result['query_arg']
           . '#cfm-batch-added'
+      )
+    );
+    exit;
+  }
+
+  private static function handle_add_meta_group(): void
+  {
+    check_admin_referer('cfm_add_meta_group', 'cfm_nonce');
+
+    $framework_id = absint($_POST['framework_id'] ?? 0);
+    $label = sanitize_text_field(wp_unslash($_POST['meta_group_label'] ?? ''));
+    $slug_input = wp_unslash($_POST['meta_group_slug'] ?? '');
+    $slug = self::normalize_slug($slug_input !== '' ? (string) $slug_input : $label);
+    $short_label = sanitize_text_field(wp_unslash($_POST['meta_group_short_label'] ?? ''));
+    $description = sanitize_textarea_field(wp_unslash($_POST['meta_group_description'] ?? ''));
+    $raw_includes = isset($_POST['meta_group_includes']) && is_array($_POST['meta_group_includes'])
+      ? wp_unslash($_POST['meta_group_includes'])
+      : [];
+
+    $includes = [];
+
+    foreach ($raw_includes as $include_uuid) {
+      $include_uuid = sanitize_text_field((string) $include_uuid);
+
+      if ($include_uuid !== '') {
+        $includes[] = $include_uuid;
+      }
+    }
+
+    $includes = array_values(array_unique($includes));
+
+    if ($short_label === '') {
+      $short_label = $label;
+    }
+
+    if ($description === '') {
+      $description = $label;
+    }
+
+    if ($framework_id <= 0 || $label === '' || $slug === '' || count($includes) < 2) {
+      wp_safe_redirect(
+        admin_url(
+          'admin.php?page=cfm-frameworks'
+            . '&action=edit'
+            . '&framework_id=' . $framework_id
+            . '&cfm_error=missing_meta_group_fields'
+            . '#cfm-meta-groups'
+        )
+      );
+      exit;
+    }
+
+    $framework = CFM_Framework_Repository::get_framework($framework_id);
+
+    if (!$framework) {
+      wp_die('Profile taxonomy not found.');
+    }
+
+    $tree = self::get_framework_tree($framework);
+
+    if (!isset($tree['children']) || !is_array($tree['children'])) {
+      $tree['children'] = [];
+    }
+
+    $available_terms = self::collect_assignable_term_nodes($tree);
+    $available_uuids = [];
+
+    foreach ($available_terms as $term) {
+      $uuid = (string) ($term['uuid'] ?? '');
+
+      if ($uuid !== '') {
+        $available_uuids[$uuid] = true;
+      }
+    }
+
+    foreach ($includes as $include_uuid) {
+      if (!isset($available_uuids[$include_uuid])) {
+        wp_safe_redirect(
+          admin_url(
+            'admin.php?page=cfm-frameworks'
+              . '&action=edit'
+              . '&framework_id=' . $framework_id
+              . '&cfm_error=invalid_meta_group_includes'
+              . '#cfm-meta-groups'
+          )
+        );
+        exit;
+      }
+    }
+
+    if (self::has_child_slug_conflict($tree, (string) ($tree['uuid'] ?? ''), $slug)) {
+      wp_safe_redirect(
+        admin_url(
+          'admin.php?page=cfm-frameworks'
+            . '&action=edit'
+            . '&framework_id=' . $framework_id
+            . '&cfm_error=duplicate_meta_group_slug'
+            . '#cfm-meta-groups'
+        )
+      );
+      exit;
+    }
+
+    $tree['children'][] = [
+      'uuid' => wp_generate_uuid4(),
+      'label' => $label,
+      'slug' => $slug,
+      'short_label' => $short_label,
+      'kind' => 'meta',
+      'description' => $description,
+      'includes' => $includes,
+      'children' => [],
+    ];
+
+    $compile_result = self::save_active_tree_and_compile($framework_id, $tree);
+
+    wp_safe_redirect(
+      admin_url(
+        'admin.php?page=cfm-frameworks'
+          . '&action=edit'
+          . '&framework_id=' . $framework_id
+          . '&cfm_meta_group_added=1'
+          . $compile_result['query_arg']
+          . '#cfm-meta-groups'
       )
     );
     exit;
@@ -1907,6 +2036,132 @@ class CFM_Admin
       'description' => $framework->description ?: $framework->name,
       'children' => [],
     ];
+  }
+
+  private static function root_terms(array $tree): array
+  {
+    $children = isset($tree['children']) && is_array($tree['children']) ? $tree['children'] : [];
+
+    return array_values(array_filter($children, static function ($node): bool {
+      return is_array($node) && self::node_kind($node) === 'term';
+    }));
+  }
+
+  private static function root_meta_groups(array $tree): array
+  {
+    $children = isset($tree['children']) && is_array($tree['children']) ? $tree['children'] : [];
+
+    return array_values(array_filter($children, static function ($node): bool {
+      return is_array($node) && self::node_kind($node) === 'meta';
+    }));
+  }
+
+  private static function collect_assignable_term_nodes(array $tree): array
+  {
+    $terms = [];
+    self::collect_assignable_term_nodes_recursive($tree, $terms, '');
+
+    return $terms;
+  }
+
+  private static function collect_assignable_term_nodes_recursive(array $node, array &$terms, string $path): void
+  {
+    $kind = self::node_kind($node);
+    $label = trim((string) ($node['label'] ?? ''));
+    $uuid = (string) ($node['uuid'] ?? '');
+
+    if ($label !== '' && $path !== '') {
+      $current_path = $path . ' › ' . $label;
+    } elseif ($label !== '' && !in_array($kind, ['framework', 'root'], true)) {
+      $current_path = $label;
+    } else {
+      $current_path = $path;
+    }
+
+    if ($kind === 'term' && $uuid !== '') {
+      $terms[] = [
+        'uuid' => $uuid,
+        'label' => $label,
+        'slug' => (string) ($node['slug'] ?? ''),
+        'path' => $current_path,
+      ];
+    }
+
+    $children = isset($node['children']) && is_array($node['children']) ? $node['children'] : [];
+
+    foreach ($children as $child) {
+      if (is_array($child)) {
+        self::collect_assignable_term_nodes_recursive($child, $terms, $current_path);
+      }
+    }
+  }
+
+  private static function meta_group_include_labels(array $meta_group, array $terms_by_uuid): array
+  {
+    $includes = isset($meta_group['includes']) && is_array($meta_group['includes']) ? $meta_group['includes'] : [];
+    $labels = [];
+
+    foreach ($includes as $uuid) {
+      $uuid = (string) $uuid;
+
+      if ($uuid === '') {
+        continue;
+      }
+
+      if (isset($terms_by_uuid[$uuid])) {
+        $labels[] = (string) ($terms_by_uuid[$uuid]['path'] ?? $terms_by_uuid[$uuid]['label'] ?? $uuid);
+      } else {
+        $labels[] = 'Missing: ' . $uuid;
+      }
+    }
+
+    return $labels;
+  }
+
+  private static function render_meta_groups_table(array $meta_groups, array $terms_by_uuid): void
+  {
+    if (empty($meta_groups)) {
+      echo '<p>No Meta-Groups created yet.</p>';
+      return;
+    }
+
+    echo '<table class="widefat striped" style="max-width: 1000px;">';
+    echo '<thead><tr><th>Meta-Group</th><th>Slug</th><th>Includes</th><th>Identifier</th></tr></thead>';
+    echo '<tbody>';
+
+    foreach ($meta_groups as $meta_group) {
+      if (!is_array($meta_group)) {
+        continue;
+      }
+
+      $include_labels = self::meta_group_include_labels($meta_group, $terms_by_uuid);
+
+      echo '<tr>';
+      echo '<td><strong>' . esc_html((string) ($meta_group['label'] ?? '')) . '</strong>';
+      $description = self::display_description_for_node($meta_group);
+      if ($description !== '' && $description !== (string) ($meta_group['label'] ?? '')) {
+        echo '<br><span class="description">' . esc_html($description) . '</span>';
+      }
+      echo '</td>';
+      echo '<td><code>' . esc_html((string) ($meta_group['slug'] ?? '')) . '</code></td>';
+      echo '<td>';
+
+      if (empty($include_labels)) {
+        echo '<em>No included terms.</em>';
+      } else {
+        echo '<ul style="margin:0; padding-left:18px;">';
+        foreach ($include_labels as $label) {
+          echo '<li>' . esc_html($label) . '</li>';
+        }
+        echo '</ul>';
+      }
+
+      echo '</td>';
+      echo '<td><details><summary>UUID</summary><code>' . esc_html((string) ($meta_group['uuid'] ?? '')) . '</code></details></td>';
+      echo '</tr>';
+    }
+
+    echo '</tbody></table>';
   }
 
   private static function render_terms_recursive(array $terms, int $depth = 0, ?int $framework_id = null, bool $show_actions = false): void
@@ -3909,7 +4164,18 @@ class CFM_Admin
     }
 
     $tree = self::get_framework_tree($framework);
-    $axes = $tree['children'] ?? [];
+    $axes = self::root_terms($tree);
+    $meta_groups = self::root_meta_groups($tree);
+    $available_terms = self::collect_assignable_term_nodes($tree);
+    $terms_by_uuid = [];
+
+    foreach ($available_terms as $available_term) {
+      $available_uuid = (string) ($available_term['uuid'] ?? '');
+
+      if ($available_uuid !== '') {
+        $terms_by_uuid[$available_uuid] = $available_term;
+      }
+    }
     $term_info = self::find_node_with_parent($tree, $term_uuid);
 
     if (!$term_info || empty($term_info['node']) || !is_array($term_info['node'])) {
@@ -4018,7 +4284,18 @@ class CFM_Admin
     }
 
     $tree = self::get_framework_tree($framework);
-    $axes = $tree['children'] ?? [];
+    $axes = self::root_terms($tree);
+    $meta_groups = self::root_meta_groups($tree);
+    $available_terms = self::collect_assignable_term_nodes($tree);
+    $terms_by_uuid = [];
+
+    foreach ($available_terms as $available_term) {
+      $available_uuid = (string) ($available_term['uuid'] ?? '');
+
+      if ($available_uuid !== '') {
+        $terms_by_uuid[$available_uuid] = $available_term;
+      }
+    }
     $term_info = self::find_node_with_parent($tree, $term_uuid);
 
     if (!$term_info || empty($term_info['node']) || !is_array($term_info['node'])) {
@@ -4307,7 +4584,18 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
     }
 
     $tree = self::get_framework_tree($framework);
-    $axes = $tree['children'] ?? [];
+    $axes = self::root_terms($tree);
+    $meta_groups = self::root_meta_groups($tree);
+    $available_terms = self::collect_assignable_term_nodes($tree);
+    $terms_by_uuid = [];
+
+    foreach ($available_terms as $available_term) {
+      $available_uuid = (string) ($available_term['uuid'] ?? '');
+
+      if ($available_uuid !== '') {
+        $terms_by_uuid[$available_uuid] = $available_term;
+      }
+    }
     $ordering_reload_url = admin_url(
       'admin.php?page=cfm-frameworks'
         . '&action=edit'
@@ -4405,6 +4693,12 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
         </div>
       <?php endif; ?>
 
+      <?php if (isset($_GET['cfm_meta_group_added'])) : ?>
+        <div class="notice notice-success is-dismissible">
+          <p>Meta-Group added.</p>
+        </div>
+      <?php endif; ?>
+
 
       <?php if (isset($_GET['cfm_term_moved'])) : ?>
         <div class="notice notice-success is-dismissible">
@@ -4475,6 +4769,24 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
       <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'missing_term_fields') : ?>
         <div class="notice notice-error is-dismissible">
           <p>Parent, term label, and term slug are required.</p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'missing_meta_group_fields') : ?>
+        <div class="notice notice-error is-dismissible">
+          <p>Meta-Group label, slug, and at least two included terms are required.</p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'invalid_meta_group_includes') : ?>
+        <div class="notice notice-error is-dismissible">
+          <p>Meta-Group includes must reference existing terms only.</p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'duplicate_meta_group_slug') : ?>
+        <div class="notice notice-error is-dismissible">
+          <p>That Meta-Group slug already exists at the top level. Choose a different slug.</p>
         </div>
       <?php endif; ?>
 
@@ -4783,6 +5095,89 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
       <h2 id="cfm-ordering">Ordering</h2>
       <p class="description">Ordering is sibling-scoped. Dragging changes display order only; use Move to change parentage.</p>
       <?php self::render_ordering_controls((int) $framework->id, $tree); ?>
+
+      <hr>
+
+      <h2 id="cfm-meta-groups">Meta-Groups</h2>
+      <p class="description">Meta-Groups collect existing terms without changing the Profile Taxonomy tree.</p>
+
+      <?php self::render_meta_groups_table($meta_groups, $terms_by_uuid); ?>
+
+      <h3>Create Meta-Group</h3>
+
+      <?php if (count($available_terms) < 2) : ?>
+        <p>Create at least two terms before adding a Meta-Group.</p>
+      <?php else : ?>
+        <form method="post">
+          <?php wp_nonce_field('cfm_add_meta_group', 'cfm_nonce'); ?>
+
+          <input type="hidden" name="cfm_action" value="add_meta_group">
+          <input type="hidden" name="framework_id" value="<?php echo esc_attr($framework->id); ?>">
+
+          <table class="form-table" role="presentation">
+            <tr>
+              <th scope="row">
+                <label for="meta_group_label">Meta-Group Label</label>
+              </th>
+              <td>
+                <input name="meta_group_label" id="meta_group_label" type="text" class="regular-text" data-cfm-autofill-label="add-meta-group" required>
+                <p class="description">Example: STEM, New Teachers, K–5 Science</p>
+              </td>
+            </tr>
+
+            <tr>
+              <th scope="row">
+                <label for="meta_group_slug">Meta-Group Slug</label>
+              </th>
+              <td>
+                <input name="meta_group_slug" id="meta_group_slug" type="text" class="regular-text" data-cfm-autofill-target="add-meta-group" data-cfm-autofill-type="slug">
+                <p class="description">Example: stem, new-teachers, k-5-science</p>
+              </td>
+            </tr>
+
+            <tr>
+              <th scope="row">
+                <label for="meta_group_short_label">Short Label</label>
+              </th>
+              <td>
+                <input name="meta_group_short_label" id="meta_group_short_label" type="text" class="regular-text" data-cfm-autofill-target="add-meta-group" data-cfm-autofill-type="copy">
+                <p class="description">Compact display text. Leave blank to use the Meta-Group label.</p>
+              </td>
+            </tr>
+
+            <tr>
+              <th scope="row">
+                <label for="meta_group_description">Description</label>
+              </th>
+              <td>
+                <textarea name="meta_group_description" id="meta_group_description" class="large-text" rows="3" data-cfm-autofill-target="add-meta-group" data-cfm-autofill-type="copy"></textarea>
+                <p class="description">Plain-text explanation. Leave blank to use the Meta-Group label.</p>
+              </td>
+            </tr>
+
+            <tr>
+              <th scope="row">Included Terms</th>
+              <td>
+                <fieldset style="max-height: 260px; overflow: auto; border: 1px solid #ccd0d4; background: #fff; padding: 10px;">
+                  <legend class="screen-reader-text">Included Terms</legend>
+                  <?php foreach ($available_terms as $available_term) : ?>
+                    <label style="display:block; margin:0 0 6px;">
+                      <input type="checkbox" name="meta_group_includes[]" value="<?php echo esc_attr((string) ($available_term['uuid'] ?? '')); ?>">
+                      <?php echo esc_html((string) ($available_term['path'] ?? $available_term['label'] ?? '')); ?>
+                      <?php if (!empty($available_term['slug'])) : ?>
+                        <code><?php echo esc_html((string) $available_term['slug']); ?></code>
+                      <?php endif; ?>
+                    </label>
+                  <?php endforeach; ?>
+                </fieldset>
+                <p class="description">Select existing terms only. Meta-Groups do not create new terms or move terms in the tree.</p>
+              </td>
+            </tr>
+          </table>
+
+          <?php submit_button('Add Meta-Group'); ?>
+        </form>
+      <?php endif; ?>
 
       <hr>
 
