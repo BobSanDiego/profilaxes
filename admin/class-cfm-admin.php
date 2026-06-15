@@ -500,7 +500,7 @@ class CFM_Admin
       'label' => $axis_label,
       'slug' => $axis_slug,
       'short_label' => $axis_short_label,
-      'type' => 'axis',
+      'kind' => 'term',
       'description' => $axis_description,
       'children' => [],
     ];
@@ -584,7 +584,7 @@ class CFM_Admin
       'label' => $term_label,
       'slug' => $term_slug,
       'short_label' => $term_short_label,
-      'type' => 'term',
+      'kind' => 'term',
       'description' => $term_description,
       'children' => [],
     ];
@@ -659,7 +659,7 @@ class CFM_Admin
           'label' => $label,
           'slug' => $slug,
           'short_label' => $label,
-          'type' => 'term',
+          'kind' => 'term',
           'description' => $label,
           'children' => [],
         ];
@@ -781,7 +781,7 @@ class CFM_Admin
       wp_die('Term not found.');
     }
 
-    if (($term_info['node']['type'] ?? '') !== 'term') {
+    if (self::node_kind($term_info['node']) !== 'term') {
       wp_die('Only terms can be edited here.');
     }
 
@@ -878,7 +878,7 @@ class CFM_Admin
       wp_die('Term not found.');
     }
 
-    if (($term_info['node']['type'] ?? '') !== 'term') {
+    if (self::node_kind($term_info['node']) !== 'term') {
       wp_die('Only terms can be moved. Categories cannot be moved.');
     }
 
@@ -886,7 +886,7 @@ class CFM_Admin
       wp_die('New parent not found.');
     }
 
-    if (!in_array(($new_parent_info['node']['type'] ?? ''), ['axis', 'term'], true)) {
+    if (!in_array(self::node_kind($new_parent_info['node']), ['framework', 'root', 'term'], true)) {
       wp_die('New parent must be a category or term.');
     }
 
@@ -983,7 +983,7 @@ class CFM_Admin
       wp_die('Term not found.');
     }
 
-    if (($term_info['node']['type'] ?? '') !== 'term') {
+    if (self::node_kind($term_info['node']) !== 'term') {
       wp_die('Only terms can be archived. Categories cannot be archived.');
     }
 
@@ -1454,8 +1454,12 @@ class CFM_Admin
   {
     $kind = self::node_kind($node);
 
-    if ($kind !== '' && (!array_key_exists('kind', $node) || trim((string) $node['kind']) === '')) {
+    if ($kind !== '') {
       $node['kind'] = $kind;
+    }
+
+    if (array_key_exists('type', $node) && in_array((string) $node['type'], ['axis', 'term', 'framework', 'root'], true)) {
+      unset($node['type']);
     }
   }
 
@@ -1783,11 +1787,11 @@ class CFM_Admin
   private static function collect_ordering_groups(array $node, array &$groups, string $path = ''): void
   {
     $label = (string) ($node['label'] ?? 'Root');
-    $type = (string) ($node['type'] ?? '');
+    $kind = self::node_kind($node);
     $uuid = (string) ($node['uuid'] ?? '');
     $children = isset($node['children']) && is_array($node['children']) ? $node['children'] : [];
 
-    if ($path === '' && $type === 'framework') {
+    if ($path === '' && in_array($kind, ['framework', 'root'], true)) {
       $current_path = '';
     } elseif ($path === '') {
       $current_path = $label;
@@ -1795,7 +1799,7 @@ class CFM_Admin
       $current_path = $path . ' › ' . $label;
     }
 
-    if ($uuid !== '' && $type !== 'framework' && count($children) > 1) {
+    if ($uuid !== '' && !in_array($kind, ['framework', 'root', 'meta'], true) && count($children) > 1) {
       $groups[] = [
         'parent_uuid' => $uuid,
         'label' => $current_path,
@@ -1899,7 +1903,7 @@ class CFM_Admin
       'label' => $framework->name,
       'slug' => $framework->slug,
       'short_label' => $framework->name,
-      'type' => 'framework',
+      'kind' => 'framework',
       'description' => $framework->description ?: $framework->name,
       'children' => [],
     ];
@@ -1926,7 +1930,7 @@ class CFM_Admin
       echo esc_html($term['label'] ?? '');
       echo ' <code>' . esc_html($term['slug'] ?? '') . '</code>';
 
-      if ($show_actions && $framework_id && $term_uuid !== '' && (($term['type'] ?? '') === 'term')) {
+      if ($show_actions && $framework_id && $term_uuid !== '' && self::node_kind($term) === 'term') {
         echo ' <span style="margin-left: 8px;">';
         echo '<a href="' . esc_url(self::edit_term_url($framework_id, $term_uuid)) . '">Edit</a>';
         echo ' | ';
@@ -1968,13 +1972,13 @@ class CFM_Admin
 
       $uuid = $node['uuid'] ?? '';
       $label = $node['label'] ?? '';
-      $type = $node['type'] ?? '';
+      $kind = self::node_kind($node);
 
       if ($uuid !== '' && self::node_contains_uuid($moving_node, $uuid)) {
         continue;
       }
 
-      if ($uuid !== '' && $label !== '' && in_array($type, ['axis', 'term'], true)) {
+      if ($uuid !== '' && $label !== '' && $kind === 'term') {
         $prefix = str_repeat('— ', max(0, $depth));
         echo '<option value="' . esc_attr($uuid) . '"' . selected($selected_uuid, $uuid, false) . '>';
         echo esc_html($prefix . $label);
@@ -2003,7 +2007,7 @@ class CFM_Admin
         continue;
       }
 
-      if (($child['type'] ?? '') === 'term') {
+      if (self::node_kind($child) === 'term') {
         $count++;
       }
 
@@ -2475,8 +2479,8 @@ class CFM_Admin
 
   private static function validate_taxonomy_import_node(array $node, string $path, bool $is_root, array &$result): void
   {
-    $type = (string) ($node['type'] ?? '');
     $kind = self::node_kind($node);
+    $type = $kind;
     $uuid = trim((string) ($node['uuid'] ?? ''));
     $label = trim((string) ($node['label'] ?? ''));
     $slug = self::normalize_slug((string) ($node['slug'] ?? ''));
@@ -2741,7 +2745,7 @@ class CFM_Admin
   }
 
 
-  private static function count_profile_tree_nodes(array $node): array
+  private static function count_profile_tree_nodes(array $node, int $depth = 0): array
   {
     $counts = [
       'axes' => 0,
@@ -2749,10 +2753,9 @@ class CFM_Admin
       'meta_terms' => 0,
     ];
 
-    $type = (string) ($node['type'] ?? '');
     $kind = self::node_kind($node);
 
-    if ($type === 'axis') {
+    if ($depth === 1 && $kind === 'term') {
       $counts['axes']++;
     }
 
@@ -2770,7 +2773,7 @@ class CFM_Admin
           continue;
         }
 
-        $child_counts = self::count_profile_tree_nodes($child);
+        $child_counts = self::count_profile_tree_nodes($child, $depth + 1);
 
         $counts['axes'] += $child_counts['axes'];
         $counts['terms'] += $child_counts['terms'];
@@ -3087,8 +3090,8 @@ class CFM_Admin
   {
     $nodes = [];
     $uuid = trim((string) ($node['uuid'] ?? ''));
-    $type = (string) ($node['type'] ?? '');
     $kind = self::node_kind($node);
+    $type = $kind;
     $status = (string) ($node['status'] ?? '');
 
     if ($uuid !== '') {
@@ -3547,7 +3550,7 @@ class CFM_Admin
     $term = $term_info['node'];
     $current_parent = (!empty($term_info['parent']) && is_array($term_info['parent'])) ? $term_info['parent'] : null;
 
-    if (($term['type'] ?? '') !== 'term') {
+    if (self::node_kind($term) !== 'term') {
       wp_die('Only terms can be archived.');
     }
 
@@ -3726,7 +3729,7 @@ class CFM_Admin
     $term = $term_info['node'];
     $current_parent = (!empty($term_info['parent']) && is_array($term_info['parent'])) ? $term_info['parent'] : null;
 
-    if (($term['type'] ?? '') !== 'term') {
+    if (self::node_kind($term) !== 'term') {
       wp_die('Only terms can be edited here.');
     }
 
@@ -3835,7 +3838,7 @@ class CFM_Admin
     $term = $term_info['node'];
     $current_parent = (!empty($term_info['parent']) && is_array($term_info['parent'])) ? $term_info['parent'] : null;
 
-    if (($term['type'] ?? '') !== 'term') {
+    if (self::node_kind($term) !== 'term') {
       wp_die('Only terms can be moved.');
     }
 
