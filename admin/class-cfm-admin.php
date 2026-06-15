@@ -546,13 +546,14 @@ class CFM_Admin
       $term_description = $term_label;
     }
 
-    if ($framework_id <= 0 || $parent_uuid === '' || $term_label === '' || $term_slug === '') {
+    if ($framework_id <= 0 || $term_label === '' || $term_slug === '') {
       wp_safe_redirect(
         admin_url(
           'admin.php?page=cfm-frameworks'
             . '&action=edit'
             . '&framework_id=' . $framework_id
             . '&cfm_error=missing_term_fields'
+            . '#cfm-add-term'
         )
       );
       exit;
@@ -570,6 +571,17 @@ class CFM_Admin
       $tree['children'] = [];
     }
 
+    $tree_uuid = (string) ($tree['uuid'] ?? '');
+    $is_top_level = ($parent_uuid === '' || $parent_uuid === '__top_level__');
+
+    if ($is_top_level) {
+      $parent_uuid = $tree_uuid;
+    }
+
+    if ($parent_uuid === '') {
+      wp_die('Top-level parent not available.');
+    }
+
     if (self::has_child_slug_conflict($tree, $parent_uuid, $term_slug)) {
       wp_safe_redirect(
         admin_url(
@@ -577,7 +589,7 @@ class CFM_Admin
             . '&action=edit'
             . '&framework_id=' . $framework_id
             . '&cfm_error=duplicate_sibling_slug'
-            . '&cfm_parent_uuid=' . rawurlencode($parent_uuid)
+            . '&cfm_parent_uuid=' . rawurlencode($is_top_level ? '__top_level__' : $parent_uuid)
             . '#cfm-add-term'
         )
       );
@@ -610,7 +622,7 @@ class CFM_Admin
           . '&action=edit'
           . '&framework_id=' . $framework_id
           . '&cfm_term_added=1'
-          . '&cfm_parent_uuid=' . rawurlencode($parent_uuid)
+          . '&cfm_parent_uuid=' . rawurlencode($is_top_level ? '__top_level__' : $parent_uuid)
           . $compile_result['query_arg']
           . '#cfm-add-term'
       )
@@ -671,11 +683,11 @@ class CFM_Admin
       }
     }
 
-    if ($framework_id <= 0 || $parent_uuid === '' || empty($terms_to_add)) {
+    if ($framework_id <= 0 || empty($terms_to_add)) {
       self::redirect_batch_error(
         $framework_id,
         $parent_uuid,
-        'Select a parent and enter at least one term label for batch creation. No terms were added.',
+        'Enter at least one term label for batch creation. No terms were added.',
         $batch_input
       );
     }
@@ -692,6 +704,17 @@ class CFM_Admin
       $tree['children'] = [];
     }
 
+    $tree_uuid = (string) ($tree['uuid'] ?? '');
+    $is_top_level = ($parent_uuid === '' || $parent_uuid === '__top_level__');
+
+    if ($is_top_level) {
+      $parent_uuid = $tree_uuid;
+    }
+
+    if ($parent_uuid === '') {
+      wp_die('Top-level parent not available.');
+    }
+
     $parent_info = self::find_node_with_parent($tree, $parent_uuid);
 
     if (!$parent_info || empty($parent_info['node']) || !is_array($parent_info['node'])) {
@@ -702,7 +725,7 @@ class CFM_Admin
       if (self::has_child_slug_conflict($tree, $parent_uuid, (string) $term['slug'])) {
         self::redirect_batch_error(
           $framework_id,
-          $parent_uuid,
+          $is_top_level ? '__top_level__' : $parent_uuid,
           'A batch term conflicts with an existing sibling slug: ' . (string) $term['slug'] . '. No terms were added.',
           $batch_input
         );
@@ -719,11 +742,11 @@ class CFM_Admin
 
     $compile_result = self::save_active_tree_and_compile($framework_id, $tree);
 
-    $parent_label = (string) ($parent_info['node']['label'] ?? 'selected parent');
+    $parent_label = $is_top_level ? 'top level' : (string) ($parent_info['node']['label'] ?? 'selected parent');
     $transient_key = self::batch_added_terms_transient_key($framework_id);
 
     set_transient($transient_key, [
-      'parent_uuid' => $parent_uuid,
+      'parent_uuid' => $is_top_level ? '__top_level__' : $parent_uuid,
       'parent_label' => $parent_label,
       'terms' => $terms_to_add,
     ], 5 * MINUTE_IN_SECONDS);
@@ -734,7 +757,7 @@ class CFM_Admin
           . '&action=edit'
           . '&framework_id=' . $framework_id
           . '&cfm_terms_batch_added=1'
-          . '&cfm_parent_uuid=' . rawurlencode($parent_uuid)
+          . '&cfm_parent_uuid=' . rawurlencode($is_top_level ? '__top_level__' : $parent_uuid)
           . $compile_result['query_arg']
           . '#cfm-batch-added'
       )
@@ -4245,7 +4268,7 @@ class CFM_Admin
           </tr>
 
           <tr>
-            <th scope="row"><label for="parent_uuid">Parent</label></th>
+            <th scope="row"><label for="parent_uuid">Parent Term</label></th>
             <td>
               <select name="parent_uuid" id="parent_uuid" required>
                 <option value="">Select a parent</option>
@@ -5181,202 +5204,144 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
 
       <hr>
 
-      <h2>Add Category</h2>
+      <h2 id="cfm-add-term">Add Term</h2>
 
       <form method="post">
-        <?php wp_nonce_field('cfm_add_axis', 'cfm_nonce'); ?>
+        <?php wp_nonce_field('cfm_add_term', 'cfm_nonce'); ?>
 
-        <input type="hidden" name="cfm_action" value="add_axis">
+        <input type="hidden" name="cfm_action" value="add_term">
         <input type="hidden" name="framework_id" value="<?php echo esc_attr($framework->id); ?>">
 
         <table class="form-table" role="presentation">
           <tr>
             <th scope="row">
-              <label for="axis_label">Category Label</label>
+              <label for="parent_uuid">Parent Term</label>
             </th>
             <td>
-              <input name="axis_label" id="axis_label" type="text" class="regular-text" data-cfm-autofill-label="add-axis" required>
-              <p class="description">Example: Grade Level, Curriculum, Region, Practice Area</p>
+              <?php $selected_parent_uuid = sanitize_text_field($_GET['cfm_parent_uuid'] ?? '__top_level__'); ?>
+              <select name="parent_uuid" id="parent_uuid">
+                <option value="" <?php selected($selected_parent_uuid, '__top_level__'); ?>>Add as Top-Level Term</option>
+                <?php self::render_parent_options($axes, $selected_parent_uuid); ?>
+              </select>
+              <p class="description">Leave unchanged to create a top-level term, or select an existing term to create a child term.</p>
             </td>
           </tr>
 
           <tr>
             <th scope="row">
-              <label for="axis_slug">Category Slug</label>
+              <label for="term_label">Term Label</label>
             </th>
             <td>
-              <input name="axis_slug" id="axis_slug" type="text" class="regular-text" data-cfm-autofill-target="add-axis" data-cfm-autofill-type="slug">
-              <p class="description">Example: grade-level, curriculum, region</p>
+              <input name="term_label" id="term_label" type="text" class="regular-text" data-cfm-autofill-label="add-term" required>
+              <p class="description">Example: Grade Level, Grade 1, Curriculum, Algebra, Region, California</p>
             </td>
           </tr>
 
           <tr>
             <th scope="row">
-              <label for="axis_short_label">Short Label</label>
+              <label for="term_slug">Term Slug</label>
             </th>
             <td>
-              <input name="axis_short_label" id="axis_short_label" type="text" class="regular-text" data-cfm-autofill-target="add-axis" data-cfm-autofill-type="copy">
-              <p class="description">Compact display text. Leave blank to use the category label.</p>
+              <input name="term_slug" id="term_slug" type="text" class="regular-text" data-cfm-autofill-target="add-term" data-cfm-autofill-type="slug">
+              <p class="description">Example: grade-level, grade-1, curriculum, algebra, region, california</p>
             </td>
           </tr>
 
           <tr>
             <th scope="row">
-              <label for="axis_description">Description</label>
+              <label for="term_short_label">Short Label</label>
             </th>
             <td>
-              <textarea name="axis_description" id="axis_description" class="large-text" rows="3" data-cfm-autofill-target="add-axis" data-cfm-autofill-type="copy"></textarea>
-              <p class="description">Plain-text explanation. Leave blank to use the category label.</p>
+              <input name="term_short_label" id="term_short_label" type="text" class="regular-text" data-cfm-autofill-target="add-term" data-cfm-autofill-type="copy">
+              <p class="description">Compact display text. Leave blank to use the term label.</p>
+            </td>
+          </tr>
+
+          <tr>
+            <th scope="row">
+              <label for="term_description">Description</label>
+            </th>
+            <td>
+              <textarea name="term_description" id="term_description" class="large-text" rows="3" data-cfm-autofill-target="add-term" data-cfm-autofill-type="copy"></textarea>
+              <p class="description">Plain-text explanation. Leave blank to use the term label.</p>
             </td>
           </tr>
         </table>
 
-        <?php submit_button('Add Category'); ?>
+        <?php submit_button('Add Term'); ?>
       </form>
 
-      <hr>
+      <h3>Add Multiple Terms</h3>
+      <form method="post">
+        <?php wp_nonce_field('cfm_add_terms_batch', 'cfm_nonce'); ?>
 
-      <h2 id="cfm-add-term">Add Term Under Parent</h2>
+        <input type="hidden" name="cfm_action" value="add_terms_batch">
+        <input type="hidden" name="framework_id" value="<?php echo esc_attr($framework->id); ?>">
 
-      <?php if (empty($axes)) : ?>
-        <p>Create a category before adding terms.</p>
-      <?php else : ?>
-        <form method="post">
-          <?php wp_nonce_field('cfm_add_term', 'cfm_nonce'); ?>
+        <table class="form-table" role="presentation">
+          <tr>
+            <th scope="row">
+              <label for="batch_parent_uuid">Parent Term</label>
+            </th>
+            <td>
+              <select name="parent_uuid" id="batch_parent_uuid">
+                <option value="" <?php selected($selected_parent_uuid, '__top_level__'); ?>>Add as Top-Level Terms</option>
+                <?php self::render_parent_options($axes, $selected_parent_uuid); ?>
+              </select>
+              <p class="description">Leave unchanged to create top-level terms, or select an existing term to create child terms.</p>
+            </td>
+          </tr>
 
-          <input type="hidden" name="cfm_action" value="add_term">
-          <input type="hidden" name="framework_id" value="<?php echo esc_attr($framework->id); ?>">
+          <tr>
+            <th scope="row">
+              <label for="batch_term_labels">Term Labels</label>
+            </th>
+            <td>
+              <textarea name="batch_term_labels" id="batch_term_labels" class="large-text" rows="6" placeholder="Grade 4&#10;Grade 5&#10;Grade 6"><?php echo esc_textarea(is_array($batch_error) ? (string) ($batch_error['batch_input'] ?? '') : ''); ?></textarea>
+              <p class="description">One term label per line. Slug, short label, and description are generated from each label. The whole batch is rejected if any row conflicts.</p>
+            </td>
+          </tr>
+        </table>
 
-          <table class="form-table" role="presentation">
-            <tr>
-              <th scope="row">
-                <label for="parent_uuid">Parent</label>
-              </th>
-              <td>
-                <select name="parent_uuid" id="parent_uuid" required>
-                  <option value="">Select a parent</option>
-                  <?php self::render_parent_options($axes, sanitize_text_field($_GET['cfm_parent_uuid'] ?? '')); ?>
-                </select>
-                <p class="description">Choose a category for a top-level term, or an existing term for a child term.</p>
-              </td>
-            </tr>
+        <?php submit_button('Add Multiple Terms'); ?>
+      </form>
 
-            <tr>
-              <th scope="row">
-                <label for="term_label">Term Label</label>
-              </th>
-              <td>
-                <input name="term_label" id="term_label" type="text" class="regular-text" data-cfm-autofill-label="add-term" required>
-                <p class="description">Example: Grade 1, Elementary, Algebra, California</p>
-              </td>
-            </tr>
+      <?php if (is_array($batch_error)) : ?>
+        <script>
+          (function() {
+            var review = document.getElementById('cfm-batch-error-review');
+            var modal = document.getElementById('cfm-batch-error-modal');
+            var textarea = document.getElementById('batch_term_labels');
 
-            <tr>
-              <th scope="row">
-                <label for="term_slug">Term Slug</label>
-              </th>
-              <td>
-                <input name="term_slug" id="term_slug" type="text" class="regular-text" data-cfm-autofill-target="add-term" data-cfm-autofill-type="slug">
-                <p class="description">Example: grade-1, elementary, algebra, california</p>
-              </td>
-            </tr>
-
-            <tr>
-              <th scope="row">
-                <label for="term_short_label">Short Label</label>
-              </th>
-              <td>
-                <input name="term_short_label" id="term_short_label" type="text" class="regular-text" data-cfm-autofill-target="add-term" data-cfm-autofill-type="copy">
-                <p class="description">Compact display text. Leave blank to use the term label.</p>
-              </td>
-            </tr>
-
-            <tr>
-              <th scope="row">
-                <label for="term_description">Description</label>
-              </th>
-              <td>
-                <textarea name="term_description" id="term_description" class="large-text" rows="3" data-cfm-autofill-target="add-term" data-cfm-autofill-type="copy"></textarea>
-                <p class="description">Plain-text explanation. Leave blank to use the term label.</p>
-              </td>
-            </tr>
-          </table>
-
-          <?php submit_button('Add Term'); ?>
-        </form>
-
-        <h3>Add Multiple Terms</h3>
-        <form method="post">
-          <?php wp_nonce_field('cfm_add_terms_batch', 'cfm_nonce'); ?>
-
-          <input type="hidden" name="cfm_action" value="add_terms_batch">
-          <input type="hidden" name="framework_id" value="<?php echo esc_attr($framework->id); ?>">
-
-          <table class="form-table" role="presentation">
-            <tr>
-              <th scope="row">
-                <label for="batch_parent_uuid">Parent</label>
-              </th>
-              <td>
-                <select name="parent_uuid" id="batch_parent_uuid" required>
-                  <option value="">Select a parent</option>
-                  <?php self::render_parent_options($axes, sanitize_text_field($_GET['cfm_parent_uuid'] ?? '')); ?>
-                </select>
-                <p class="description">All batch terms will be added under this parent.</p>
-              </td>
-            </tr>
-
-            <tr>
-              <th scope="row">
-                <label for="batch_term_labels">Term Labels</label>
-              </th>
-              <td>
-                <textarea name="batch_term_labels" id="batch_term_labels" class="large-text" rows="6" placeholder="Grade 4&#10;Grade 5&#10;Grade 6"><?php echo esc_textarea(is_array($batch_error) ? (string) ($batch_error['batch_input'] ?? '') : ''); ?></textarea>
-                <p class="description">One term label per line. Slug, short label, and description are generated from each label. The whole batch is rejected if any row conflicts.</p>
-              </td>
-            </tr>
-          </table>
-
-          <?php submit_button('Add Multiple Terms'); ?>
-        </form>
-
-        <?php if (is_array($batch_error)) : ?>
-          <script>
-            (function() {
-              var review = document.getElementById('cfm-batch-error-review');
-              var modal = document.getElementById('cfm-batch-error-modal');
-              var textarea = document.getElementById('batch_term_labels');
-
-              function returnToBatch() {
-                if (modal) {
-                  modal.style.display = 'none';
-                }
-                if (textarea) {
-                  textarea.focus();
-                }
-              }
-
-              if (review) {
-                review.addEventListener('click', returnToBatch);
-                review.focus();
-              }
-
+            function returnToBatch() {
               if (modal) {
-                modal.addEventListener('click', function(event) {
-                  if (event.target === modal) {
-                    returnToBatch();
-                  }
-                });
+                modal.style.display = 'none';
               }
+              if (textarea) {
+                textarea.focus();
+              }
+            }
 
-              document.addEventListener('keydown', function(event) {
-                if (event.key === 'Escape' && modal && modal.style.display !== 'none') {
+            if (review) {
+              review.addEventListener('click', returnToBatch);
+              review.focus();
+            }
+
+            if (modal) {
+              modal.addEventListener('click', function(event) {
+                if (event.target === modal) {
                   returnToBatch();
                 }
               });
-            })();
-          </script>
-        <?php endif; ?>
+            }
+
+            document.addEventListener('keydown', function(event) {
+              if (event.key === 'Escape' && modal && modal.style.display !== 'none') {
+                returnToBatch();
+              }
+            });
+          })();
+        </script>
       <?php endif; ?>
 
       <?php self::render_term_metadata_autofill_script(); ?>
