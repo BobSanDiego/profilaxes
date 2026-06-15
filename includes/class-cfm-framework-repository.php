@@ -69,7 +69,7 @@ class CFM_Framework_Repository
       [
         'framework_id'    => $framework_id,
         'version_number'  => $next_version,
-        'tree_json'       => wp_json_encode($tree),
+        'tree_json'       => wp_json_encode(self::normalize_tree_for_storage($tree)),
         'status'          => $status,
         'compiled_at'     => null,
         'created_by'      => get_current_user_id() ?: null,
@@ -128,7 +128,7 @@ class CFM_Framework_Repository
     $updated = $wpdb->update(
       $versions_table,
       [
-        'tree_json'   => wp_json_encode($tree),
+        'tree_json'   => wp_json_encode(self::normalize_tree_for_storage($tree)),
         'status'      => 'active',
         'compiled_at' => null,
         'created_by'  => get_current_user_id() ?: null,
@@ -787,6 +787,73 @@ class CFM_Framework_Repository
     }
 
     return count(array_intersect($user_terms, $term_uuids)) > 0;
+  }
+
+
+
+  public static function normalize_tree_for_storage(array $tree): array
+  {
+    if (!isset($tree['children']) || !is_array($tree['children'])) {
+      $tree['children'] = [];
+    }
+
+    $tree['children'] = self::normalize_tree_nodes_for_storage($tree['children']);
+
+    if (isset($tree['meta_terms']) && is_array($tree['meta_terms'])) {
+      $tree['meta_terms'] = self::normalize_tree_nodes_for_storage($tree['meta_terms']);
+    }
+
+    return $tree;
+  }
+
+  private static function normalize_tree_nodes_for_storage(array $nodes): array
+  {
+    $normalized = [];
+
+    foreach ($nodes as $node) {
+      if (!is_array($node)) {
+        continue;
+      }
+
+      $normalized[] = self::normalize_tree_node_for_storage($node);
+    }
+
+    return $normalized;
+  }
+
+  private static function normalize_tree_node_for_storage(array $node): array
+  {
+    $kind = isset($node['kind']) ? sanitize_key((string) $node['kind']) : '';
+
+    if ($kind !== 'term' && $kind !== 'meta') {
+      $type = isset($node['type']) ? sanitize_key((string) $node['type']) : '';
+      $kind = ($type === 'axis' || $type === 'term') ? 'term' : 'term';
+    }
+
+    unset($node['type']);
+
+    $node['kind'] = $kind;
+
+    if (!isset($node['children']) || !is_array($node['children'])) {
+      $node['children'] = [];
+    }
+
+    if ($kind === 'meta') {
+      $node['children'] = [];
+      $node['includes'] = isset($node['includes']) && is_array($node['includes'])
+        ? array_values(array_unique(array_filter(array_map('strval', $node['includes']))))
+        : [];
+
+      return $node;
+    }
+
+    $node['children'] = self::normalize_tree_nodes_for_storage($node['children']);
+
+    if (isset($node['includes'])) {
+      unset($node['includes']);
+    }
+
+    return $node;
   }
 
 

@@ -17,6 +17,7 @@ class CFM_Compiler
         'success' => false,
         'terms' => 0,
         'closure' => 0,
+        'relationships' => 0,
         'message' => 'Version not found.',
       ];
     }
@@ -28,6 +29,7 @@ class CFM_Compiler
         'success' => false,
         'terms' => 0,
         'closure' => 0,
+        'relationships' => 0,
         'message' => 'Version tree_json could not be decoded.',
       ];
     }
@@ -97,12 +99,6 @@ class CFM_Compiler
       : [];
 
     foreach ($meta_terms as $sort_order => $meta_term) {
-      if (!is_array($meta_term)) {
-        continue;
-      }
-
-      $meta_term['kind'] = 'meta';
-
       self::compile_node(
         $meta_term,
         $framework_id,
@@ -151,6 +147,7 @@ class CFM_Compiler
     $slug = isset($node['slug']) ? sanitize_title((string) $node['slug']) : '';
     $short_label = trim((string) ($node['short_label'] ?? ''));
     $description = trim((string) ($node['description'] ?? ''));
+    $kind = self::normalize_node_kind($node);
 
     if ($short_label === '') {
       $short_label = $label;
@@ -159,7 +156,6 @@ class CFM_Compiler
     if ($description === '') {
       $description = $label;
     }
-    $kind = self::normalize_node_kind($node);
 
     if ($uuid === '' || $label === '' || $slug === '') {
       return;
@@ -169,8 +165,17 @@ class CFM_Compiler
       return;
     }
 
-    $legacy_type = isset($node['type']) ? (string) $node['type'] : '';
-    $axis_uuid = ($legacy_type === 'axis') ? $uuid : $current_axis_uuid;
+    $is_meta = ($kind === 'meta');
+    $axis_uuid = null;
+
+    if (!$is_meta) {
+      $axis_uuid = $current_axis_uuid;
+
+      if ($axis_uuid === null && $parent_uuid === null) {
+        $axis_uuid = $uuid;
+      }
+    }
+
     $path = implode('/', array_merge($path_parts, [$slug]));
 
     $terms_table = $wpdb->prefix . 'cfm_terms_compiled';
@@ -182,7 +187,7 @@ class CFM_Compiler
         'framework_id' => $framework_id,
         'version_id' => $version_id,
         'term_uuid' => $uuid,
-        'parent_uuid' => $parent_uuid,
+        'parent_uuid' => $is_meta ? null : $parent_uuid,
         'axis_uuid' => $axis_uuid,
         'kind' => $kind,
         'label' => $label,
@@ -190,7 +195,7 @@ class CFM_Compiler
         'slug' => $slug,
         'description' => $description,
         'sort_order' => $sort_order,
-        'depth' => $depth,
+        'depth' => $is_meta ? 0 : $depth,
         'path' => $path,
         'visibility_contexts_json' => null,
         'is_active' => 1,
@@ -220,7 +225,7 @@ class CFM_Compiler
 
     $counts['terms']++;
 
-    if ($kind === 'meta') {
+    if ($is_meta) {
       self::compile_meta_relationships(
         $node,
         $framework_id,
@@ -279,6 +284,56 @@ class CFM_Compiler
     }
   }
 
+  private static function compile_meta_relationships(
+    array $node,
+    int $framework_id,
+    int $version_id,
+    string $meta_term_uuid,
+    string $now,
+    array &$counts
+  ): void {
+    global $wpdb;
+
+    $includes = isset($node['includes']) && is_array($node['includes'])
+      ? $node['includes']
+      : [];
+
+    $relationships_table = $wpdb->prefix . 'cfm_term_relationships';
+    $seen = [];
+
+    foreach ($includes as $sort_order => $included_uuid) {
+      $included_uuid = trim((string) $included_uuid);
+
+      if ($included_uuid === '' || $included_uuid === $meta_term_uuid) {
+        continue;
+      }
+
+      if (isset($seen[$included_uuid])) {
+        continue;
+      }
+
+      $seen[$included_uuid] = true;
+
+      $inserted = $wpdb->insert(
+        $relationships_table,
+        [
+          'framework_id' => $framework_id,
+          'version_id' => $version_id,
+          'source_term_uuid' => $meta_term_uuid,
+          'target_term_uuid' => $included_uuid,
+          'relationship_type' => 'meta_includes',
+          'sort_order' => (int) $sort_order,
+          'created_at' => $now,
+        ],
+        ['%d', '%d', '%s', '%s', '%s', '%d', '%s']
+      );
+
+      if ($inserted !== false) {
+        $counts['relationships']++;
+      }
+    }
+  }
+
   private static function normalize_node_kind(array $node): string
   {
     $kind = isset($node['kind']) ? sanitize_key((string) $node['kind']) : '';
@@ -287,56 +342,12 @@ class CFM_Compiler
       return $kind;
     }
 
-    $legacy_type = isset($node['type']) ? sanitize_key((string) $node['type']) : '';
+    $type = isset($node['type']) ? sanitize_key((string) $node['type']) : '';
 
-    if ($legacy_type === 'axis' || $legacy_type === 'term') {
+    if ($type === 'axis' || $type === 'term') {
       return 'term';
     }
 
     return 'term';
-  }
-
-  private static function compile_meta_relationships(
-    array $node,
-    int $framework_id,
-    int $version_id,
-    string $source_term_uuid,
-    string $now,
-    array &$counts
-  ): void {
-    global $wpdb;
-
-    $relationships_table = $wpdb->prefix . 'cfm_term_relationships';
-    $includes = isset($node['includes']) && is_array($node['includes'])
-      ? $node['includes']
-      : [];
-
-    $seen = [];
-
-    foreach ($includes as $sort_order => $target_term_uuid) {
-      $target_term_uuid = trim((string) $target_term_uuid);
-
-      if ($target_term_uuid === '' || $target_term_uuid === $source_term_uuid || isset($seen[$target_term_uuid])) {
-        continue;
-      }
-
-      $seen[$target_term_uuid] = true;
-
-      $wpdb->insert(
-        $relationships_table,
-        [
-          'framework_id' => $framework_id,
-          'version_id' => $version_id,
-          'source_term_uuid' => $source_term_uuid,
-          'target_term_uuid' => $target_term_uuid,
-          'relationship_type' => 'meta_includes',
-          'sort_order' => (int) $sort_order,
-          'created_at' => $now,
-        ],
-        ['%d', '%d', '%s', '%s', '%s', '%d', '%s']
-      );
-
-      $counts['relationships']++;
-    }
   }
 }
