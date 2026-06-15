@@ -182,7 +182,7 @@ class CFM_Admin
 
     $export = [
       'export_type' => 'profilaxes_profile_taxonomy',
-      'export_schema_version' => 1,
+      'export_schema_version' => 2,
       'exported_at' => current_time('mysql'),
       'site_url' => site_url(),
       'plugin' => [
@@ -210,6 +210,7 @@ class CFM_Admin
         'runtime_tables' => [
           'cfm_terms_compiled',
           'cfm_term_closure',
+          'cfm_term_relationships',
         ],
         'runtime_tables_rebuildable' => true,
         'assignment_storage' => 'cfm_user_terms stores user assignments by stable term UUID',
@@ -1427,6 +1428,7 @@ class CFM_Admin
 
   private static function normalize_tree_children(array &$node): void
   {
+    self::normalize_node_kind($node);
     self::normalize_node_display_metadata($node);
 
     if (empty($node['children']) || !is_array($node['children'])) {
@@ -1448,11 +1450,41 @@ class CFM_Admin
     $node['children'] = array_values($normalized);
   }
 
+  private static function normalize_node_kind(array &$node): void
+  {
+    $kind = self::node_kind($node);
+
+    if ($kind !== '' && (!array_key_exists('kind', $node) || trim((string) $node['kind']) === '')) {
+      $node['kind'] = $kind;
+    }
+  }
+
+  private static function node_kind(array $node): string
+  {
+    $kind = trim((string) ($node['kind'] ?? ''));
+
+    if (in_array($kind, ['term', 'meta', 'framework', 'root'], true)) {
+      return $kind;
+    }
+
+    $type = trim((string) ($node['type'] ?? ''));
+
+    if (in_array($type, ['axis', 'term'], true)) {
+      return 'term';
+    }
+
+    if (in_array($type, ['framework', 'root'], true)) {
+      return $type;
+    }
+
+    return '';
+  }
+
   private static function normalize_node_display_metadata(array &$node): void
   {
-    $type = (string) ($node['type'] ?? '');
+    $kind = self::node_kind($node);
 
-    if (!in_array($type, ['axis', 'term', 'framework'], true)) {
+    if (!in_array($kind, ['term', 'meta', 'framework'], true)) {
       return;
     }
 
@@ -2223,8 +2255,8 @@ class CFM_Admin
 
     $schema_version = isset($import['export_schema_version']) ? (int) $import['export_schema_version'] : 0;
 
-    if ($schema_version !== 1) {
-      $errors[] = 'Export schema version must be 1 for this validator.';
+    if (!in_array($schema_version, [1, 2], true)) {
+      $errors[] = 'Export schema version must be 1 or 2 for this validator.';
     }
 
     if (empty($import['exported_at']) || !is_string($import['exported_at'])) {
@@ -2277,11 +2309,7 @@ class CFM_Admin
 
     $import_counts = !empty($import_tree)
       ? self::count_profile_tree_nodes($import_tree)
-      : ['axes' => 0, 'terms' => 0];
-
-    if (!empty($import_tree) && (int) $import_counts['axes'] <= 0) {
-      $warnings[] = 'Uploaded taxonomy does not contain any profile categories.';
-    }
+      : ['axes' => 0, 'terms' => 0, 'meta_terms' => 0];
 
     if (!empty($import_tree) && (int) $import_counts['terms'] <= 0) {
       $warnings[] = 'Uploaded taxonomy does not contain any terms.';
@@ -2435,7 +2463,7 @@ class CFM_Admin
     }
 
     if ($result['invalid_type_count'] > 0) {
-      $result['errors'][] = 'One or more uploaded taxonomy nodes have invalid types.';
+      $result['errors'][] = 'One or more uploaded taxonomy nodes have invalid type/kind values.';
     }
 
     if ($result['non_array_child_count'] > 0) {
@@ -2448,6 +2476,7 @@ class CFM_Admin
   private static function validate_taxonomy_import_node(array $node, string $path, bool $is_root, array &$result): void
   {
     $type = (string) ($node['type'] ?? '');
+    $kind = self::node_kind($node);
     $uuid = trim((string) ($node['uuid'] ?? ''));
     $label = trim((string) ($node['label'] ?? ''));
     $slug = self::normalize_slug((string) ($node['slug'] ?? ''));
@@ -2475,10 +2504,10 @@ class CFM_Admin
     }
 
     if ($is_root) {
-      if ($type !== '' && $type !== 'root') {
-        $result['warnings'][] = 'Root node type is not root. Review before using a future write-capable import.';
+      if ($kind !== '' && !in_array($kind, ['root', 'framework'], true)) {
+        $result['warnings'][] = 'Root node kind is not root/framework. Review before using a future write-capable import.';
       }
-    } elseif (!in_array($type, ['axis', 'term'], true)) {
+    } elseif (!in_array($kind, ['term', 'meta'], true)) {
       $result['invalid_type_count']++;
     }
 
@@ -2717,14 +2746,20 @@ class CFM_Admin
     $counts = [
       'axes' => 0,
       'terms' => 0,
+      'meta_terms' => 0,
     ];
 
     $type = (string) ($node['type'] ?? '');
+    $kind = self::node_kind($node);
 
     if ($type === 'axis') {
       $counts['axes']++;
-    } elseif ($type === 'term') {
+    }
+
+    if ($kind === 'term') {
       $counts['terms']++;
+    } elseif ($kind === 'meta') {
+      $counts['meta_terms']++;
     }
 
     $children = $node['children'] ?? [];
@@ -2739,6 +2774,7 @@ class CFM_Admin
 
         $counts['axes'] += $child_counts['axes'];
         $counts['terms'] += $child_counts['terms'];
+        $counts['meta_terms'] += $child_counts['meta_terms'];
       }
     }
 
@@ -2957,10 +2993,20 @@ class CFM_Admin
     $description_changes = [];
     $parent_changes = [];
     $archive_changes = [];
+    $kind_changes = [];
 
     foreach ($shared_uuids as $uuid) {
       $snapshot = $snapshot_nodes[$uuid];
       $current = $current_nodes[$uuid];
+
+      if ((string) ($snapshot['kind'] ?? '') !== (string) ($current['kind'] ?? '')) {
+        $kind_changes[] = [
+          'uuid' => $uuid,
+          'label' => (string) $current['label'],
+          'before' => (string) ($snapshot['kind'] ?? ''),
+          'after' => (string) ($current['kind'] ?? ''),
+        ];
+      }
 
       if ((string) $snapshot['label'] !== (string) $current['label']) {
         $label_changes[] = [
@@ -3018,6 +3064,7 @@ class CFM_Admin
       'current_total' => count($current_nodes),
       'added' => count($added_uuids),
       'removed' => count($removed_uuids),
+      'kind_changed' => count($kind_changes),
       'label_changed' => count($label_changes),
       'slug_changed' => count($slug_changes),
       'short_label_changed' => count($short_label_changes),
@@ -3026,6 +3073,7 @@ class CFM_Admin
       'archive_changed' => count($archive_changes),
       'added_samples' => self::sample_comparison_nodes($added_uuids, $current_nodes),
       'removed_samples' => self::sample_comparison_nodes($removed_uuids, $snapshot_nodes),
+      'kind_change_samples' => array_slice($kind_changes, 0, 8),
       'label_change_samples' => array_slice($label_changes, 0, 8),
       'slug_change_samples' => array_slice($slug_changes, 0, 8),
       'short_label_change_samples' => array_slice($short_label_changes, 0, 8),
@@ -3040,12 +3088,14 @@ class CFM_Admin
     $nodes = [];
     $uuid = trim((string) ($node['uuid'] ?? ''));
     $type = (string) ($node['type'] ?? '');
+    $kind = self::node_kind($node);
     $status = (string) ($node['status'] ?? '');
 
     if ($uuid !== '') {
       $nodes[$uuid] = [
         'uuid' => $uuid,
         'type' => $type,
+        'kind' => $kind,
         'label' => (string) ($node['label'] ?? ''),
         'slug' => (string) ($node['slug'] ?? ''),
         'short_label' => self::display_short_label_for_node($node),
