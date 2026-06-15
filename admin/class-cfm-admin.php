@@ -878,7 +878,7 @@ class CFM_Admin
     }
 
     if (($term_info['node']['type'] ?? '') !== 'term') {
-      wp_die('Only terms can be moved. Axes cannot be moved.');
+      wp_die('Only terms can be moved. Categories cannot be moved.');
     }
 
     if (!$new_parent_info || empty($new_parent_info['node']) || !is_array($new_parent_info['node'])) {
@@ -886,7 +886,7 @@ class CFM_Admin
     }
 
     if (!in_array(($new_parent_info['node']['type'] ?? ''), ['axis', 'term'], true)) {
-      wp_die('New parent must be an axis or term.');
+      wp_die('New parent must be a category or term.');
     }
 
     if (self::node_contains_uuid($term_info['node'], $new_parent_uuid)) {
@@ -983,7 +983,7 @@ class CFM_Admin
     }
 
     if (($term_info['node']['type'] ?? '') !== 'term') {
-      wp_die('Only terms can be archived. Axes cannot be archived.');
+      wp_die('Only terms can be archived. Categories cannot be archived.');
     }
 
     $archive_uuids = self::collect_node_uuids($term_info['node']);
@@ -2104,7 +2104,7 @@ class CFM_Admin
         <div class="card" style="max-width: 760px;">
           <h2>Profile Taxonomy</h2>
           <p>
-            This site does not have a profile taxonomy yet. Create the primary site profile taxonomy before adding axes or terms.
+            This site does not have a profile taxonomy yet. Create the primary site profile taxonomy before adding categories or terms.
           </p>
 
           <form method="post">
@@ -2128,7 +2128,7 @@ class CFM_Admin
                 <td><?php echo esc_html($framework->name); ?></td>
               </tr>
               <tr>
-                <th scope="row">Axes</th>
+                <th scope="row">Categories</th>
                 <td><?php echo esc_html((string) $axis_count); ?></td>
               </tr>
               <tr>
@@ -3856,7 +3856,7 @@ class CFM_Admin
                 <?php self::render_move_parent_options($axes, $term, (string) $current_parent_uuid); ?>
               </select>
               <p class="description">
-                A term can move under an axis or another term. It cannot move under itself or its descendants.
+                A term can move under a category or another term. It cannot move under itself or its descendants.
               </p>
             </td>
           </tr>
@@ -4025,7 +4025,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
           <th>Slug</th>
           <th>UUID</th>
           <th>Parent UUID</th>
-          <th>Axis UUID</th>
+          <th>Category UUID</th>
           <th>Depth</th>
           <th>Path</th>
         </tr>
@@ -4152,7 +4152,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
 
       <?php if (isset($_GET['cfm_axis_added'])) : ?>
         <div class="notice notice-success is-dismissible">
-          <p>Axis added.</p>
+          <p>Category added.</p>
         </div>
       <?php endif; ?>
 
@@ -4225,7 +4225,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
 
       <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'missing_axis_fields') : ?>
         <div class="notice notice-error is-dismissible">
-          <p>Axis label and slug are required.</p>
+          <p>Category label is required.</p>
         </div>
       <?php endif; ?>
 
@@ -4498,7 +4498,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
       <h2 id="cfm-existing-terms">Profile Taxonomy Tree</h2>
 
       <?php if (empty($axes)) : ?>
-        <p>No axes created yet.</p>
+        <p>No categories created yet.</p>
       <?php else : ?>
         <table class="widefat striped" style="max-width: 1000px;">
           <thead>
@@ -4543,7 +4543,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
 
       <hr>
 
-      <h2>Add Axis</h2>
+      <h2>Add Category</h2>
 
       <form method="post">
         <?php wp_nonce_field('cfm_add_axis', 'cfm_nonce'); ?>
@@ -4554,7 +4554,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
         <table class="form-table" role="presentation">
           <tr>
             <th scope="row">
-              <label for="axis_label">Axis Label</label>
+              <label for="axis_label">Category Label</label>
             </th>
             <td>
               <input name="axis_label" id="axis_label" type="text" class="regular-text" data-cfm-autofill-label="add-axis" required>
@@ -4564,7 +4564,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
 
           <tr>
             <th scope="row">
-              <label for="axis_slug">Axis Slug</label>
+              <label for="axis_slug">Category Slug</label>
             </th>
             <td>
               <input name="axis_slug" id="axis_slug" type="text" class="regular-text" data-cfm-autofill-target="add-axis" data-cfm-autofill-type="slug">
@@ -4578,7 +4578,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
             </th>
             <td>
               <input name="axis_short_label" id="axis_short_label" type="text" class="regular-text" data-cfm-autofill-target="add-axis" data-cfm-autofill-type="copy">
-              <p class="description">Compact display text. Leave blank to use the axis label.</p>
+              <p class="description">Compact display text. Leave blank to use the category label.</p>
             </td>
           </tr>
 
@@ -4588,12 +4588,12 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
             </th>
             <td>
               <textarea name="axis_description" id="axis_description" class="large-text" rows="3" data-cfm-autofill-target="add-axis" data-cfm-autofill-type="copy"></textarea>
-              <p class="description">Plain-text explanation. Leave blank to use the axis label.</p>
+              <p class="description">Plain-text explanation. Leave blank to use the category label.</p>
             </td>
           </tr>
         </table>
 
-        <?php submit_button('Add Axis'); ?>
+        <?php submit_button('Add Category'); ?>
       </form>
 
       <hr>
@@ -4601,7 +4601,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
       <h2 id="cfm-add-term">Add Term Under Parent</h2>
 
       <?php if (empty($axes)) : ?>
-        <p>Create an axis before adding terms.</p>
+        <p>Create a category before adding terms.</p>
       <?php else : ?>
         <form method="post">
           <?php wp_nonce_field('cfm_add_term', 'cfm_nonce'); ?>
@@ -4619,7 +4619,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
                   <option value="">Select a parent</option>
                   <?php self::render_parent_options($axes, sanitize_text_field($_GET['cfm_parent_uuid'] ?? '')); ?>
                 </select>
-                <p class="description">Choose an axis for a top-level term, or an existing term for a child term.</p>
+                <p class="description">Choose a category for a top-level term, or an existing term for a child term.</p>
               </td>
             </tr>
 
