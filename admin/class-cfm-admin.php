@@ -5032,6 +5032,39 @@ class CFM_Admin
       ? CFM_Framework_Repository::get_compiled_terms((int) $framework->id, (int) $active_version->id)
       : [];
 
+    $meta_group_key = isset($_GET['meta_group'])
+      ? sanitize_text_field(wp_unslash($_GET['meta_group']))
+      : '';
+
+    $meta_groups = [];
+
+    foreach ($terms as $term) {
+      if (isset($term->kind) && (string) $term->kind === 'meta') {
+        $meta_groups[] = $term;
+      }
+    }
+
+    $selected_meta_group = null;
+    $selected_meta_group_included_uuids = [];
+    $selected_meta_group_included_terms = [];
+    $selected_meta_group_any_user_ids = [];
+    $selected_meta_group_all_user_ids = [];
+
+    if ($meta_group_key !== '') {
+      $selected_meta_group = CFM::get_meta_group((string) $framework->slug, $meta_group_key);
+
+      if ($selected_meta_group) {
+        $selected_meta_group_included_uuids = CFM::get_meta_group_included_term_uuids((string) $framework->slug, $meta_group_key);
+        $selected_meta_group_included_terms = CFM_Framework_Repository::get_terms_by_uuids(
+          (int) $framework->id,
+          $selected_meta_group_included_uuids,
+          $active_version ? (int) $active_version->id : null
+        );
+        $selected_meta_group_any_user_ids = CFM::get_users_matching_meta_group_any((string) $framework->slug, $meta_group_key);
+        $selected_meta_group_all_user_ids = CFM::get_users_matching_meta_group_all((string) $framework->slug, $meta_group_key);
+      }
+    }
+
     $selected_term = null;
     $ancestors = [];
     $descendants = [];
@@ -5143,9 +5176,200 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
 
       <hr>
 
+      <h2>Audience API Smoke Test</h2>
+      <p class="description">Developer diagnostic only. This confirms read-only Audience API helper behavior against the active compiled taxonomy and stored user assignments.</p>
+
+      <?php if (empty($meta_groups)) : ?>
+        <p><em>No compiled Meta-Groups found.</em></p>
+      <?php else : ?>
+        <form method="get" style="margin-bottom: 14px;">
+          <input type="hidden" name="page" value="cfm-frameworks">
+          <input type="hidden" name="action" value="compiled_debug">
+          <input type="hidden" name="framework_id" value="<?php echo esc_attr($framework->id); ?>">
+          <?php if ($term_uuid !== '') : ?>
+            <input type="hidden" name="term_uuid" value="<?php echo esc_attr($term_uuid); ?>">
+          <?php endif; ?>
+
+          <select name="meta_group" style="min-width: 360px;">
+            <option value="">Select a Meta-Group</option>
+            <?php foreach ($meta_groups as $meta_group) : ?>
+              <option value="<?php echo esc_attr($meta_group->slug); ?>" <?php selected($meta_group_key, $meta_group->slug); ?>>
+                <?php echo esc_html($meta_group->label . ' (' . $meta_group->slug . ')'); ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+
+          <?php submit_button('Run Audience API Smoke Test', 'secondary', 'submit', false); ?>
+        </form>
+
+        <?php if ($meta_group_key !== '' && !$selected_meta_group) : ?>
+          <div class="notice notice-error">
+            <p>Selected Meta-Group was not found in the active compiled taxonomy.</p>
+          </div>
+        <?php endif; ?>
+
+        <?php if ($selected_meta_group) : ?>
+          <?php self::render_audience_api_smoke_test_panel(
+            (string) $framework->slug,
+            $selected_meta_group,
+            $selected_meta_group_included_uuids,
+            $selected_meta_group_included_terms,
+            $selected_meta_group_any_user_ids,
+            $selected_meta_group_all_user_ids
+          ); ?>
+        <?php endif; ?>
+      <?php endif; ?>
+
+      <hr>
+
       <h2>All Compiled Terms</h2>
       <?php self::render_compiled_terms_table($terms); ?>
     </div>
+  <?php
+  }
+
+  private static function render_audience_api_smoke_test_panel(string $framework_slug, object $meta_group, array $included_uuids, array $included_terms, array $any_user_ids, array $all_user_ids): void
+  {
+    $included_terms_by_uuid = [];
+
+    foreach ($included_terms as $included_term) {
+      if (isset($included_term->term_uuid)) {
+        $included_terms_by_uuid[(string) $included_term->term_uuid] = $included_term;
+      }
+    }
+
+    $missing_uuids = [];
+
+    foreach ($included_uuids as $included_uuid) {
+      $included_uuid = (string) $included_uuid;
+
+      if ($included_uuid !== '' && !isset($included_terms_by_uuid[$included_uuid])) {
+        $missing_uuids[] = $included_uuid;
+      }
+    }
+
+  ?>
+    <table class="widefat striped" style="max-width: 760px; margin-bottom: 14px;">
+      <tbody>
+        <tr>
+          <th style="width: 220px;">Meta-Group</th>
+          <td><?php echo esc_html((string) ($meta_group->label ?? '')); ?> <code><?php echo esc_html((string) ($meta_group->slug ?? '')); ?></code></td>
+        </tr>
+        <tr>
+          <th>Included Terms</th>
+          <td><?php echo esc_html((string) count($included_uuids)); ?></td>
+        </tr>
+        <tr>
+          <th>ANY Matched Users</th>
+          <td><?php echo esc_html((string) count($any_user_ids)); ?></td>
+        </tr>
+        <tr>
+          <th>ALL Matched Users</th>
+          <td><?php echo esc_html((string) count($all_user_ids)); ?></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <?php if (!empty($missing_uuids)) : ?>
+      <div class="notice notice-warning inline" style="max-width: 760px;">
+        <p>This Meta-Group references <?php echo esc_html((string) count($missing_uuids)); ?> term UUID(s) that were not found in compiled terms.</p>
+      </div>
+    <?php endif; ?>
+
+    <h3>Included Terms</h3>
+    <?php if (empty($included_terms_by_uuid)) : ?>
+      <p><em>No included compiled terms found.</em></p>
+    <?php else : ?>
+      <table class="widefat striped" style="max-width: 1100px;">
+        <thead>
+          <tr>
+            <th>Label / Path</th>
+            <th>Slug</th>
+            <th>UUID</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php foreach ($included_uuids as $included_uuid) : ?>
+            <?php
+            $included_uuid = (string) $included_uuid;
+            $included_term = $included_terms_by_uuid[$included_uuid] ?? null;
+            ?>
+            <tr>
+              <?php if ($included_term) : ?>
+                <td>
+                  <?php echo esc_html((string) $included_term->label); ?>
+                  <br><code><?php echo esc_html((string) $included_term->path); ?></code>
+                </td>
+                <td><code><?php echo esc_html((string) $included_term->slug); ?></code></td>
+                <td><code><?php echo esc_html((string) $included_term->term_uuid); ?></code></td>
+              <?php else : ?>
+                <td><strong>Missing compiled term</strong></td>
+                <td><em>n/a</em></td>
+                <td><code><?php echo esc_html($included_uuid); ?></code></td>
+              <?php endif; ?>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    <?php endif; ?>
+
+    <h3>ANY Match Sample</h3>
+    <?php self::render_audience_api_user_sample($any_user_ids); ?>
+
+    <h3>ALL Match Sample</h3>
+    <?php self::render_audience_api_user_sample($all_user_ids); ?>
+
+    <h3>Example Audience API Calls</h3>
+    <pre style="background:#fff; border:1px solid #ccd0d4; padding:12px; max-width:900px; overflow:auto;"><code>CFM::get_meta_group('<?php echo esc_html((string) $framework_slug); ?>', '<?php echo esc_html((string) ($meta_group->slug ?? '')); ?>');
+CFM::get_meta_group_included_term_uuids('<?php echo esc_html((string) $framework_slug); ?>', '<?php echo esc_html((string) ($meta_group->slug ?? '')); ?>');
+CFM::get_users_matching_meta_group_any('<?php echo esc_html((string) $framework_slug); ?>', '<?php echo esc_html((string) ($meta_group->slug ?? '')); ?>');
+CFM::get_users_matching_meta_group_all('<?php echo esc_html((string) $framework_slug); ?>', '<?php echo esc_html((string) ($meta_group->slug ?? '')); ?>');</code></pre>
+  <?php
+  }
+
+  private static function render_audience_api_user_sample(array $user_ids): void
+  {
+    $user_ids = array_values(array_unique(array_filter(array_map('absint', $user_ids))));
+
+    if (empty($user_ids)) {
+      echo '<p><em>No matching users.</em></p>';
+      return;
+    }
+
+    $sample_user_ids = array_slice($user_ids, 0, 20);
+    $users = get_users([
+      'include' => $sample_user_ids,
+      'orderby' => 'include',
+      'fields' => ['ID', 'user_login', 'user_email', 'display_name'],
+    ]);
+
+    if (empty($users)) {
+      echo '<p><em>No readable user records found.</em></p>';
+      return;
+    }
+
+  ?>
+    <p class="description">Showing first <?php echo esc_html((string) count($users)); ?> of <?php echo esc_html((string) count($user_ids)); ?> matched user ID(s).</p>
+    <table class="widefat striped" style="max-width: 900px;">
+      <thead>
+        <tr>
+          <th>User ID</th>
+          <th>Login</th>
+          <th>Email</th>
+          <th>Display Name</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($users as $user) : ?>
+          <tr>
+            <td><?php echo esc_html((string) $user->ID); ?></td>
+            <td><code><?php echo esc_html((string) $user->user_login); ?></code></td>
+            <td><?php echo esc_html((string) $user->user_email); ?></td>
+            <td><?php echo esc_html((string) $user->display_name); ?></td>
+          </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
   <?php
   }
 
