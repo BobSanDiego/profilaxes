@@ -2426,7 +2426,7 @@ class CFM_Admin
         <div class="card" style="max-width: 760px;">
           <h2>Profile Taxonomy</h2>
           <p>
-            This site does not have a profile taxonomy yet. Create the primary site profile taxonomy before adding categories or terms.
+            This site does not have a profile taxonomy yet. Create the primary site profile taxonomy before adding top-level terms or child terms.
           </p>
 
           <form method="post">
@@ -2450,7 +2450,7 @@ class CFM_Admin
                 <td><?php echo esc_html($framework->name); ?></td>
               </tr>
               <tr>
-                <th scope="row">Categories</th>
+                <th scope="row">Top-Level Terms</th>
                 <td><?php echo esc_html((string) $axis_count); ?></td>
               </tr>
               <tr>
@@ -5084,7 +5084,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
       <h2 id="cfm-existing-terms">Profile Taxonomy Tree</h2>
 
       <?php if (empty($axes)) : ?>
-        <p>No categories created yet.</p>
+        <p>No top-level terms created yet.</p>
       <?php else : ?>
         <table class="widefat striped" style="max-width: 1000px;">
           <thead>
