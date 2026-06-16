@@ -16,12 +16,17 @@ class CFM
 
   public static function maybe_upgrade_schema(): void
   {
-    if (get_option('cfm_schema_term_metadata_v1') === '1') {
-      return;
-    }
+    $required_schema_flags = [
+      'cfm_schema_term_metadata_v1',
+      'cfm_schema_meta_groups_v1',
+    ];
 
-    CFM_Schema::install();
-    update_option('cfm_schema_term_metadata_v1', '1');
+    foreach ($required_schema_flags as $flag) {
+      if (get_option($flag) !== '1') {
+        CFM_Schema::install();
+        update_option($flag, '1');
+      }
+    }
   }
 
   public static function get_framework(string $framework_slug): ?object

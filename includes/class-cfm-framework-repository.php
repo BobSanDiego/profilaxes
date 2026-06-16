@@ -791,6 +791,369 @@ class CFM_Framework_Repository
 
 
 
+
+  public static function create_meta_group(int $framework_id, string $label, string $slug, string $description = '', array $rules = [], string $status = 'active'): int
+  {
+    global $wpdb;
+
+    $framework_id = max(0, $framework_id);
+    $label = trim(wp_strip_all_tags($label));
+    $slug = sanitize_title($slug);
+    $description = wp_kses_post($description);
+    $status = sanitize_key($status);
+
+    if ($framework_id <= 0 || $label === '' || $slug === '') {
+      return 0;
+    }
+
+    if ($status === '') {
+      $status = 'active';
+    }
+
+    $existing = self::get_meta_group_by_slug($framework_id, $slug);
+
+    if ($existing) {
+      return (int) $existing->id;
+    }
+
+    $table = $wpdb->prefix . 'cfm_meta_groups';
+    $now = current_time('mysql');
+
+    $inserted = $wpdb->insert(
+      $table,
+      [
+        'framework_id'     => $framework_id,
+        'meta_group_uuid' => wp_generate_uuid4(),
+        'label'           => $label,
+        'slug'            => $slug,
+        'description'     => $description,
+        'rules_json'      => wp_json_encode(self::normalize_meta_group_rules($rules)),
+        'status'          => $status,
+        'created_at'      => $now,
+        'updated_at'      => $now,
+      ],
+      [
+        '%d',
+        '%s',
+        '%s',
+        '%s',
+        '%s',
+        '%s',
+        '%s',
+        '%s',
+        '%s',
+      ]
+    );
+
+    return $inserted === false ? 0 : (int) $wpdb->insert_id;
+  }
+
+  public static function get_meta_group(int $meta_group_id): ?object
+  {
+    global $wpdb;
+
+    $meta_group_id = max(0, $meta_group_id);
+
+    if ($meta_group_id <= 0) {
+      return null;
+    }
+
+    $table = $wpdb->prefix . 'cfm_meta_groups';
+
+    $meta_group = $wpdb->get_row(
+      $wpdb->prepare(
+        "SELECT * FROM {$table} WHERE id = %d LIMIT 1",
+        $meta_group_id
+      )
+    );
+
+    return $meta_group ?: null;
+  }
+
+  public static function get_meta_group_by_uuid(string $meta_group_uuid): ?object
+  {
+    global $wpdb;
+
+    $meta_group_uuid = trim($meta_group_uuid);
+
+    if ($meta_group_uuid === '') {
+      return null;
+    }
+
+    $table = $wpdb->prefix . 'cfm_meta_groups';
+
+    $meta_group = $wpdb->get_row(
+      $wpdb->prepare(
+        "SELECT * FROM {$table} WHERE meta_group_uuid = %s LIMIT 1",
+        $meta_group_uuid
+      )
+    );
+
+    return $meta_group ?: null;
+  }
+
+  public static function get_meta_group_by_slug(int $framework_id, string $slug): ?object
+  {
+    global $wpdb;
+
+    $framework_id = max(0, $framework_id);
+    $slug = sanitize_title($slug);
+
+    if ($framework_id <= 0 || $slug === '') {
+      return null;
+    }
+
+    $table = $wpdb->prefix . 'cfm_meta_groups';
+
+    $meta_group = $wpdb->get_row(
+      $wpdb->prepare(
+        "SELECT *
+           FROM {$table}
+           WHERE framework_id = %d
+           AND slug = %s
+           LIMIT 1",
+        $framework_id,
+        $slug
+      )
+    );
+
+    return $meta_group ?: null;
+  }
+
+  public static function get_meta_groups(int $framework_id, string $status = 'active'): array
+  {
+    global $wpdb;
+
+    $framework_id = max(0, $framework_id);
+    $status = sanitize_key($status);
+
+    if ($framework_id <= 0) {
+      return [];
+    }
+
+    $table = $wpdb->prefix . 'cfm_meta_groups';
+
+    if ($status === '' || $status === 'all') {
+      $rows = $wpdb->get_results(
+        $wpdb->prepare(
+          "SELECT *
+             FROM {$table}
+             WHERE framework_id = %d
+             ORDER BY label ASC, id ASC",
+          $framework_id
+        )
+      );
+    } else {
+      $rows = $wpdb->get_results(
+        $wpdb->prepare(
+          "SELECT *
+             FROM {$table}
+             WHERE framework_id = %d
+             AND status = %s
+             ORDER BY label ASC, id ASC",
+          $framework_id,
+          $status
+        )
+      );
+    }
+
+    return is_array($rows) ? $rows : [];
+  }
+
+  public static function update_meta_group(int $meta_group_id, array $data): bool
+  {
+    global $wpdb;
+
+    $meta_group_id = max(0, $meta_group_id);
+
+    if ($meta_group_id <= 0) {
+      return false;
+    }
+
+    $allowed = [];
+    $formats = [];
+
+    if (array_key_exists('label', $data)) {
+      $label = trim(wp_strip_all_tags((string) $data['label']));
+
+      if ($label === '') {
+        return false;
+      }
+
+      $allowed['label'] = $label;
+      $formats[] = '%s';
+    }
+
+    if (array_key_exists('slug', $data)) {
+      $slug = sanitize_title((string) $data['slug']);
+
+      if ($slug === '') {
+        return false;
+      }
+
+      $allowed['slug'] = $slug;
+      $formats[] = '%s';
+    }
+
+    if (array_key_exists('description', $data)) {
+      $allowed['description'] = wp_kses_post((string) $data['description']);
+      $formats[] = '%s';
+    }
+
+    if (array_key_exists('rules', $data)) {
+      $rules = is_array($data['rules']) ? $data['rules'] : [];
+      $allowed['rules_json'] = wp_json_encode(self::normalize_meta_group_rules($rules));
+      $formats[] = '%s';
+    }
+
+    if (array_key_exists('rules_json', $data)) {
+      $decoded = json_decode((string) $data['rules_json'], true);
+      $rules = is_array($decoded) ? $decoded : [];
+      $allowed['rules_json'] = wp_json_encode(self::normalize_meta_group_rules($rules));
+      $formats[] = '%s';
+    }
+
+    if (array_key_exists('status', $data)) {
+      $status = sanitize_key((string) $data['status']);
+
+      if ($status === '') {
+        return false;
+      }
+
+      $allowed['status'] = $status;
+      $formats[] = '%s';
+    }
+
+    if (empty($allowed)) {
+      return false;
+    }
+
+    $allowed['updated_at'] = current_time('mysql');
+    $formats[] = '%s';
+
+    $table = $wpdb->prefix . 'cfm_meta_groups';
+
+    $updated = $wpdb->update(
+      $table,
+      $allowed,
+      ['id' => $meta_group_id],
+      $formats,
+      ['%d']
+    );
+
+    return $updated !== false;
+  }
+
+  public static function archive_meta_group(int $meta_group_id): bool
+  {
+    return self::update_meta_group(
+      $meta_group_id,
+      [
+        'status' => 'archived',
+      ]
+    );
+  }
+
+  public static function delete_meta_group(int $meta_group_id): bool
+  {
+    global $wpdb;
+
+    $meta_group_id = max(0, $meta_group_id);
+
+    if ($meta_group_id <= 0) {
+      return false;
+    }
+
+    $table = $wpdb->prefix . 'cfm_meta_groups';
+
+    $deleted = $wpdb->delete(
+      $table,
+      ['id' => $meta_group_id],
+      ['%d']
+    );
+
+    return $deleted !== false;
+  }
+
+  public static function normalize_meta_group_rules(array $rules): array
+  {
+    $logic = isset($rules['logic']) ? strtoupper(sanitize_key((string) $rules['logic'])) : 'OR';
+
+    if ($logic !== 'AND' && $logic !== 'OR') {
+      $logic = 'OR';
+    }
+
+    $normalized = [
+      'version' => 1,
+      'logic'   => $logic,
+      'groups'  => [],
+    ];
+
+    $groups = [];
+
+    if (isset($rules['groups']) && is_array($rules['groups'])) {
+      $groups = $rules['groups'];
+    } elseif (isset($rules['terms']) && is_array($rules['terms'])) {
+      $groups = [
+        [
+          'logic' => $logic,
+          'terms' => $rules['terms'],
+        ],
+      ];
+    }
+
+    foreach ($groups as $group) {
+      if (!is_array($group)) {
+        continue;
+      }
+
+      $group_logic = isset($group['logic']) ? strtoupper(sanitize_key((string) $group['logic'])) : 'OR';
+
+      if ($group_logic !== 'AND' && $group_logic !== 'OR') {
+        $group_logic = 'OR';
+      }
+
+      $terms = [];
+
+      if (isset($group['terms']) && is_array($group['terms'])) {
+        foreach ($group['terms'] as $term_rule) {
+          if (is_string($term_rule)) {
+            $term_rule = [
+              'term_uuid' => $term_rule,
+            ];
+          }
+
+          if (!is_array($term_rule)) {
+            continue;
+          }
+
+          $term_uuid = isset($term_rule['term_uuid']) ? trim((string) $term_rule['term_uuid']) : '';
+
+          if ($term_uuid === '') {
+            continue;
+          }
+
+          $terms[] = [
+            'term_uuid' => $term_uuid,
+            'include_descendants' => array_key_exists('include_descendants', $term_rule)
+              ? (bool) $term_rule['include_descendants']
+              : true,
+          ];
+        }
+      }
+
+      if (!empty($terms)) {
+        $normalized['groups'][] = [
+          'logic' => $group_logic,
+          'terms' => $terms,
+        ];
+      }
+    }
+
+    return $normalized;
+  }
+
+
   public static function normalize_tree_for_storage(array $tree): array
   {
     if (!isset($tree['children']) || !is_array($tree['children'])) {

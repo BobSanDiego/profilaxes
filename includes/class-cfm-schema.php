@@ -20,6 +20,7 @@ class CFM_Schema
         $closure       = $wpdb->prefix . 'cfm_term_closure';
         $relationships = $wpdb->prefix . 'cfm_term_relationships';
         $user_terms    = $wpdb->prefix . 'cfm_user_terms';
+        $meta_groups   = $wpdb->prefix . 'cfm_meta_groups';
 
         dbDelta("
             CREATE TABLE {$frameworks} (
@@ -134,6 +135,28 @@ class CFM_Schema
                 KEY term_uuid (term_uuid),
                 KEY context (context),
                 UNIQUE KEY user_framework_term_context (user_id, framework_id, term_uuid, context)
+            ) {$charset_collate};
+        ");
+
+
+        dbDelta("
+            CREATE TABLE {$meta_groups} (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                framework_id BIGINT UNSIGNED NOT NULL,
+                meta_group_uuid CHAR(36) NOT NULL,
+                label VARCHAR(190) NOT NULL,
+                slug VARCHAR(190) NOT NULL,
+                description TEXT NULL,
+                rules_json LONGTEXT NOT NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'active',
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL,
+                PRIMARY KEY  (id),
+                UNIQUE KEY meta_group_uuid (meta_group_uuid),
+                UNIQUE KEY framework_slug (framework_id, slug),
+                KEY framework_id (framework_id),
+                KEY slug (slug),
+                KEY status (status)
             ) {$charset_collate};
         ");
 
