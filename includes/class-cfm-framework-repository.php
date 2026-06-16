@@ -6,6 +6,15 @@ if (!defined('ABSPATH')) {
 
 class CFM_Framework_Repository
 {
+  /**
+   * Meta-Group source-of-truth note.
+   *
+   * Current admin UI stores Meta-Groups inside the active tree_json as root-level nodes
+   * with kind=meta and includes=[term UUIDs]. The cfm_meta_groups table helpers below are
+   * retained as dormant experimental/legacy helpers only. Do not build new UI or audience
+   * logic against these table methods unless a future migration deliberately changes the
+   * canonical storage model.
+   */
   public static function create_framework(string $name, string $slug, string $description = ''): int
   {
     global $wpdb;
@@ -792,6 +801,11 @@ class CFM_Framework_Repository
 
 
 
+  /**
+   * Dormant table-based Meta-Group helper.
+   *
+   * Current source of truth is tree_json kind=meta nodes, not wp_cfm_meta_groups.
+   */
   public static function create_meta_group(int $framework_id, string $label, string $slug, string $description = '', array $rules = [], string $status = 'active'): int
   {
     global $wpdb;

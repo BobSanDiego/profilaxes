@@ -20,6 +20,7 @@ class CFM_Schema
         $closure       = $wpdb->prefix . 'cfm_term_closure';
         $relationships = $wpdb->prefix . 'cfm_term_relationships';
         $user_terms    = $wpdb->prefix . 'cfm_user_terms';
+        // Dormant legacy/experimental table. Current Meta-Group source of truth is active tree_json kind=meta nodes.
         $meta_groups   = $wpdb->prefix . 'cfm_meta_groups';
 
         dbDelta("
@@ -139,6 +140,7 @@ class CFM_Schema
         ");
 
 
+        // Retained for backward compatibility only. Do not use as canonical Meta-Group storage.
         dbDelta("
             CREATE TABLE {$meta_groups} (
                 id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,

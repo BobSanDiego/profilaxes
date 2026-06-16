@@ -1031,7 +1031,7 @@ class CFM_Admin
     }
 
     if (self::node_kind($term_info['node']) !== 'term') {
-      wp_die('Only terms can be moved. Categories cannot be moved.');
+      wp_die('Only profile terms can be moved. Meta-Groups and system roots cannot be moved here.');
     }
 
     if (!$new_parent_info || empty($new_parent_info['node']) || !is_array($new_parent_info['node'])) {
@@ -1039,7 +1039,7 @@ class CFM_Admin
     }
 
     if (!in_array(self::node_kind($new_parent_info['node']), ['framework', 'root', 'term'], true)) {
-      wp_die('New parent must be a category or term.');
+      wp_die('New parent must be the taxonomy root or another profile term.');
     }
 
     if (self::node_contains_uuid($term_info['node'], $new_parent_uuid)) {
@@ -1136,7 +1136,7 @@ class CFM_Admin
     }
 
     if (self::node_kind($term_info['node']) !== 'term') {
-      wp_die('Only terms can be archived. Categories cannot be archived.');
+      wp_die('Only profile terms can be archived. Meta-Groups and system roots cannot be archived here.');
     }
 
     $archive_uuids = self::collect_node_uuids($term_info['node']);
@@ -2070,6 +2070,14 @@ class CFM_Admin
     }));
   }
 
+  /**
+   * Canonical Meta-Group model for v0.3.3.
+   *
+   * Meta-Groups are stored as root-level tree nodes with kind=meta and includes=[term UUIDs].
+   * They are audience/collection helpers only; users are assigned profile terms, not Meta-Groups.
+   * The older cfm_meta_groups table/repository path is dormant and must not be used as the
+   * source of truth unless a future migration explicitly promotes it.
+   */
   private static function root_meta_groups(array $tree): array
   {
     $children = isset($tree['children']) && is_array($tree['children']) ? $tree['children'] : [];
@@ -3017,7 +3025,7 @@ class CFM_Admin
             <td><?php echo esc_html(isset($preview['active_version_number']) && $preview['active_version_number'] !== null ? 'v' . $preview['active_version_number'] : 'Unknown'); ?></td>
           </tr>
           <tr>
-            <th>Uploaded Profile Categories</th>
+            <th>Uploaded Profile Terms</th>
             <td><?php echo esc_html((string) ($preview['import_counts']['axes'] ?? 0)); ?></td>
           </tr>
           <tr>
@@ -3029,7 +3037,7 @@ class CFM_Admin
             <td><?php echo esc_html((string) ($preview['archived_count'] ?? 0)); ?></td>
           </tr>
           <tr>
-            <th>Current Profile Categories</th>
+            <th>Current Profile Terms</th>
             <td><?php echo esc_html((string) ($preview['current_counts']['axes'] ?? 0)); ?></td>
           </tr>
           <tr>
@@ -4399,7 +4407,7 @@ class CFM_Admin
                 <?php self::render_move_parent_options($axes, $term, (string) $current_parent_uuid); ?>
               </select>
               <p class="description">
-                A term can move under a category or another term. It cannot move under itself or its descendants.
+                A profile term can move to the top level or under another profile term. It cannot move under itself or its descendants.
               </p>
             </td>
           </tr>
@@ -4568,7 +4576,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
           <th>Slug</th>
           <th>UUID</th>
           <th>Parent UUID</th>
-          <th>Category UUID</th>
+          <th>Top-Level Term UUID</th>
           <th>Depth</th>
           <th>Path</th>
         </tr>
@@ -4706,7 +4714,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
 
       <?php if (isset($_GET['cfm_axis_added'])) : ?>
         <div class="notice notice-success is-dismissible">
-          <p>Category added.</p>
+          <p>Top-level term added.</p>
         </div>
       <?php endif; ?>
 
@@ -4785,7 +4793,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
 
       <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'missing_axis_fields') : ?>
         <div class="notice notice-error is-dismissible">
-          <p>Category label is required.</p>
+          <p>Top-level term label is required.</p>
         </div>
       <?php endif; ?>
 

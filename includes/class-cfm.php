@@ -1002,9 +1002,9 @@ class CFM
     echo '<div style="max-height:620px;overflow:auto;border:1px solid #ccd0d4;background:#fff;max-width:1050px;">';
     echo '<table class="widefat striped" style="border:0;">';
     echo '<thead><tr>';
-    $profile_category_count = count($rows);
+    $profile_term_count = count($rows);
 
-    echo '<th><a href="' . $tree_url . '">Profile Categories (' . esc_html((string) $profile_category_count) . ')</a></th>';
+    echo '<th><a href="' . $tree_url . '">Profile Terms (' . esc_html((string) $profile_term_count) . ')</a></th>';
     echo '<th><a href="' . $slug_url . '">Slug</a></th>';
     echo '<th><a href="' . $users_url . '">Users (' . esc_html((string) $total_users) . ')</a></th>';
     echo '<th>%</th>';
@@ -1041,7 +1041,7 @@ class CFM
 
     echo '</tbody></table>';
     echo '</div>';
-    echo '<p class="description">Click Profile Categories to restore tree order. Slug sorts alphabetically. Users sorts by audience size. The highlighted search row stays pinned above the table.</p>';
+    echo '<p class="description">Click Profile Terms to restore tree order. Slug sorts alphabetically. Users sorts by audience size. The highlighted search row stays pinned above the table.</p>';
     echo '<p class="description">This page is analytics/read-only. Assignment changes happen under Users → Assign Profiles.</p>';
     echo '</div>';
   }

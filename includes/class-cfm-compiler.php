@@ -161,6 +161,9 @@ class CFM_Compiler
       return;
     }
 
+    // Terms and Meta-Groups both compile into cfm_terms_compiled for lookup consistency.
+    // Meta-Groups remain non-assignable audience helpers; their included terms are compiled
+    // separately as cfm_term_relationships rows with relationship_type=meta_includes.
     if ($kind !== 'term' && $kind !== 'meta') {
       return;
     }
