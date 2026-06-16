@@ -2152,12 +2152,12 @@ class CFM_Admin
   private static function render_meta_groups_table(array $meta_groups, array $terms_by_uuid): void
   {
     if (empty($meta_groups)) {
-      echo '<p>No Meta-Groups created yet.</p>';
+      echo '<p>No Meta-Groups created yet. Meta-Groups are optional audience helpers and are not required for basic profile assignments.</p>';
       return;
     }
 
-    echo '<table class="widefat striped" style="max-width: 1000px;">';
-    echo '<thead><tr><th>Meta-Group</th><th>Slug</th><th>Includes</th><th>Identifier</th></tr></thead>';
+    echo '<table class="widefat striped" style="max-width: 1100px;">';
+    echo '<thead><tr><th>Meta-Group</th><th>Role</th><th>Slug</th><th>Included Terms</th><th>Identifier</th></tr></thead>';
     echo '<tbody>';
 
     foreach ($meta_groups as $meta_group) {
@@ -2166,6 +2166,7 @@ class CFM_Admin
       }
 
       $include_labels = self::meta_group_include_labels($meta_group, $terms_by_uuid);
+      $include_count = count($include_labels);
 
       echo '<tr>';
       echo '<td><strong>' . esc_html((string) ($meta_group['label'] ?? '')) . '</strong>';
@@ -2174,8 +2175,10 @@ class CFM_Admin
         echo '<br><span class="description">' . esc_html($description) . '</span>';
       }
       echo '</td>';
+      echo '<td><strong>Audience-only collection</strong><br><span class="description">Not directly assignable to users. User profiles still receive terms.</span></td>';
       echo '<td><code>' . esc_html((string) ($meta_group['slug'] ?? '')) . '</code></td>';
       echo '<td>';
+      echo '<p style="margin:0 0 6px;"><strong>' . esc_html((string) $include_count) . '</strong> included term' . ($include_count === 1 ? '' : 's') . '</p>';
 
       if (empty($include_labels)) {
         echo '<em>No included terms.</em>';
@@ -5130,7 +5133,10 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
       <hr>
 
       <h2 id="cfm-meta-groups">Meta-Groups</h2>
-      <p class="description">Meta-Groups collect existing terms without changing the Profile Taxonomy tree.</p>
+      <div class="notice notice-info inline">
+        <p><strong>Meta-Groups are audience-only collections.</strong> They collect existing terms for future audience and extension use without changing the Profile Taxonomy tree.</p>
+        <p>Users are assigned profile terms, not Meta-Groups. A Meta-Group can include terms from different branches without moving, copying, or replacing those terms.</p>
+      </div>
 
       <?php self::render_meta_groups_table($meta_groups, $terms_by_uuid); ?>
 
@@ -5201,7 +5207,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
                     </label>
                   <?php endforeach; ?>
                 </fieldset>
-                <p class="description">Select existing terms only. Meta-Groups do not create new terms or move terms in the tree.</p>
+                <p class="description">Select existing terms only. Meta-Groups do not create new terms, move terms in the tree, or become directly assignable user profile values.</p>
               </td>
             </tr>
           </table>
