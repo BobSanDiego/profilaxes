@@ -87,6 +87,11 @@ class CFM_Admin
       return;
     }
 
+    if ($action === 'update_meta_group') {
+      self::handle_update_meta_group();
+      return;
+    }
+
     if ($action === 'update_term') {
       self::handle_update_term();
       return;
@@ -889,6 +894,131 @@ class CFM_Admin
     exit;
   }
 
+  private static function handle_update_meta_group(): void
+  {
+    check_admin_referer('cfm_update_meta_group', 'cfm_nonce');
+
+    $framework_id = absint($_POST['framework_id'] ?? 0);
+    $meta_group_uuid = sanitize_text_field(wp_unslash($_POST['meta_group_uuid'] ?? ''));
+    $label = sanitize_text_field(wp_unslash($_POST['meta_group_label'] ?? ''));
+    $slug_input = wp_unslash($_POST['meta_group_slug'] ?? '');
+    $slug = self::normalize_slug($slug_input !== '' ? (string) $slug_input : $label);
+    $short_label = sanitize_text_field(wp_unslash($_POST['meta_group_short_label'] ?? ''));
+    $description = sanitize_textarea_field(wp_unslash($_POST['meta_group_description'] ?? ''));
+    $raw_includes = isset($_POST['meta_group_includes']) && is_array($_POST['meta_group_includes'])
+      ? wp_unslash($_POST['meta_group_includes'])
+      : [];
+
+    $includes = [];
+
+    foreach ($raw_includes as $include_uuid) {
+      $include_uuid = sanitize_text_field((string) $include_uuid);
+
+      if ($include_uuid !== '') {
+        $includes[] = $include_uuid;
+      }
+    }
+
+    $includes = array_values(array_unique($includes));
+
+    if ($short_label === '') {
+      $short_label = $label;
+    }
+
+    if ($description === '') {
+      $description = $label;
+    }
+
+    if ($framework_id <= 0 || $meta_group_uuid === '' || $label === '' || $slug === '' || count($includes) < 2) {
+      wp_safe_redirect(
+        admin_url(
+          'admin.php?page=cfm-frameworks'
+            . '&action=edit_meta_group'
+            . '&framework_id=' . $framework_id
+            . '&meta_group_uuid=' . rawurlencode($meta_group_uuid)
+            . '&cfm_error=missing_meta_group_fields'
+        )
+      );
+      exit;
+    }
+
+    $framework = CFM_Framework_Repository::get_framework($framework_id);
+
+    if (!$framework) {
+      wp_die('Profile taxonomy not found.');
+    }
+
+    $tree = self::get_framework_tree($framework);
+    $meta_group_info = self::find_node_with_parent($tree, $meta_group_uuid);
+
+    if (!$meta_group_info || empty($meta_group_info['node']) || !is_array($meta_group_info['node'])) {
+      wp_die('Meta-Group not found.');
+    }
+
+    if (self::node_kind($meta_group_info['node']) !== 'meta') {
+      wp_die('Only Meta-Groups can be edited here.');
+    }
+
+    $available_terms = self::collect_assignable_term_nodes($tree);
+    $available_uuids = [];
+
+    foreach ($available_terms as $term) {
+      $uuid = (string) ($term['uuid'] ?? '');
+
+      if ($uuid !== '') {
+        $available_uuids[$uuid] = true;
+      }
+    }
+
+    foreach ($includes as $include_uuid) {
+      if (!isset($available_uuids[$include_uuid])) {
+        wp_safe_redirect(
+          admin_url(
+            'admin.php?page=cfm-frameworks'
+              . '&action=edit_meta_group'
+              . '&framework_id=' . $framework_id
+              . '&meta_group_uuid=' . rawurlencode($meta_group_uuid)
+              . '&cfm_error=invalid_meta_group_includes'
+          )
+        );
+        exit;
+      }
+    }
+
+    $root_uuid = (string) ($tree['uuid'] ?? '');
+
+    if (self::has_child_slug_conflict($tree, $root_uuid, $slug, $meta_group_uuid)) {
+      wp_safe_redirect(
+        admin_url(
+          'admin.php?page=cfm-frameworks'
+            . '&action=edit_meta_group'
+            . '&framework_id=' . $framework_id
+            . '&meta_group_uuid=' . rawurlencode($meta_group_uuid)
+            . '&cfm_error=duplicate_meta_group_slug'
+        )
+      );
+      exit;
+    }
+
+    if (!self::update_meta_group_by_uuid($tree, $meta_group_uuid, $label, $slug, $short_label, $description, $includes)) {
+      wp_die('Meta-Group could not be updated.');
+    }
+
+    $compile_result = self::save_active_tree_and_compile($framework_id, $tree);
+
+    wp_safe_redirect(
+      admin_url(
+        'admin.php?page=cfm-frameworks'
+          . '&action=edit'
+          . '&framework_id=' . $framework_id
+          . '&cfm_meta_group_updated=1'
+          . $compile_result['query_arg']
+          . '#cfm-meta-groups'
+      )
+    );
+    exit;
+  }
+
   private static function handle_update_term(): void
   {
     check_admin_referer('cfm_update_term', 'cfm_nonce');
@@ -1236,6 +1366,46 @@ class CFM_Admin
       }
 
       if (self::update_node_metadata_by_uuid($child, $uuid, $label, $slug, $short_label, $description)) {
+        unset($child);
+        return true;
+      }
+    }
+
+    unset($child);
+    return false;
+  }
+
+  private static function update_meta_group_by_uuid(array &$node, string $uuid, string $label, string $slug, string $short_label, string $description, array $includes): bool
+  {
+    if (($node['uuid'] ?? '') === $uuid) {
+      if (self::node_kind($node) !== 'meta') {
+        return false;
+      }
+
+      $node['label'] = $label;
+      $node['slug'] = $slug;
+      $node['short_label'] = $short_label !== '' ? $short_label : $label;
+      $node['description'] = $description !== '' ? $description : $label;
+      $node['includes'] = array_values(array_unique(array_filter(array_map('strval', $includes))));
+      $node['kind'] = 'meta';
+
+      if (!isset($node['children']) || !is_array($node['children'])) {
+        $node['children'] = [];
+      }
+
+      return true;
+    }
+
+    if (empty($node['children']) || !is_array($node['children'])) {
+      return false;
+    }
+
+    foreach ($node['children'] as &$child) {
+      if (!is_array($child)) {
+        continue;
+      }
+
+      if (self::update_meta_group_by_uuid($child, $uuid, $label, $slug, $short_label, $description, $includes)) {
         unset($child);
         return true;
       }
@@ -2160,7 +2330,7 @@ class CFM_Admin
     return $details;
   }
 
-  private static function render_meta_groups_table(array $meta_groups, array $terms_by_uuid): void
+  private static function render_meta_groups_table(array $meta_groups, array $terms_by_uuid, int $framework_id): void
   {
     if (empty($meta_groups)) {
       echo '<p>No Meta-Groups created yet. Meta-Groups are optional audience helpers and are not required for basic profile assignments.</p>';
@@ -2168,7 +2338,7 @@ class CFM_Admin
     }
 
     echo '<table class="widefat striped" style="max-width: 1100px;">';
-    echo '<thead><tr><th>Meta-Group</th><th>Role</th><th>Slug</th><th>Included Terms</th><th>Identifier</th></tr></thead>';
+    echo '<thead><tr><th>Meta-Group</th><th>Role</th><th>Slug</th><th>Included Terms</th><th>Actions</th></tr></thead>';
     echo '<tbody>';
 
     foreach ($meta_groups as $meta_group) {
@@ -2228,7 +2398,7 @@ class CFM_Admin
       }
 
       echo '</td>';
-      echo '<td><details><summary>UUID</summary><code>' . esc_html((string) ($meta_group['uuid'] ?? '')) . '</code></details></td>';
+      echo '<td><a href="' . esc_url(self::edit_meta_group_url($framework_id, (string) ($meta_group['uuid'] ?? ''))) . '">Edit</a></td>';
       echo '</tr>';
     }
 
@@ -2295,7 +2465,7 @@ class CFM_Admin
     return $child_count > 0 ? $child_count : 1;
   }
 
-  private static function render_meta_group_term_checklist(array $terms, int $depth = 0): void
+  private static function render_meta_group_term_checklist(array $terms, int $depth = 0, array $selected_uuids = []): void
   {
     if (empty($terms)) {
       return;
@@ -2328,7 +2498,8 @@ class CFM_Admin
       }
 
       echo '<label style="display:flex; align-items:center; gap:6px; margin:0;">';
-      echo '<input class="cfm-meta-term-checkbox" type="checkbox" name="meta_group_includes[]" value="' . esc_attr($uuid) . '">';
+      $checked = in_array($uuid, $selected_uuids, true) ? ' checked' : '';
+      echo '<input class="cfm-meta-term-checkbox" type="checkbox" name="meta_group_includes[]" value="' . esc_attr($uuid) . '"' . $checked . '>';
       echo '<span>' . esc_html($label) . '</span>';
       echo '<span class="cfm-meta-term-count" title="Included selectable term count" style="display:inline-block; min-width:18px; padding:0 6px; border-radius:10px; background:#f0f0f1; color:#50575e; font-size:11px; line-height:18px; text-align:center;">' . esc_html((string) $count) . '</span>';
       echo '</label>';
@@ -2336,7 +2507,7 @@ class CFM_Admin
 
       if ($has_children) {
         echo '<div class="cfm-meta-term-children" style="margin-left:18px;">';
-        self::render_meta_group_term_checklist($children, $depth + 1);
+        self::render_meta_group_term_checklist($children, $depth + 1, $selected_uuids);
         echo '</div>';
       }
 
@@ -2481,6 +2652,19 @@ class CFM_Admin
           });
         });
 
+        Array.prototype.slice.call(root.querySelectorAll('.cfm-meta-term-node')).reverse().forEach(function(node) {
+          var checkbox = node.querySelector(':scope > .cfm-meta-term-row .cfm-meta-term-checkbox');
+          var descendants = childCheckboxes(node);
+
+          if (checkbox && descendants.length) {
+            var checkedCount = descendants.filter(function(input) {
+              return input.checked;
+            }).length;
+            checkbox.checked = checkedCount === descendants.length;
+            checkbox.indeterminate = checkedCount > 0 && checkedCount < descendants.length;
+          }
+        });
+
         updateSelectedCount();
       }());
     </script>
@@ -2581,6 +2765,11 @@ class CFM_Admin
 
     if ($action === 'edit_term') {
       self::render_edit_term_page();
+      return;
+    }
+
+    if ($action === 'edit_meta_group') {
+      self::render_edit_meta_group_page();
       return;
     }
 
@@ -3494,6 +3683,16 @@ class CFM_Admin
       'action' => 'edit_term',
       'framework_id' => $framework_id,
       'term_uuid' => $term_uuid,
+    ], admin_url('admin.php'));
+  }
+
+  private static function edit_meta_group_url(int $framework_id, string $meta_group_uuid): string
+  {
+    return add_query_arg([
+      'page' => 'cfm-frameworks',
+      'action' => 'edit_meta_group',
+      'framework_id' => $framework_id,
+      'meta_group_uuid' => $meta_group_uuid,
     ], admin_url('admin.php'));
   }
 
@@ -4417,6 +4616,7 @@ class CFM_Admin
         wireGroup('add-axis');
         wireGroup('add-term');
         wireGroup('edit-term');
+        wireGroup('edit-meta-group');
 
         if (window.location.hash === '#cfm-add-term') {
           var addTermLabel = document.querySelector('[data-cfm-autofill-label="add-term"]');
@@ -4539,6 +4739,144 @@ class CFM_Admin
         <?php submit_button('Save Term'); ?>
       </form>
 
+      <?php self::render_term_metadata_autofill_script(); ?>
+    </div>
+  <?php
+  }
+
+  public static function render_edit_meta_group_page(): void
+  {
+    if (!current_user_can('manage_options')) {
+      wp_die('You do not have permission to access this page.');
+    }
+
+    $framework_id = isset($_GET['framework_id']) ? absint($_GET['framework_id']) : 0;
+    $meta_group_uuid = isset($_GET['meta_group_uuid']) ? sanitize_text_field(wp_unslash($_GET['meta_group_uuid'])) : '';
+
+    $framework = CFM_Framework_Repository::get_framework($framework_id);
+
+    if (!$framework) {
+      wp_die('Profile taxonomy not found.');
+    }
+
+    $tree = self::get_framework_tree($framework);
+    $meta_group_info = self::find_node_with_parent($tree, $meta_group_uuid);
+
+    if (!$meta_group_info || empty($meta_group_info['node']) || !is_array($meta_group_info['node'])) {
+      wp_die('Meta-Group not found.');
+    }
+
+    $meta_group = $meta_group_info['node'];
+
+    if (self::node_kind($meta_group) !== 'meta') {
+      wp_die('Only Meta-Groups can be edited here.');
+    }
+
+    $available_terms = self::collect_assignable_term_nodes($tree);
+    $selected_uuids = isset($meta_group['includes']) && is_array($meta_group['includes'])
+      ? array_values(array_unique(array_filter(array_map('strval', $meta_group['includes']))))
+      : [];
+
+  ?>
+    <div class="wrap">
+      <h1>Edit Meta-Group: <?php echo esc_html($meta_group['label'] ?? ''); ?></h1>
+
+      <p>
+        <a href="<?php echo esc_url(admin_url('admin.php?page=cfm-frameworks&action=edit&framework_id=' . (int) $framework->id . '#cfm-meta-groups')); ?>">← Back to Meta-Groups</a>
+      </p>
+
+      <div class="notice notice-info inline">
+        <p><strong>Meta-Groups are audience-only collections.</strong> Editing this Meta-Group changes which existing terms it references. It does not move terms, create terms, or assign users.</p>
+      </div>
+
+      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'missing_meta_group_fields') : ?>
+        <div class="notice notice-error is-dismissible">
+          <p>Meta-Group label, slug, and at least two included terms are required.</p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'invalid_meta_group_includes') : ?>
+        <div class="notice notice-error is-dismissible">
+          <p>One or more selected terms are no longer available. Review the included terms and save again.</p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'duplicate_meta_group_slug') : ?>
+        <div class="notice notice-error is-dismissible">
+          <p>That slug is already used by another top-level term or Meta-Group.</p>
+        </div>
+      <?php endif; ?>
+
+      <form method="post">
+        <?php wp_nonce_field('cfm_update_meta_group', 'cfm_nonce'); ?>
+
+        <input type="hidden" name="cfm_action" value="update_meta_group">
+        <input type="hidden" name="framework_id" value="<?php echo esc_attr($framework->id); ?>">
+        <input type="hidden" name="meta_group_uuid" value="<?php echo esc_attr($meta_group['uuid'] ?? ''); ?>">
+
+        <table class="form-table" role="presentation">
+          <tr>
+            <th scope="row"><label for="meta_group_label">Meta-Group Label</label></th>
+            <td>
+              <input name="meta_group_label" id="meta_group_label" type="text" class="regular-text" value="<?php echo esc_attr($meta_group['label'] ?? ''); ?>" data-cfm-autofill-label="edit-meta-group" required>
+            </td>
+          </tr>
+
+          <tr>
+            <th scope="row"><label for="meta_group_slug">Meta-Group Slug</label></th>
+            <td>
+              <input name="meta_group_slug" id="meta_group_slug" type="text" class="regular-text" value="<?php echo esc_attr($meta_group['slug'] ?? ''); ?>" data-cfm-autofill-target="edit-meta-group" data-cfm-autofill-type="slug">
+              <p class="description">Keep this stable unless you intentionally need to change API-facing references.</p>
+            </td>
+          </tr>
+
+          <tr>
+            <th scope="row"><label for="meta_group_short_label">Short Label</label></th>
+            <td>
+              <input name="meta_group_short_label" id="meta_group_short_label" type="text" class="regular-text" value="<?php echo esc_attr(self::display_short_label_for_node($meta_group)); ?>" data-cfm-autofill-target="edit-meta-group" data-cfm-autofill-type="copy">
+              <p class="description">Compact display text. Leave blank to use the Meta-Group label.</p>
+            </td>
+          </tr>
+
+          <tr>
+            <th scope="row"><label for="meta_group_description">Description</label></th>
+            <td>
+              <textarea name="meta_group_description" id="meta_group_description" class="large-text" rows="3" data-cfm-autofill-target="edit-meta-group" data-cfm-autofill-type="copy"><?php echo esc_textarea(self::display_description_for_node($meta_group)); ?></textarea>
+              <p class="description">Plain-text explanation. Leave blank to use the Meta-Group label.</p>
+            </td>
+          </tr>
+
+          <tr>
+            <th scope="row">Included Terms</th>
+            <td>
+              <?php if (count($available_terms) < 2) : ?>
+                <p>Create at least two terms before editing Meta-Group includes.</p>
+              <?php else : ?>
+                <div data-cfm-meta-term-selector="1">
+                  <p class="description" style="margin-top:0;">Parent checkboxes select or clear all descendant terms. Child changes update parent checkbox state.</p>
+                  <div style="display:flex; justify-content:space-between; max-width:760px; margin:0 0 8px;">
+                    <span>
+                      <a href="#" data-cfm-meta-expand="1">Expand all</a>
+                      <span aria-hidden="true"> | </span>
+                      <a href="#" data-cfm-meta-expand="0">Collapse all</a>
+                    </span>
+                    <span id="cfm-meta-selected-count" class="description">0 terms selected</span>
+                  </div>
+                  <fieldset style="max-height: 340px; overflow: auto; border: 1px solid #ccd0d4; background: #fff; padding: 10px; max-width:760px;">
+                    <legend class="screen-reader-text">Included Terms</legend>
+                    <?php self::render_meta_group_term_checklist(self::root_terms($tree), 0, $selected_uuids); ?>
+                  </fieldset>
+                </div>
+                <p class="description">Meta-Groups remain non-assignable. This selector only changes the referenced terms.</p>
+              <?php endif; ?>
+            </td>
+          </tr>
+        </table>
+
+        <?php submit_button('Save Meta-Group'); ?>
+      </form>
+
+      <?php self::render_meta_group_term_checklist_script(); ?>
       <?php self::render_term_metadata_autofill_script(); ?>
     </div>
   <?php
@@ -4980,6 +5318,11 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
         </div>
       <?php endif; ?>
 
+      <?php if (isset($_GET['cfm_meta_group_updated'])) : ?>
+        <div class="notice notice-success is-dismissible">
+          <p>Meta-Group updated.</p>
+        </div>
+      <?php endif; ?>
 
       <?php if (isset($_GET['cfm_term_moved'])) : ?>
         <div class="notice notice-success is-dismissible">
@@ -5385,7 +5728,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
         <p>Users are assigned profile terms, not Meta-Groups. A Meta-Group can include terms from different branches without moving, copying, or replacing those terms.</p>
       </div>
 
-      <?php self::render_meta_groups_table($meta_groups, $terms_by_uuid); ?>
+      <?php self::render_meta_groups_table($meta_groups, $terms_by_uuid, (int) $framework->id); ?>
 
       <h3>Create Meta-Group</h3>
 
