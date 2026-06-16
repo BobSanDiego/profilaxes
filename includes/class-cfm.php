@@ -6,6 +6,22 @@ if (!defined('ABSPATH')) {
 
 class CFM
 {
+  /**
+   * Core Terms stable surface marker.
+   *
+   * Methods marked with this value are intended to become part of the
+   * Core Terms beta contract after the v0.6.0 stabilization pass.
+   */
+  public const SURFACE_CORE_TERMS = 'core_terms';
+
+  /**
+   * Labs surface marker.
+   *
+   * Methods marked with this value are preserved diagnostic/incubator tools.
+   * They are useful, but are not part of the frozen Core Terms v1 contract.
+   */
+  public const SURFACE_LABS = 'labs';
+
   public static function init(): void
   {
     add_action('init', [__CLASS__, 'maybe_upgrade_schema']);
@@ -393,9 +409,16 @@ class CFM
 
 
   /**
-   * Resolve a generic Profilaxes audience to matching user IDs.
+   * LABS / EXPERIMENTAL: resolve a generic audience to matching user IDs.
    *
-   * Consumer Integration Contract v1:
+   * This is a preserved incubator utility. It is useful for diagnostics,
+   * future Jobs targeting, newsletters, discovery tools, and other consumers,
+   * but it is not part of the frozen Core Terms v1 public contract yet.
+   *
+   * Consumers may experiment with this method, but should not treat its
+   * argument shape or query semantics as permanent until it graduates from Labs.
+   *
+   * Current behavior:
    * - Consumers pass an audience definition, not consumer-specific state.
    * - Profilaxes resolves users only; consumers own jobs, posts, listings, boards, messages, and notifications.
    * - Terms and Meta-Groups are combined into one target set.
@@ -492,6 +515,12 @@ class CFM
     ]);
   }
 
+  /**
+   * LABS / EXPERIMENTAL: match assigned/effective terms against target terms.
+   *
+   * Preserved for diagnostics and future consumer experiments. This overloaded
+   * helper is intentionally not frozen as part of the Core Terms v1 contract.
+   */
   public static function matches(...$args): bool
   {
     // Backward-compatible v0.1.x signature:
@@ -529,6 +558,13 @@ class CFM
     return self::term_arrays_match($user_terms, $target_terms, $operator);
   }
 
+  /**
+   * LABS / EXPERIMENTAL: find users by assigned/effective Core Terms.
+   *
+   * This is a valuable query engine for audience diagnostics and future
+   * consumers. It remains available, but its exact query shape is not frozen
+   * until a consumer validates the contract.
+   */
   public static function find_users($args = [], string $operator = 'AND'): array
   {
     global $wpdb;
@@ -682,24 +718,24 @@ class CFM
     );
 
     add_users_page(
-      'Inspect User Profile',
-      'Inspect User Profile',
+      'Labs: Inspect User Profile',
+      'Labs: Inspect User Profile',
       'list_users',
       'cfm-segmentation-tests',
       [__CLASS__, 'render_segmentation_tests_admin_page']
     );
 
     add_users_page(
-      'Find Audience',
-      'Find Audience',
+      'Labs: Audience Explorer',
+      'Labs: Audience Explorer',
       'list_users',
       'cfm-audience-engine',
       [__CLASS__, 'render_audience_engine_admin_page']
     );
 
     add_users_page(
-      'Profile Statistics',
-      'Profile Statistics',
+      'Labs: Profile Statistics',
+      'Labs: Profile Statistics',
       'list_users',
       'cfm-profile-statistics',
       [__CLASS__, 'render_profile_statistics_admin_page']
@@ -715,7 +751,8 @@ class CFM
     $frameworks = self::get_profile_frameworks();
 
     echo '<div class="wrap">';
-    echo '<h1>Find Audience</h1>';
+    echo '<h1>Labs: Audience Explorer</h1>';
+    echo '<p><strong>Labs tool:</strong> preserved for diagnostics and future consumer experiments. Not part of the frozen Core Terms public contract.</p>';
     echo '<p>Find users who match one or more profile terms, including inherited parent/child profile meaning.</p>';
 
     if (empty($frameworks)) {
@@ -928,7 +965,8 @@ class CFM
     $frameworks = self::get_profile_frameworks();
 
     echo '<div class="wrap">';
-    echo '<h1>Inspect User Profile</h1>';
+    echo '<h1>Labs: Inspect User Profile</h1>';
+    echo '<p><strong>Labs tool:</strong> read-only diagnostic for assignments and inherited effective terms. Not part of the frozen Core Terms public contract.</p>';
     echo '<p>Read-only view of one user’s assigned profile selections and inherited effective terms.</p>';
 
     if (empty($frameworks)) {
@@ -1010,7 +1048,7 @@ class CFM
     echo '<h2>Profile Taxonomy</h2>';
     echo '<p><strong>' . esc_html((string) $selected_framework->name) . '</strong> <code>' . esc_html($framework_slug) . '</code></p>';
 
-    echo '<p class="description">Use Profile Statistics for population counts and distribution reports. Use Find Audience to locate matching users.</p>';
+    echo '<p class="description">Use Labs: Profile Statistics for population counts and distribution reports. Use Labs: Audience Explorer to locate matching users.</p>';
 
     echo '<h2>User Term Resolution</h2>';
     if ($selected_user_id <= 0 || !$selected_user) {
@@ -1086,7 +1124,8 @@ class CFM
     $frameworks = self::get_profile_frameworks();
 
     echo '<div class="wrap">';
-    echo '<h1>Community Profile Snapshot</h1>';
+    echo '<h1>Labs: Profile Statistics</h1>';
+    echo '<p><strong>Labs tool:</strong> population snapshot and distribution diagnostics. Not part of the frozen Core Terms public contract.</p>';
     echo '<p>This page summarizes user profile composition across compiled Profile Taxonomy terms.</p>';
 
     if (empty($frameworks)) {

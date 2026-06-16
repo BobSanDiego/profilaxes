@@ -2,8 +2,8 @@
 
 /**
  * Plugin Name: Profilaxes
- * Description: Reusable framework/axis/term manager for community profile taxonomies and recommendations.
- * Version: 0.2.1
+ * Description: Core Terms infrastructure for community term hierarchy, assignment, compilation, and Labs diagnostics.
+ * Version: 0.5.1
  * Author: Teachers.Net
  * Text Domain: profilaxes
  */
@@ -12,7 +12,7 @@ if (!defined('ABSPATH')) {
   exit;
 }
 
-define('CFM_VERSION', '0.2.1');
+define('CFM_VERSION', '0.5.1');
 define('CFM_PLUGIN_FILE', __FILE__);
 define('CFM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('CFM_PLUGIN_URL', plugin_dir_url(__FILE__));
