@@ -391,6 +391,107 @@ class CFM
     );
   }
 
+
+  /**
+   * Resolve a generic Profilaxes audience to matching user IDs.
+   *
+   * Consumer Integration Contract v1:
+   * - Consumers pass an audience definition, not consumer-specific state.
+   * - Profilaxes resolves users only; consumers own jobs, posts, listings, boards, messages, and notifications.
+   * - Terms and Meta-Groups are combined into one target set.
+   * - Match mode is ANY/ALL through operator values OR/AND.
+   * - Missing frameworks, empty audiences, missing Meta-Groups, and stale UUIDs return [].
+   *
+   * Expected audience shape:
+   * [
+   *   'framework' => 'teachers-net',
+   *   'terms' => ['math', 'grade-3-5'],
+   *   'meta_groups' => ['common-core-states'],
+   *   'operator' => 'AND', // or 'OR', 'ALL', 'ANY'
+   *   'context' => 'profile',
+   *   'include_descendants' => true,
+   *   'limit' => 0,
+   *   'offset' => 0,
+   * ]
+   *
+   * Extension usage:
+   * if (class_exists('CFM')) {
+   *   $user_ids = CFM::resolve_users($audience);
+   * }
+   *
+   * @param array $audience Audience definition owned by the consumer plugin.
+   * @return int[] Sorted matching WordPress user IDs.
+   */
+  public static function resolve_users(array $audience): array
+  {
+    $framework_slug = isset($audience['framework'])
+      ? sanitize_title((string) $audience['framework'])
+      : 'teachers-net';
+
+    $framework = self::get_framework($framework_slug);
+
+    if (!$framework) {
+      return [];
+    }
+
+    $term_inputs = isset($audience['terms']) && is_array($audience['terms'])
+      ? $audience['terms']
+      : [];
+    $meta_group_inputs = isset($audience['meta_groups']) && is_array($audience['meta_groups'])
+      ? $audience['meta_groups']
+      : [];
+
+    $term_uuids = self::resolve_term_uuids((int) $framework->id, $term_inputs);
+
+    foreach ($meta_group_inputs as $meta_group_slug_or_uuid) {
+      $included_term_uuids = CFM_Framework_Repository::get_meta_group_included_term_uuids(
+        (int) $framework->id,
+        (string) $meta_group_slug_or_uuid
+      );
+
+      if (!empty($included_term_uuids)) {
+        $term_uuids = array_merge($term_uuids, $included_term_uuids);
+      }
+    }
+
+    $term_uuids = array_values(array_unique(array_filter(array_map('strval', $term_uuids))));
+
+    if (empty($term_uuids)) {
+      return [];
+    }
+
+    $operator = isset($audience['operator']) ? strtoupper((string) $audience['operator']) : 'AND';
+
+    if ($operator === 'ANY') {
+      $operator = 'OR';
+    } elseif ($operator === 'ALL') {
+      $operator = 'AND';
+    }
+
+    if (!in_array($operator, ['AND', 'OR'], true)) {
+      $operator = 'AND';
+    }
+
+    $context = isset($audience['context']) ? sanitize_key((string) $audience['context']) : 'profile';
+
+    if ($context === '') {
+      return [];
+    }
+
+    return self::find_users([
+      'framework' => $framework_slug,
+      'terms' => $term_uuids,
+      'operator' => $operator,
+      'context' => $context,
+      'include_descendants' => array_key_exists('include_descendants', $audience)
+        ? (bool) $audience['include_descendants']
+        : true,
+      'fields' => 'ids',
+      'limit' => isset($audience['limit']) ? max(0, (int) $audience['limit']) : 0,
+      'offset' => isset($audience['offset']) ? max(0, (int) $audience['offset']) : 0,
+    ]);
+  }
+
   public static function matches(...$args): bool
   {
     // Backward-compatible v0.1.x signature:
