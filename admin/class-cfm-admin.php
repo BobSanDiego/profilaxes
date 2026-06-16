@@ -5044,6 +5044,14 @@ class CFM_Admin
       }
     }
 
+    $selectable_terms = [];
+
+    foreach ($terms as $term) {
+      if (!isset($term->kind) || (string) $term->kind !== 'meta') {
+        $selectable_terms[] = $term;
+      }
+    }
+
     $selected_meta_group = null;
     $selected_meta_group_included_uuids = [];
     $selected_meta_group_included_terms = [];
@@ -5063,6 +5071,73 @@ class CFM_Admin
         $selected_meta_group_any_user_ids = CFM::get_users_matching_meta_group_any((string) $framework->slug, $meta_group_key);
         $selected_meta_group_all_user_ids = CFM::get_users_matching_meta_group_all((string) $framework->slug, $meta_group_key);
       }
+    }
+
+    $audience_contract_term_inputs = isset($_GET['audience_terms']) && is_array($_GET['audience_terms'])
+      ? array_values(array_unique(array_filter(array_map('sanitize_text_field', wp_unslash($_GET['audience_terms'])))))
+      : [];
+    $audience_contract_meta_group_inputs = isset($_GET['audience_meta_groups']) && is_array($_GET['audience_meta_groups'])
+      ? array_values(array_unique(array_filter(array_map('sanitize_text_field', wp_unslash($_GET['audience_meta_groups'])))))
+      : [];
+    $audience_contract_operator = isset($_GET['audience_operator'])
+      ? strtoupper(sanitize_text_field(wp_unslash($_GET['audience_operator'])))
+      : 'OR';
+
+    if (!in_array($audience_contract_operator, ['OR', 'AND'], true)) {
+      $audience_contract_operator = 'OR';
+    }
+
+    $run_audience_contract = isset($_GET['run_audience_contract']);
+    $audience_contract_user_ids = [];
+    $audience_contract_invalid_terms = [];
+    $audience_contract_invalid_meta_groups = [];
+    $audience_contract_expanded_term_uuids = [];
+
+    if ($run_audience_contract) {
+      $term_lookup = [];
+      foreach ($selectable_terms as $term) {
+        if (isset($term->term_uuid)) {
+          $term_lookup[(string) $term->term_uuid] = true;
+        }
+      }
+
+      $meta_group_lookup = [];
+      foreach ($meta_groups as $meta_group) {
+        if (isset($meta_group->term_uuid)) {
+          $meta_group_lookup[(string) $meta_group->term_uuid] = $meta_group;
+        }
+      }
+
+      foreach ($audience_contract_term_inputs as $audience_term_input) {
+        if (!isset($term_lookup[(string) $audience_term_input])) {
+          $audience_contract_invalid_terms[] = (string) $audience_term_input;
+        } else {
+          $audience_contract_expanded_term_uuids[] = (string) $audience_term_input;
+        }
+      }
+
+      foreach ($audience_contract_meta_group_inputs as $audience_meta_group_input) {
+        if (!isset($meta_group_lookup[(string) $audience_meta_group_input])) {
+          $audience_contract_invalid_meta_groups[] = (string) $audience_meta_group_input;
+          continue;
+        }
+
+        $audience_contract_expanded_term_uuids = array_merge(
+          $audience_contract_expanded_term_uuids,
+          CFM::get_meta_group_included_term_uuids((string) $framework->slug, (string) $audience_meta_group_input)
+        );
+      }
+
+      $audience_contract_expanded_term_uuids = array_values(array_unique(array_filter(array_map('strval', $audience_contract_expanded_term_uuids))));
+
+      $audience_contract_user_ids = CFM::resolve_users([
+        'framework' => (string) $framework->slug,
+        'terms' => $audience_contract_term_inputs,
+        'meta_groups' => $audience_contract_meta_group_inputs,
+        'operator' => $audience_contract_operator,
+        'context' => 'profile',
+        'include_descendants' => true,
+      ]);
     }
 
     $selected_term = null;
@@ -5222,6 +5297,87 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
 
       <hr>
 
+      <h2>Audience Contract Smoke Test</h2>
+      <p class="description">Developer diagnostic for the consumer-neutral Audience v1 contract. This tests <code>CFM::resolve_users($audience)</code>, which future plugins can use without duplicating Profilaxes taxonomy logic.</p>
+
+      <form method="get" style="max-width: 1100px; margin-bottom: 14px;">
+        <input type="hidden" name="page" value="cfm-frameworks">
+        <input type="hidden" name="action" value="compiled_debug">
+        <input type="hidden" name="framework_id" value="<?php echo esc_attr($framework->id); ?>">
+        <?php if ($term_uuid !== '') : ?>
+          <input type="hidden" name="term_uuid" value="<?php echo esc_attr($term_uuid); ?>">
+        <?php endif; ?>
+        <?php if ($meta_group_key !== '') : ?>
+          <input type="hidden" name="meta_group" value="<?php echo esc_attr($meta_group_key); ?>">
+        <?php endif; ?>
+
+        <table class="form-table" role="presentation">
+          <tbody>
+            <tr>
+              <th scope="row"><label for="audience_operator">Match Mode</label></th>
+              <td>
+                <select id="audience_operator" name="audience_operator">
+                  <option value="OR" <?php selected($audience_contract_operator, 'OR'); ?>>ANY / OR</option>
+                  <option value="AND" <?php selected($audience_contract_operator, 'AND'); ?>>ALL / AND</option>
+                </select>
+                <p class="description">ANY returns users matching at least one resolved Term. ALL returns users matching every resolved Term.</p>
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">Terms</th>
+              <td>
+                <?php if (empty($selectable_terms)) : ?>
+                  <p><em>No compiled Terms available.</em></p>
+                <?php else : ?>
+                  <select name="audience_terms[]" multiple size="10" style="min-width: 520px; max-width: 100%;">
+                    <?php foreach ($selectable_terms as $term) : ?>
+                      <option value="<?php echo esc_attr((string) $term->term_uuid); ?>" <?php selected(in_array((string) $term->term_uuid, $audience_contract_term_inputs, true)); ?>>
+                        <?php echo esc_html(str_repeat('— ', max(0, (int) $term->depth)) . $term->label . ' (' . $term->slug . ')'); ?>
+                      </option>
+                    <?php endforeach; ?>
+                  </select>
+                  <p class="description">Hold Ctrl/Cmd to select multiple Terms. Consumer plugins will usually store UUIDs, not labels.</p>
+                <?php endif; ?>
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">Meta-Groups</th>
+              <td>
+                <?php if (empty($meta_groups)) : ?>
+                  <p><em>No compiled Meta-Groups available.</em></p>
+                <?php else : ?>
+                  <select name="audience_meta_groups[]" multiple size="6" style="min-width: 520px; max-width: 100%;">
+                    <?php foreach ($meta_groups as $meta_group) : ?>
+                      <option value="<?php echo esc_attr((string) $meta_group->term_uuid); ?>" <?php selected(in_array((string) $meta_group->term_uuid, $audience_contract_meta_group_inputs, true)); ?>>
+                        <?php echo esc_html($meta_group->label . ' (' . $meta_group->slug . ')'); ?>
+                      </option>
+                    <?php endforeach; ?>
+                  </select>
+                  <p class="description">Meta-Groups expand into included Terms before user matching.</p>
+                <?php endif; ?>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <?php submit_button('Run Audience Contract Smoke Test', 'secondary', 'run_audience_contract', false); ?>
+      </form>
+
+      <?php if ($run_audience_contract) : ?>
+        <?php self::render_audience_contract_smoke_test_panel(
+          (string) $framework->slug,
+          $audience_contract_term_inputs,
+          $audience_contract_meta_group_inputs,
+          $audience_contract_operator,
+          $audience_contract_expanded_term_uuids,
+          $audience_contract_user_ids,
+          $audience_contract_invalid_terms,
+          $audience_contract_invalid_meta_groups
+        ); ?>
+      <?php endif; ?>
+
+      <hr>
+
       <h2>All Compiled Terms</h2>
       <?php self::render_compiled_terms_table($terms); ?>
     </div>
@@ -5370,6 +5526,79 @@ CFM::get_users_matching_meta_group_all('<?php echo esc_html((string) $framework_
         <?php endforeach; ?>
       </tbody>
     </table>
+  <?php
+  }
+
+  private static function render_audience_contract_smoke_test_panel(string $framework_slug, array $term_inputs, array $meta_group_inputs, string $operator, array $expanded_term_uuids, array $user_ids, array $invalid_terms, array $invalid_meta_groups): void
+  {
+    $audience = [
+      'framework' => $framework_slug,
+      'terms' => array_values($term_inputs),
+      'meta_groups' => array_values($meta_group_inputs),
+      'operator' => $operator,
+      'context' => 'profile',
+      'include_descendants' => true,
+    ];
+
+  ?>
+    <table class="widefat striped" style="max-width: 760px; margin-bottom: 14px;">
+      <tbody>
+        <tr>
+          <th style="width: 240px;">Framework</th>
+          <td><code><?php echo esc_html($framework_slug); ?></code></td>
+        </tr>
+        <tr>
+          <th>Match Mode</th>
+          <td><code><?php echo esc_html($operator); ?></code></td>
+        </tr>
+        <tr>
+          <th>Selected Terms</th>
+          <td><?php echo esc_html((string) count($term_inputs)); ?></td>
+        </tr>
+        <tr>
+          <th>Selected Meta-Groups</th>
+          <td><?php echo esc_html((string) count($meta_group_inputs)); ?></td>
+        </tr>
+        <tr>
+          <th>Resolved Terms</th>
+          <td><?php echo esc_html((string) count($expanded_term_uuids)); ?></td>
+        </tr>
+        <tr>
+          <th>Resolved Users</th>
+          <td><?php echo esc_html((string) count($user_ids)); ?></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <?php if (!empty($invalid_terms) || !empty($invalid_meta_groups)) : ?>
+      <div class="notice notice-warning inline" style="max-width: 900px;">
+        <p>One or more selected Audience inputs were not found in the active compiled taxonomy.</p>
+        <?php if (!empty($invalid_terms)) : ?>
+          <p><strong>Invalid/stale Terms:</strong> <code><?php echo esc_html(implode(', ', $invalid_terms)); ?></code></p>
+        <?php endif; ?>
+        <?php if (!empty($invalid_meta_groups)) : ?>
+          <p><strong>Invalid/stale Meta-Groups:</strong> <code><?php echo esc_html(implode(', ', $invalid_meta_groups)); ?></code></p>
+        <?php endif; ?>
+      </div>
+    <?php endif; ?>
+
+    <h3>Audience v1 Structure</h3>
+    <pre style="background:#fff; border:1px solid #ccd0d4; padding:12px; max-width:900px; overflow:auto;"><code><?php echo esc_html(var_export($audience, true)); ?></code></pre>
+
+    <h3>Resolved Term UUIDs</h3>
+    <?php if (empty($expanded_term_uuids)) : ?>
+      <p><em>No Terms resolved from this Audience.</em></p>
+    <?php else : ?>
+      <pre style="background:#fff; border:1px solid #ccd0d4; padding:12px; max-width:900px; overflow:auto;"><code><?php echo esc_html(implode("
+", $expanded_term_uuids)); ?></code></pre>
+    <?php endif; ?>
+
+    <h3>Resolved User Sample</h3>
+    <?php self::render_audience_api_user_sample($user_ids); ?>
+
+    <h3>Example Consumer Call</h3>
+    <pre style="background:#fff; border:1px solid #ccd0d4; padding:12px; max-width:900px; overflow:auto;"><code>$audience = <?php echo esc_html(var_export($audience, true)); ?>;
+$user_ids = CFM::resolve_users($audience);</code></pre>
   <?php
   }
 
