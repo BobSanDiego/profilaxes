@@ -427,6 +427,205 @@ class CFM_Framework_Repository
     return $term ?: null;
   }
 
+
+  public static function get_meta_group_by_slug_or_uuid(int $framework_id, string $slug_or_uuid, ?int $version_id = null): ?object
+  {
+    global $wpdb;
+
+    $framework_id = max(0, $framework_id);
+    $version_id = $version_id ?: self::get_active_version_id($framework_id);
+    $slug_or_uuid = trim($slug_or_uuid);
+
+    if ($framework_id <= 0 || $version_id <= 0 || $slug_or_uuid === '') {
+      return null;
+    }
+
+    $terms_table = $wpdb->prefix . 'cfm_terms_compiled';
+
+    if (wp_is_uuid($slug_or_uuid)) {
+      $where = 'term_uuid = %s';
+      $value = $slug_or_uuid;
+    } else {
+      $where = 'slug = %s';
+      $value = sanitize_title($slug_or_uuid);
+    }
+
+    $meta_group = $wpdb->get_row(
+      $wpdb->prepare(
+        "SELECT *
+           FROM {$terms_table}
+           WHERE framework_id = %d
+           AND version_id = %d
+           AND kind = 'meta'
+           AND {$where}
+           LIMIT 1",
+        $framework_id,
+        $version_id,
+        $value
+      )
+    );
+
+    return $meta_group ?: null;
+  }
+
+  public static function meta_group_exists(int $framework_id, string $slug_or_uuid, ?int $version_id = null): bool
+  {
+    return self::get_meta_group_by_slug_or_uuid($framework_id, $slug_or_uuid, $version_id) !== null;
+  }
+
+  public static function get_meta_group_included_term_uuids(int $framework_id, string $meta_group_slug_or_uuid, ?int $version_id = null): array
+  {
+    global $wpdb;
+
+    $framework_id = max(0, $framework_id);
+    $version_id = $version_id ?: self::get_active_version_id($framework_id);
+
+    if ($framework_id <= 0 || $version_id <= 0) {
+      return [];
+    }
+
+    $meta_group = self::get_meta_group_by_slug_or_uuid($framework_id, $meta_group_slug_or_uuid, $version_id);
+
+    if (!$meta_group) {
+      return [];
+    }
+
+    $relationships_table = $wpdb->prefix . 'cfm_term_relationships';
+
+    $rows = $wpdb->get_col(
+      $wpdb->prepare(
+        "SELECT target_term_uuid
+           FROM {$relationships_table}
+           WHERE framework_id = %d
+           AND version_id = %d
+           AND source_term_uuid = %s
+           AND relationship_type = 'meta_includes'
+           ORDER BY sort_order ASC, id ASC",
+        $framework_id,
+        $version_id,
+        (string) $meta_group->term_uuid
+      )
+    );
+
+    return is_array($rows) ? array_values(array_unique(array_filter(array_map('strval', $rows)))) : [];
+  }
+
+  public static function get_user_ids_for_term_uuids(int $framework_id, array $term_uuids, string $context = 'profile', string $operator = 'OR', bool $include_descendants = true): array
+  {
+    global $wpdb;
+
+    $framework_id = max(0, $framework_id);
+    $context = sanitize_key($context);
+    $operator = strtoupper($operator);
+    $term_uuids = array_values(array_unique(array_filter(array_map('strval', $term_uuids))));
+
+    if ($framework_id <= 0 || $context === '' || empty($term_uuids)) {
+      return [];
+    }
+
+    if (!in_array($operator, ['AND', 'OR'], true)) {
+      $operator = 'OR';
+    }
+
+    $candidate_uuids = [];
+
+    foreach ($term_uuids as $term_uuid) {
+      $term = self::get_term_by_uuid($framework_id, $term_uuid);
+
+      if (!$term || (string) $term->kind !== 'term') {
+        continue;
+      }
+
+      $group = [$term_uuid];
+
+      if ($include_descendants) {
+        $group = self::get_descendant_uuids($framework_id, $term_uuid, null, true);
+      }
+
+      $group = array_values(array_unique(array_filter(array_map('strval', $group))));
+
+      if (!empty($group)) {
+        $candidate_uuids[$term_uuid] = $group;
+      }
+    }
+
+    if (empty($candidate_uuids)) {
+      return [];
+    }
+
+    $all_matchable_uuids = array_values(array_unique(array_merge(...array_values($candidate_uuids))));
+
+    if (empty($all_matchable_uuids)) {
+      return [];
+    }
+
+    $user_terms_table = $wpdb->prefix . 'cfm_user_terms';
+    $placeholders = implode(',', array_fill(0, count($all_matchable_uuids), '%s'));
+    $params = array_merge([$framework_id, $context], $all_matchable_uuids);
+
+    $rows = $wpdb->get_results(
+      $wpdb->prepare(
+        "SELECT DISTINCT user_id, term_uuid
+           FROM {$user_terms_table}
+           WHERE framework_id = %d
+           AND context = %s
+           AND term_uuid IN ({$placeholders})",
+        ...$params
+      )
+    );
+
+    if (!is_array($rows) || empty($rows)) {
+      return [];
+    }
+
+    $matched_by_user = [];
+
+    foreach ($rows as $row) {
+      $user_id = (int) $row->user_id;
+      $assigned_uuid = (string) $row->term_uuid;
+
+      if ($user_id <= 0 || $assigned_uuid === '') {
+        continue;
+      }
+
+      if (!isset($matched_by_user[$user_id])) {
+        $matched_by_user[$user_id] = [];
+      }
+
+      foreach ($candidate_uuids as $target_uuid => $group) {
+        if (in_array($assigned_uuid, $group, true)) {
+          $matched_by_user[$user_id][$target_uuid] = true;
+        }
+      }
+    }
+
+    $required_count = count($candidate_uuids);
+    $matched_user_ids = [];
+
+    foreach ($matched_by_user as $user_id => $matched_targets) {
+      $matched_count = count($matched_targets);
+
+      if (($operator === 'OR' && $matched_count > 0) || ($operator === 'AND' && $matched_count === $required_count)) {
+        $matched_user_ids[] = (int) $user_id;
+      }
+    }
+
+    sort($matched_user_ids, SORT_NUMERIC);
+
+    return $matched_user_ids;
+  }
+
+  public static function get_user_ids_for_meta_group(int $framework_id, string $meta_group_slug_or_uuid, string $context = 'profile', string $operator = 'OR', bool $include_descendants = true): array
+  {
+    $included_term_uuids = self::get_meta_group_included_term_uuids($framework_id, $meta_group_slug_or_uuid);
+
+    if (empty($included_term_uuids)) {
+      return [];
+    }
+
+    return self::get_user_ids_for_term_uuids($framework_id, $included_term_uuids, $context, $operator, $include_descendants);
+  }
+
   public static function get_term_by_slug(int $framework_id, string $slug, ?int $version_id = null): ?object
   {
     global $wpdb;

@@ -254,6 +254,94 @@ class CFM
     );
   }
 
+
+  public static function get_users_assigned_to_term(string $framework_slug, string $term_slug_or_uuid, string $context = 'profile', bool $include_descendants = true): array
+  {
+    $framework = self::get_framework($framework_slug);
+
+    if (!$framework) {
+      return [];
+    }
+
+    $term_uuid = self::resolve_assignable_term_uuid((int) $framework->id, $term_slug_or_uuid);
+
+    if ($term_uuid === '') {
+      return [];
+    }
+
+    return CFM_Framework_Repository::get_user_ids_for_term_uuids(
+      (int) $framework->id,
+      [$term_uuid],
+      $context,
+      'OR',
+      $include_descendants
+    );
+  }
+
+  public static function get_meta_group(string $framework_slug, string $meta_group_slug_or_uuid): ?object
+  {
+    $framework = self::get_framework($framework_slug);
+
+    if (!$framework) {
+      return null;
+    }
+
+    return CFM_Framework_Repository::get_meta_group_by_slug_or_uuid((int) $framework->id, $meta_group_slug_or_uuid);
+  }
+
+  public static function meta_group_exists(string $framework_slug, string $meta_group_slug_or_uuid): bool
+  {
+    return self::get_meta_group($framework_slug, $meta_group_slug_or_uuid) !== null;
+  }
+
+  public static function get_meta_group_included_term_uuids(string $framework_slug, string $meta_group_slug_or_uuid): array
+  {
+    $framework = self::get_framework($framework_slug);
+
+    if (!$framework) {
+      return [];
+    }
+
+    return CFM_Framework_Repository::get_meta_group_included_term_uuids(
+      (int) $framework->id,
+      $meta_group_slug_or_uuid
+    );
+  }
+
+  public static function get_users_matching_meta_group_any(string $framework_slug, string $meta_group_slug_or_uuid, string $context = 'profile', bool $include_descendants = true): array
+  {
+    $framework = self::get_framework($framework_slug);
+
+    if (!$framework) {
+      return [];
+    }
+
+    return CFM_Framework_Repository::get_user_ids_for_meta_group(
+      (int) $framework->id,
+      $meta_group_slug_or_uuid,
+      $context,
+      'OR',
+      $include_descendants
+    );
+  }
+
+  public static function get_users_matching_meta_group_all(string $framework_slug, string $meta_group_slug_or_uuid, string $context = 'profile', bool $include_descendants = true): array
+  {
+    $framework = self::get_framework($framework_slug);
+
+    if (!$framework) {
+      return [];
+    }
+
+    return CFM_Framework_Repository::get_user_ids_for_meta_group(
+      (int) $framework->id,
+      $meta_group_slug_or_uuid,
+      $context,
+      'AND',
+      $include_descendants
+    );
+  }
+
   public static function matches(...$args): bool
   {
     // Backward-compatible v0.1.x signature:
@@ -1576,6 +1664,24 @@ class CFM
     $walk('');
 
     return $ordered;
+  }
+
+
+  private static function resolve_assignable_term_uuid(int $framework_id, string $term_slug_or_uuid): string
+  {
+    $term_uuid = self::resolve_term_uuid($framework_id, $term_slug_or_uuid);
+
+    if ($term_uuid === '') {
+      return '';
+    }
+
+    $term = CFM_Framework_Repository::get_term_by_uuid($framework_id, $term_uuid);
+
+    if (!$term || (string) $term->kind !== 'term') {
+      return '';
+    }
+
+    return $term_uuid;
   }
 
   private static function resolve_term_uuids(int $framework_id, array $term_slugs_or_uuids): array
