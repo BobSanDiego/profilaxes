@@ -2127,10 +2127,10 @@ class CFM_Admin
     }
   }
 
-  private static function meta_group_include_labels(array $meta_group, array $terms_by_uuid): array
+  private static function meta_group_include_details(array $meta_group, array $terms_by_uuid): array
   {
     $includes = isset($meta_group['includes']) && is_array($meta_group['includes']) ? $meta_group['includes'] : [];
-    $labels = [];
+    $details = [];
 
     foreach ($includes as $uuid) {
       $uuid = (string) $uuid;
@@ -2140,13 +2140,24 @@ class CFM_Admin
       }
 
       if (isset($terms_by_uuid[$uuid])) {
-        $labels[] = (string) ($terms_by_uuid[$uuid]['path'] ?? $terms_by_uuid[$uuid]['label'] ?? $uuid);
+        $term = $terms_by_uuid[$uuid];
+        $details[] = [
+          'status' => 'found',
+          'uuid' => $uuid,
+          'label' => (string) ($term['path'] ?? $term['label'] ?? $uuid),
+          'slug' => (string) ($term['slug'] ?? ''),
+        ];
       } else {
-        $labels[] = 'Missing: ' . $uuid;
+        $details[] = [
+          'status' => 'missing',
+          'uuid' => $uuid,
+          'label' => 'Missing term',
+          'slug' => '',
+        ];
       }
     }
 
-    return $labels;
+    return $details;
   }
 
   private static function render_meta_groups_table(array $meta_groups, array $terms_by_uuid): void
@@ -2165,8 +2176,11 @@ class CFM_Admin
         continue;
       }
 
-      $include_labels = self::meta_group_include_labels($meta_group, $terms_by_uuid);
-      $include_count = count($include_labels);
+      $include_details = self::meta_group_include_details($meta_group, $terms_by_uuid);
+      $include_count = count($include_details);
+      $missing_count = count(array_filter($include_details, static function ($detail): bool {
+        return is_array($detail) && ($detail['status'] ?? '') === 'missing';
+      }));
 
       echo '<tr>';
       echo '<td><strong>' . esc_html((string) ($meta_group['label'] ?? '')) . '</strong>';
@@ -2174,18 +2188,41 @@ class CFM_Admin
       if ($description !== '' && $description !== (string) ($meta_group['label'] ?? '')) {
         echo '<br><span class="description">' . esc_html($description) . '</span>';
       }
+      echo '<br><details style="margin-top:6px;"><summary>Inspect Meta-Group</summary>';
+      echo '<p class="description" style="margin:6px 0 0;">Meta-Group UUID: <code>' . esc_html((string) ($meta_group['uuid'] ?? '')) . '</code></p>';
+      echo '<p class="description" style="margin:4px 0 0;">This Meta-Group is not assignable. It stores references to existing profile terms for future audience and extension use.</p>';
+      echo '</details>';
       echo '</td>';
       echo '<td><strong>Audience-only collection</strong><br><span class="description">Not directly assignable to users. User profiles still receive terms.</span></td>';
       echo '<td><code>' . esc_html((string) ($meta_group['slug'] ?? '')) . '</code></td>';
       echo '<td>';
       echo '<p style="margin:0 0 6px;"><strong>' . esc_html((string) $include_count) . '</strong> included term' . ($include_count === 1 ? '' : 's') . '</p>';
 
-      if (empty($include_labels)) {
+      if ($missing_count > 0) {
+        echo '<p style="margin:0 0 6px; color:#8a1f11;"><strong>Warning:</strong> ' . esc_html((string) $missing_count) . ' included UUID' . ($missing_count === 1 ? '' : 's') . ' no longer resolve to a current term.</p>';
+      }
+
+      if (empty($include_details)) {
         echo '<em>No included terms.</em>';
       } else {
         echo '<ul style="margin:0; padding-left:18px;">';
-        foreach ($include_labels as $label) {
-          echo '<li>' . esc_html($label) . '</li>';
+        foreach ($include_details as $detail) {
+          if (!is_array($detail)) {
+            continue;
+          }
+
+          $status = (string) ($detail['status'] ?? '');
+          $label = (string) ($detail['label'] ?? '');
+          $slug = (string) ($detail['slug'] ?? '');
+          $uuid = (string) ($detail['uuid'] ?? '');
+
+          if ($status === 'missing') {
+            echo '<li><strong>Missing term</strong><br><span class="description">Stored UUID: <code>' . esc_html($uuid) . '</code></span></li>';
+          } else {
+            echo '<li>' . esc_html($label);
+            echo '<br><span class="description">Slug: <code>' . esc_html($slug) . '</code> · UUID: <code>' . esc_html($uuid) . '</code></span>';
+            echo '</li>';
+          }
         }
         echo '</ul>';
       }
@@ -2238,6 +2275,216 @@ class CFM_Admin
     }
 
     echo '</ul>';
+  }
+
+  private static function meta_group_term_count(array $node): int
+  {
+    if (self::node_kind($node) !== 'term') {
+      return 0;
+    }
+
+    $children = isset($node['children']) && is_array($node['children']) ? $node['children'] : [];
+    $child_count = 0;
+
+    foreach ($children as $child) {
+      if (is_array($child)) {
+        $child_count += self::meta_group_term_count($child);
+      }
+    }
+
+    return $child_count > 0 ? $child_count : 1;
+  }
+
+  private static function render_meta_group_term_checklist(array $terms, int $depth = 0): void
+  {
+    if (empty($terms)) {
+      return;
+    }
+
+    echo '<ul class="cfm-meta-term-list cfm-meta-term-depth-' . esc_attr((string) $depth) . '" style="margin:0; padding-left:' . esc_attr((string) ($depth === 0 ? 0 : 22)) . 'px; list-style:none;">';
+
+    foreach ($terms as $term) {
+      if (!is_array($term) || self::node_kind($term) !== 'term') {
+        continue;
+      }
+
+      $uuid = (string) ($term['uuid'] ?? '');
+      $label = (string) ($term['label'] ?? '');
+      $children = isset($term['children']) && is_array($term['children']) ? $term['children'] : [];
+      $has_children = !empty($children);
+      $count = self::meta_group_term_count($term);
+
+      if ($uuid === '' || $label === '') {
+        continue;
+      }
+
+      echo '<li class="cfm-meta-term-node" data-cfm-meta-node="1" style="margin:4px 0;">';
+      echo '<div class="cfm-meta-term-row" style="display:flex; align-items:center; gap:6px; min-height:24px;">';
+
+      if ($has_children) {
+        echo '<button type="button" class="button-link cfm-meta-term-toggle" aria-expanded="true" style="width:18px; text-decoration:none;">▾</button>';
+      } else {
+        echo '<span style="display:inline-block; width:18px;"></span>';
+      }
+
+      echo '<label style="display:flex; align-items:center; gap:6px; margin:0;">';
+      echo '<input class="cfm-meta-term-checkbox" type="checkbox" name="meta_group_includes[]" value="' . esc_attr($uuid) . '">';
+      echo '<span>' . esc_html($label) . '</span>';
+      echo '<span class="cfm-meta-term-count" title="Included selectable term count" style="display:inline-block; min-width:18px; padding:0 6px; border-radius:10px; background:#f0f0f1; color:#50575e; font-size:11px; line-height:18px; text-align:center;">' . esc_html((string) $count) . '</span>';
+      echo '</label>';
+      echo '</div>';
+
+      if ($has_children) {
+        echo '<div class="cfm-meta-term-children" style="margin-left:18px;">';
+        self::render_meta_group_term_checklist($children, $depth + 1);
+        echo '</div>';
+      }
+
+      echo '</li>';
+    }
+
+    echo '</ul>';
+  }
+
+  private static function render_meta_group_term_checklist_script(): void
+  {
+  ?>
+    <script>
+      (function() {
+        var root = document.querySelector('[data-cfm-meta-term-selector="1"]');
+        var selectedCount = document.getElementById('cfm-meta-selected-count');
+
+        if (!root || root.dataset.cfmMetaSelectorLoaded === '1') {
+          return;
+        }
+
+        root.dataset.cfmMetaSelectorLoaded = '1';
+
+        var closestNode = function(element) {
+          while (element && element !== root) {
+            if (element.getAttribute && element.getAttribute('data-cfm-meta-node') === '1') {
+              return element;
+            }
+            element = element.parentNode;
+          }
+          return null;
+        };
+
+        var childNodes = function(node) {
+          var childrenWrapper = node.querySelector(':scope > .cfm-meta-term-children');
+          if (!childrenWrapper) {
+            return [];
+          }
+          return Array.prototype.slice.call(childrenWrapper.querySelectorAll(':scope > .cfm-meta-term-list > .cfm-meta-term-node'));
+        };
+
+        var childCheckboxes = function(node) {
+          var childrenWrapper = node.querySelector(':scope > .cfm-meta-term-children');
+          if (!childrenWrapper) {
+            return [];
+          }
+          return Array.prototype.slice.call(childrenWrapper.querySelectorAll('.cfm-meta-term-checkbox'));
+        };
+
+        var updateSelectedCount = function() {
+          if (!selectedCount) {
+            return;
+          }
+
+          var count = root.querySelectorAll('.cfm-meta-term-checkbox:checked').length;
+          selectedCount.textContent = count + ' term' + (count === 1 ? '' : 's') + ' selected';
+        };
+
+        var updateAncestorStates = function(startNode) {
+          var node = startNode;
+
+          while (node) {
+            var parent = closestNode(node.parentNode);
+            if (!parent) {
+              break;
+            }
+
+            var parentCheckbox = parent.querySelector(':scope > .cfm-meta-term-row .cfm-meta-term-checkbox');
+            var descendants = childCheckboxes(parent);
+
+            if (parentCheckbox && descendants.length) {
+              var checkedCount = descendants.filter(function(input) {
+                return input.checked;
+              }).length;
+
+              parentCheckbox.checked = checkedCount === descendants.length;
+              parentCheckbox.indeterminate = checkedCount > 0 && checkedCount < descendants.length;
+            }
+
+            node = parent;
+          }
+        };
+
+        root.addEventListener('click', function(event) {
+          var toggle = event.target.closest ? event.target.closest('.cfm-meta-term-toggle') : null;
+
+          if (!toggle || !root.contains(toggle)) {
+            return;
+          }
+
+          var node = closestNode(toggle);
+          var children = node ? node.querySelector(':scope > .cfm-meta-term-children') : null;
+
+          if (!children) {
+            return;
+          }
+
+          var expanded = toggle.getAttribute('aria-expanded') !== 'false';
+          toggle.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+          toggle.textContent = expanded ? '▸' : '▾';
+          children.style.display = expanded ? 'none' : '';
+        });
+
+        root.addEventListener('change', function(event) {
+          var checkbox = event.target;
+
+          if (!checkbox.classList || !checkbox.classList.contains('cfm-meta-term-checkbox')) {
+            return;
+          }
+
+          var node = closestNode(checkbox);
+
+          if (!node) {
+            return;
+          }
+
+          childCheckboxes(node).forEach(function(childCheckbox) {
+            childCheckbox.checked = checkbox.checked;
+            childCheckbox.indeterminate = false;
+          });
+
+          checkbox.indeterminate = false;
+          updateAncestorStates(node);
+          updateSelectedCount();
+        });
+
+        var collapseLinks = Array.prototype.slice.call(document.querySelectorAll('[data-cfm-meta-expand]'));
+        collapseLinks.forEach(function(link) {
+          link.addEventListener('click', function(event) {
+            event.preventDefault();
+            var expand = link.getAttribute('data-cfm-meta-expand') === '1';
+            Array.prototype.slice.call(root.querySelectorAll('.cfm-meta-term-toggle')).forEach(function(toggle) {
+              var node = closestNode(toggle);
+              var children = node ? node.querySelector(':scope > .cfm-meta-term-children') : null;
+              if (!children) {
+                return;
+              }
+              toggle.setAttribute('aria-expanded', expand ? 'true' : 'false');
+              toggle.textContent = expand ? '▾' : '▸';
+              children.style.display = expand ? '' : 'none';
+            });
+          });
+        });
+
+        updateSelectedCount();
+      }());
+    </script>
+  <?php
   }
 
   private static function render_parent_options(array $nodes, string $selected_uuid = '', int $depth = 0): void
@@ -5195,25 +5442,29 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
             <tr>
               <th scope="row">Included Terms</th>
               <td>
-                <fieldset style="max-height: 260px; overflow: auto; border: 1px solid #ccd0d4; background: #fff; padding: 10px;">
-                  <legend class="screen-reader-text">Included Terms</legend>
-                  <?php foreach ($available_terms as $available_term) : ?>
-                    <label style="display:block; margin:0 0 6px;">
-                      <input type="checkbox" name="meta_group_includes[]" value="<?php echo esc_attr((string) ($available_term['uuid'] ?? '')); ?>">
-                      <?php echo esc_html((string) ($available_term['path'] ?? $available_term['label'] ?? '')); ?>
-                      <?php if (!empty($available_term['slug'])) : ?>
-                        <code><?php echo esc_html((string) $available_term['slug']); ?></code>
-                      <?php endif; ?>
-                    </label>
-                  <?php endforeach; ?>
-                </fieldset>
-                <p class="description">Select existing terms only. Meta-Groups do not create new terms, move terms in the tree, or become directly assignable user profile values.</p>
+                <div data-cfm-meta-term-selector="1">
+                  <p class="description" style="margin-top:0;">Select existing terms only. Parent checkboxes select or clear all descendant terms.</p>
+                  <div style="display:flex; justify-content:space-between; max-width:760px; margin:0 0 8px;">
+                    <span>
+                      <a href="#" data-cfm-meta-expand="1">Expand all</a>
+                      <span aria-hidden="true"> | </span>
+                      <a href="#" data-cfm-meta-expand="0">Collapse all</a>
+                    </span>
+                    <span id="cfm-meta-selected-count" class="description">0 terms selected</span>
+                  </div>
+                  <fieldset style="max-height: 340px; overflow: auto; border: 1px solid #ccd0d4; background: #fff; padding: 10px; max-width:760px;">
+                    <legend class="screen-reader-text">Included Terms</legend>
+                    <?php self::render_meta_group_term_checklist(self::root_terms($tree)); ?>
+                  </fieldset>
+                </div>
+                <p class="description">Meta-Groups do not create new terms, move terms in the tree, or become directly assignable user profile values.</p>
               </td>
             </tr>
           </table>
 
           <?php submit_button('Add Meta-Group'); ?>
         </form>
+        <?php self::render_meta_group_term_checklist_script(); ?>
       <?php endif; ?>
 
       <hr>
