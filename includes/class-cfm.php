@@ -255,6 +255,23 @@ class CFM
   }
 
 
+  /**
+   * Return user IDs assigned to a Profile Term.
+   *
+   * Public extension helper for Jobs, Chatboards, Lessons, and future modules.
+   * Example extension guard:
+   *   if (class_exists('CFM')) { $user_ids = CFM::get_users_assigned_to_term('profiles', 'math'); }
+   *
+   * Inputs:
+   * - $framework_slug: framework slug, usually 'profiles'.
+   * - $term_slug_or_uuid: assignable Term slug or UUID. Meta-Groups are intentionally ignored.
+   * - $context: assignment context; default is 'profile'.
+   * - $include_descendants: when true, users assigned to descendant Terms are included.
+   *
+   * Returns:
+   * - int[] sorted user IDs.
+   * - [] when framework, Term, or assignments are missing.
+   */
   public static function get_users_assigned_to_term(string $framework_slug, string $term_slug_or_uuid, string $context = 'profile', bool $include_descendants = true): array
   {
     $framework = self::get_framework($framework_slug);
@@ -278,6 +295,16 @@ class CFM
     );
   }
 
+  /**
+   * Return one audience-only Meta-Group by slug or UUID.
+   *
+   * Meta-Groups are tree-stored compiled nodes with kind=meta. They are collections of
+   * existing Terms and are not directly assignable to users.
+   *
+   * Returns:
+   * - stdClass|null compiled Meta-Group row.
+   * - null when framework or Meta-Group is missing.
+   */
   public static function get_meta_group(string $framework_slug, string $meta_group_slug_or_uuid): ?object
   {
     $framework = self::get_framework($framework_slug);
@@ -289,11 +316,21 @@ class CFM
     return CFM_Framework_Repository::get_meta_group_by_slug_or_uuid((int) $framework->id, $meta_group_slug_or_uuid);
   }
 
+  /**
+   * Check whether an audience-only Meta-Group exists.
+   */
   public static function meta_group_exists(string $framework_slug, string $meta_group_slug_or_uuid): bool
   {
     return self::get_meta_group($framework_slug, $meta_group_slug_or_uuid) !== null;
   }
 
+  /**
+   * Return assignable Term UUIDs included by a Meta-Group.
+   *
+   * Returns:
+   * - string[] Term UUIDs in stored relationship order.
+   * - [] when framework or Meta-Group is missing, or when no valid Terms are included.
+   */
   public static function get_meta_group_included_term_uuids(string $framework_slug, string $meta_group_slug_or_uuid): array
   {
     $framework = self::get_framework($framework_slug);
@@ -308,6 +345,11 @@ class CFM
     );
   }
 
+  /**
+   * Return users matching ANY Term included by a Meta-Group.
+   *
+   * Returns int[] sorted user IDs. Missing/empty Meta-Groups return [].
+   */
   public static function get_users_matching_meta_group_any(string $framework_slug, string $meta_group_slug_or_uuid, string $context = 'profile', bool $include_descendants = true): array
   {
     $framework = self::get_framework($framework_slug);
@@ -325,6 +367,13 @@ class CFM
     );
   }
 
+  /**
+   * Return users matching ALL Terms included by a Meta-Group.
+   *
+   * Each included Term is treated as one required match target. When descendant matching
+   * is enabled, assigning a descendant satisfies that Term target.
+   * Returns int[] sorted user IDs. Missing/empty Meta-Groups return [].
+   */
   public static function get_users_matching_meta_group_all(string $framework_slug, string $meta_group_slug_or_uuid, string $context = 'profile', bool $include_descendants = true): array
   {
     $framework = self::get_framework($framework_slug);

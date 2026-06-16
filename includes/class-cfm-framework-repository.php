@@ -428,6 +428,11 @@ class CFM_Framework_Repository
   }
 
 
+  /**
+   * Return one compiled tree-based Meta-Group by slug or UUID.
+   *
+   * Returns stdClass|null. Invalid framework/version/input returns null.
+   */
   public static function get_meta_group_by_slug_or_uuid(int $framework_id, string $slug_or_uuid, ?int $version_id = null): ?object
   {
     global $wpdb;
@@ -468,11 +473,22 @@ class CFM_Framework_Repository
     return $meta_group ?: null;
   }
 
+  /**
+   * Check whether a compiled tree-based Meta-Group exists.
+   *
+   * Repository-level helper for public CFM extension API. This intentionally reads
+   * wp_cfm_terms_compiled kind=meta, not the dormant legacy cfm_meta_groups table.
+   */
   public static function meta_group_exists(int $framework_id, string $slug_or_uuid, ?int $version_id = null): bool
   {
     return self::get_meta_group_by_slug_or_uuid($framework_id, $slug_or_uuid, $version_id) !== null;
   }
 
+  /**
+   * Return valid assignable Term UUIDs included by a compiled tree-based Meta-Group.
+   *
+   * Missing Meta-Group, stale UUIDs, and non-Term targets return/produce [].
+   */
   public static function get_meta_group_included_term_uuids(int $framework_id, string $meta_group_slug_or_uuid, ?int $version_id = null): array
   {
     global $wpdb;
@@ -507,9 +523,36 @@ class CFM_Framework_Repository
       )
     );
 
-    return is_array($rows) ? array_values(array_unique(array_filter(array_map('strval', $rows)))) : [];
+    $term_uuids = is_array($rows) ? array_values(array_unique(array_filter(array_map('strval', $rows)))) : [];
+
+    if (empty($term_uuids)) {
+      return [];
+    }
+
+    // Defensive contract for extension consumers: stale relationship UUIDs are ignored.
+    // Only currently compiled, assignable Terms are returned.
+    $valid_term_uuids = [];
+
+    foreach ($term_uuids as $term_uuid) {
+      $term = self::get_term_by_uuid($framework_id, $term_uuid, $version_id);
+
+      if ($term && (string) $term->kind === 'term') {
+        $valid_term_uuids[] = $term_uuid;
+      }
+    }
+
+    return array_values(array_unique($valid_term_uuids));
   }
 
+  /**
+   * Return user IDs matching assignable Term UUIDs.
+   *
+   * Inputs:
+   * - $term_uuids: assignable Term UUIDs. Invalid, missing, or Meta-Group UUIDs are ignored.
+   * - $operator: OR for any target, AND for every target. Unknown values fall back to OR.
+   *
+   * Returns int[] sorted user IDs. Never returns null.
+   */
   public static function get_user_ids_for_term_uuids(int $framework_id, array $term_uuids, string $context = 'profile', string $operator = 'OR', bool $include_descendants = true): array
   {
     global $wpdb;
@@ -615,6 +658,11 @@ class CFM_Framework_Repository
     return $matched_user_ids;
   }
 
+  /**
+   * Return user IDs matching Terms included by a Meta-Group.
+   *
+   * Public API backing method. Missing/empty Meta-Groups return [].
+   */
   public static function get_user_ids_for_meta_group(int $framework_id, string $meta_group_slug_or_uuid, string $context = 'profile', string $operator = 'OR', bool $include_descendants = true): array
   {
     $included_term_uuids = self::get_meta_group_included_term_uuids($framework_id, $meta_group_slug_or_uuid);
