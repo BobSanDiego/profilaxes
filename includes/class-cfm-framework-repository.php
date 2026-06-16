@@ -892,6 +892,18 @@ class CFM_Framework_Repository
     }
 
     $term_uuids = array_values(array_unique(array_filter(array_map('strval', $term_uuids))));
+    $previous_term_uuids = self::get_user_term_uuids($user_id, $framework_id, $context);
+
+    /**
+     * Fires before user term assignments are replaced.
+     *
+     * @param int    $user_id             WordPress user ID.
+     * @param int    $framework_id        Profile taxonomy / Core Terms framework ID.
+     * @param array  $term_uuids          Requested assignment UUIDs, before validation.
+     * @param string $context             Assignment context.
+     * @param array  $previous_term_uuids Existing assignment UUIDs.
+     */
+    do_action('cfm_before_user_terms_save', $user_id, $framework_id, $term_uuids, $context, $previous_term_uuids);
 
     // Only store UUIDs that exist in the active compiled version.
     if (!empty($term_uuids)) {
@@ -942,6 +954,17 @@ class CFM_Framework_Repository
     }
 
     $wpdb->query('COMMIT');
+
+    /**
+     * Fires after user term assignments have been replaced successfully.
+     *
+     * @param int    $user_id             WordPress user ID.
+     * @param int    $framework_id        Profile taxonomy / Core Terms framework ID.
+     * @param array  $term_uuids          Stored assignment UUIDs after validation.
+     * @param string $context             Assignment context.
+     * @param array  $previous_term_uuids Previous assignment UUIDs.
+     */
+    do_action('cfm_after_user_terms_save', $user_id, $framework_id, $term_uuids, $context, $previous_term_uuids);
 
     return true;
   }

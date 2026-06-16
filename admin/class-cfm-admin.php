@@ -505,7 +505,7 @@ class CFM_Admin
       $tree['children'] = [];
     }
 
-    $tree['children'][] = [
+    $axis = [
       'uuid' => wp_generate_uuid4(),
       'label' => $axis_label,
       'slug' => $axis_slug,
@@ -515,9 +515,13 @@ class CFM_Admin
       'children' => [],
     ];
 
+    $tree['children'][] = $axis;
+
     self::bump_order_revision($framework_id, (string) ($tree['uuid'] ?? ''));
 
     $compile_result = self::save_active_tree_and_compile($framework_id, $tree);
+
+    do_action('cfm_term_created', $framework_id, (string) $axis['uuid'], $axis, null, $compile_result);
 
     wp_safe_redirect(
       admin_url(
@@ -620,6 +624,8 @@ class CFM_Admin
     self::bump_order_revision($framework_id, $parent_uuid);
 
     $compile_result = self::save_active_tree_and_compile($framework_id, $tree);
+
+    do_action('cfm_term_created', $framework_id, (string) $term['uuid'], $term, $parent_uuid, $compile_result);
 
     wp_safe_redirect(
       admin_url(
@@ -1118,6 +1124,29 @@ class CFM_Admin
 
     $compile_result = self::save_active_tree_and_compile($framework_id, $tree);
 
+    $updated_term = self::find_node_with_parent($tree, $term_uuid);
+    do_action(
+      'cfm_term_updated',
+      $framework_id,
+      $term_uuid,
+      $updated_term && isset($updated_term['node']) && is_array($updated_term['node']) ? $updated_term['node'] : [],
+      $current_parent_uuid,
+      $parent_uuid,
+      $compile_result
+    );
+
+    if ($current_parent_uuid !== $parent_uuid) {
+      do_action(
+        'cfm_term_moved',
+        $framework_id,
+        $term_uuid,
+        $current_parent_uuid,
+        $parent_uuid,
+        $updated_term && isset($updated_term['node']) && is_array($updated_term['node']) ? $updated_term['node'] : [],
+        $compile_result
+      );
+    }
+
     wp_safe_redirect(admin_url('admin.php?page=cfm-frameworks&action=edit&framework_id=' . $framework_id . '&cfm_term_updated=1&cfm_parent_uuid=' . rawurlencode($parent_uuid) . $compile_result['query_arg'] . '#cfm-existing-terms'));
     exit;
   }
@@ -1220,6 +1249,8 @@ class CFM_Admin
 
     $compile_result = self::save_active_tree_and_compile($framework_id, $tree);
 
+    do_action('cfm_term_moved', $framework_id, $term_uuid, $current_parent_uuid, $new_parent_uuid, $removed_term, $compile_result);
+
     wp_safe_redirect(
       admin_url(
         'admin.php?page=cfm-frameworks'
@@ -1303,6 +1334,8 @@ class CFM_Admin
     }
 
     $compile_result = self::save_active_tree_and_compile($framework_id, $tree);
+
+    do_action('cfm_term_deleted', $framework_id, $term_uuid, $removed_term, $parent_uuid, $compile_result);
 
     wp_safe_redirect(
       admin_url(

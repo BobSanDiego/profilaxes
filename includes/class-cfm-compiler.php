@@ -34,6 +34,17 @@ class CFM_Compiler
       ];
     }
 
+    /**
+     * Fires before a Core Terms version is compiled.
+     *
+     * Consumers may observe this lifecycle event, but should not mutate Core Terms state here.
+     *
+     * @param int   $framework_id Profile taxonomy / Core Terms framework ID.
+     * @param int   $version_id   Version being compiled.
+     * @param array $tree         Decoded source tree for this compile pass.
+     */
+    do_action('cfm_before_compile', $framework_id, $version_id, $tree);
+
     $terms_table = $wpdb->prefix . 'cfm_terms_compiled';
     $closure_table = $wpdb->prefix . 'cfm_term_closure';
     $relationships_table = $wpdb->prefix . 'cfm_term_relationships';
@@ -118,13 +129,27 @@ class CFM_Compiler
 
     $wpdb->query('COMMIT');
 
-    return [
+    $result = [
       'success' => true,
       'terms' => $counts['terms'],
       'closure' => $counts['closure'],
       'relationships' => $counts['relationships'],
       'message' => 'Compiled successfully.',
     ];
+
+    /**
+     * Fires after a Core Terms version has been compiled successfully.
+     *
+     * Consumers should use this hook for cache refreshes, search index updates,
+     * or other follow-on work that depends on compiled Core Terms state.
+     *
+     * @param int   $framework_id Profile taxonomy / Core Terms framework ID.
+     * @param int   $version_id   Version compiled.
+     * @param array $result       Compile result summary.
+     */
+    do_action('cfm_after_compile', $framework_id, $version_id, $result);
+
+    return $result;
   }
 
   private static function compile_node(
