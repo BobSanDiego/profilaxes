@@ -82,6 +82,11 @@ class CFM_Admin
       return;
     }
 
+    if ($action === 'install_example_pack') {
+      self::handle_install_example_pack();
+      return;
+    }
+
     if ($action === 'add_meta_group') {
       self::handle_add_meta_group();
       return;
@@ -459,6 +464,61 @@ class CFM_Admin
     CFM_Framework_Repository::create_framework($name, $slug, $description);
 
     wp_safe_redirect(admin_url('admin.php?page=cfm-frameworks&cfm_created=1'));
+    exit;
+  }
+
+  private static function handle_install_example_pack(): void
+  {
+    check_admin_referer('cfm_install_example_pack', 'cfm_nonce');
+
+    $framework_id = absint($_POST['framework_id'] ?? 0);
+    $pack = sanitize_key(wp_unslash($_POST['example_pack'] ?? ''));
+
+    if ($framework_id <= 0 || !class_exists('CFM_Seeder') || !CFM_Seeder::is_valid_pack($pack)) {
+      wp_safe_redirect(
+        admin_url(
+          'admin.php?page=cfm-frameworks'
+            . '&action=edit'
+            . '&framework_id=' . $framework_id
+            . '&cfm_error=invalid_example_pack'
+            . '#cfm-example-packs'
+        )
+      );
+      exit;
+    }
+
+    $framework = CFM_Framework_Repository::get_framework($framework_id);
+
+    if (!$framework) {
+      wp_die('Profile profile taxonomy not found.');
+    }
+
+    $tree = self::get_framework_tree($framework);
+    $result = CFM_Seeder::apply_pack($tree, $pack);
+    $created = (int) ($result['created'] ?? 0);
+    $skipped = (int) ($result['skipped'] ?? 0);
+
+    if ($created > 0) {
+      self::bump_order_revision($framework_id, (string) (($result['tree']['uuid'] ?? '') ?: ($tree['uuid'] ?? '')));
+      $compile_result = self::save_active_tree_and_compile($framework_id, $result['tree']);
+    } else {
+      $compile_result = [
+        'query_arg' => '',
+      ];
+    }
+
+    wp_safe_redirect(
+      admin_url(
+        'admin.php?page=cfm-frameworks'
+          . '&action=edit'
+          . '&framework_id=' . $framework_id
+          . '&cfm_example_pack_installed=' . rawurlencode($pack)
+          . '&cfm_example_created=' . $created
+          . '&cfm_example_skipped=' . $skipped
+          . ($compile_result['query_arg'] ?? '')
+          . '#cfm-example-packs'
+      )
+    );
     exit;
   }
 
@@ -4828,6 +4888,12 @@ class CFM_Admin
         </div>
       <?php endif; ?>
 
+      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'invalid_example_pack') : ?>
+        <div class="notice notice-error is-dismissible">
+          <p>Example term pack could not be installed. Choose a valid pack and try again.</p>
+        </div>
+      <?php endif; ?>
+
       <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'invalid_meta_group_includes') : ?>
         <div class="notice notice-error is-dismissible">
           <p>One or more selected terms are no longer available. Review the included terms and save again.</p>
@@ -5858,6 +5924,22 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         </div>
       <?php endif; ?>
 
+      <?php if (isset($_GET['cfm_example_pack_installed'])) : ?>
+        <?php
+        $example_pack = sanitize_key(wp_unslash($_GET['cfm_example_pack_installed']));
+        $example_pack_label = class_exists('CFM_Seeder') ? CFM_Seeder::get_pack_label($example_pack) : 'Example Terms';
+        $example_created = absint($_GET['cfm_example_created'] ?? 0);
+        $example_skipped = absint($_GET['cfm_example_skipped'] ?? 0);
+        ?>
+        <div class="notice notice-success is-dismissible">
+          <p>
+            <?php echo esc_html($example_pack_label); ?> checked.
+            Created: <strong><?php echo esc_html((string) $example_created); ?></strong>.
+            Skipped existing: <strong><?php echo esc_html((string) $example_skipped); ?></strong>.
+          </p>
+        </div>
+      <?php endif; ?>
+
       <?php if (isset($_GET['cfm_import_replaced'])) : ?>
         <div class="notice notice-success is-dismissible">
           <p>
@@ -5885,6 +5967,12 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
       <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'missing_meta_group_fields') : ?>
         <div class="notice notice-error is-dismissible">
           <p>Meta-Group label, slug, and at least two included terms are required.</p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'invalid_example_pack') : ?>
+        <div class="notice notice-error is-dismissible">
+          <p>Example term pack could not be installed. Choose a valid pack and try again.</p>
         </div>
       <?php endif; ?>
 
@@ -6156,6 +6244,43 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
       <?php if (is_array($import_preview)) : ?>
         <?php self::render_taxonomy_import_preview($import_preview); ?>
+      <?php endif; ?>
+
+      <hr>
+
+      <h2 id="cfm-example-packs">Example Term Packs</h2>
+      <p class="description">
+        Install optional starter location terms. Packs are additive and safe to rerun: existing sibling slugs are skipped, and existing UUIDs and assignments are preserved.
+      </p>
+
+      <?php if (class_exists('CFM_Seeder')) : ?>
+        <div style="display:flex; gap:12px; flex-wrap:wrap; max-width: 1000px;">
+          <div class="card" style="max-width: 420px;">
+            <h3>Geography — US States</h3>
+            <p>Creates <strong>Region → United States</strong>, then adds the 50 states and District of Columbia beneath United States.</p>
+            <form method="post">
+              <?php wp_nonce_field('cfm_install_example_pack', 'cfm_nonce'); ?>
+              <input type="hidden" name="cfm_action" value="install_example_pack">
+              <input type="hidden" name="framework_id" value="<?php echo esc_attr((string) $framework->id); ?>">
+              <input type="hidden" name="example_pack" value="<?php echo esc_attr(CFM_Seeder::PACK_GEOGRAPHY_US_STATES); ?>">
+              <?php submit_button('Install US States', 'secondary', 'submit', false); ?>
+            </form>
+          </div>
+
+          <div class="card" style="max-width: 420px;">
+            <h3>Geography — Countries Lite</h3>
+            <p>Adds a small set of broadly useful country/global terms under <strong>Region</strong>. It does not replace or move United States or state terms.</p>
+            <form method="post">
+              <?php wp_nonce_field('cfm_install_example_pack', 'cfm_nonce'); ?>
+              <input type="hidden" name="cfm_action" value="install_example_pack">
+              <input type="hidden" name="framework_id" value="<?php echo esc_attr((string) $framework->id); ?>">
+              <input type="hidden" name="example_pack" value="<?php echo esc_attr(CFM_Seeder::PACK_GEOGRAPHY_COUNTRIES_LITE); ?>">
+              <?php submit_button('Install Countries Lite', 'secondary', 'submit', false); ?>
+            </form>
+          </div>
+        </div>
+      <?php else : ?>
+        <p>Example term packs are unavailable because the seeder class is not loaded.</p>
       <?php endif; ?>
 
       <hr>
