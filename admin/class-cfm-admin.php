@@ -17,8 +17,8 @@ class CFM_Admin
   public static function register_menu(): void
   {
     add_menu_page(
-      'Profiles',
-      'Profilaxes',
+      'Core Terms',
+      'Core Terms',
       'manage_options',
       'cfm-frameworks',
       [__CLASS__, 'render_frameworks_page'],

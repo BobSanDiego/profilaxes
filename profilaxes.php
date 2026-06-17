@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Plugin Name: Profilaxes
+ * Plugin Name: Core Terms
  * Description: Core Terms infrastructure for community term hierarchy, assignment, compilation, and Labs diagnostics.
  * Version: 0.5.4
  * Author: Teachers.Net
