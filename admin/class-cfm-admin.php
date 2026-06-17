@@ -174,13 +174,13 @@ class CFM_Admin
   private static function handle_export_taxonomy(): void
   {
     if (!current_user_can('manage_options')) {
-      wp_die('You do not have permission to export this profile taxonomy.');
+      wp_die('You do not have permission to export this Core Terms definition.');
     }
 
     $framework_id = isset($_GET['framework_id']) ? absint($_GET['framework_id']) : 0;
 
     if ($framework_id <= 0) {
-      wp_die('Missing profile taxonomy ID.');
+      wp_die('Missing Core Terms definition ID.');
     }
 
     check_admin_referer('cfm_export_taxonomy_' . $framework_id);
@@ -188,7 +188,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile taxonomy not found.');
+      wp_die('Core Terms definition not found.');
     }
 
     $active_version = CFM_Framework_Repository::get_active_version($framework_id);
@@ -201,7 +201,7 @@ class CFM_Admin
       'exported_at' => current_time('mysql'),
       'site_url' => site_url(),
       'plugin' => [
-        'name' => 'Profilaxes',
+        'name' => 'Core Terms',
         'version' => defined('CFM_VERSION') ? CFM_VERSION : '',
       ],
       'framework' => [
@@ -264,7 +264,7 @@ class CFM_Admin
   private static function handle_import_taxonomy_preview(): void
   {
     if (!current_user_can('manage_options')) {
-      wp_die('You do not have permission to import this profile taxonomy.');
+      wp_die('You do not have permission to import this Core Terms definition.');
     }
 
     check_admin_referer('cfm_import_taxonomy_preview', 'cfm_nonce');
@@ -279,7 +279,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile taxonomy not found.');
+      wp_die('Core Terms definition not found.');
     }
 
     if (empty($_FILES['taxonomy_import_file']) || !is_array($_FILES['taxonomy_import_file'])) {
@@ -336,7 +336,7 @@ class CFM_Admin
   private static function handle_import_taxonomy_replace(): void
   {
     if (!current_user_can('manage_options')) {
-      wp_die('You do not have permission to import this profile taxonomy.');
+      wp_die('You do not have permission to import this Core Terms definition.');
     }
 
     check_admin_referer('cfm_import_taxonomy_replace', 'cfm_nonce');
@@ -351,7 +351,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile taxonomy not found.');
+      wp_die('Core Terms definition not found.');
     }
 
     $confirmed = !empty($_POST['confirm_replace_taxonomy']) && (string) $_POST['confirm_replace_taxonomy'] === '1';
@@ -408,13 +408,13 @@ class CFM_Admin
     $framework_id = absint($_POST['framework_id'] ?? 0);
 
     if ($framework_id <= 0) {
-      wp_die('Missing profile taxonomy ID.');
+      wp_die('Missing Core Terms definition ID.');
     }
 
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile profile taxonomy not found.');
+      wp_die('Core Terms definition not found.');
     }
 
     $active_version = CFM_Framework_Repository::get_active_version($framework_id);
@@ -490,7 +490,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile profile taxonomy not found.');
+      wp_die('Core Terms definition not found.');
     }
 
     $tree = self::get_framework_tree($framework);
@@ -556,7 +556,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile profile taxonomy not found.');
+      wp_die('Core Terms definition not found.');
     }
 
     $tree = self::get_framework_tree($framework);
@@ -631,7 +631,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile profile taxonomy not found.');
+      wp_die('Core Terms definition not found.');
     }
 
     $tree = self::get_framework_tree($framework);
@@ -766,7 +766,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile profile taxonomy not found.');
+      wp_die('Core Terms definition not found.');
     }
 
     $tree = self::get_framework_tree($framework);
@@ -886,7 +886,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile taxonomy not found.');
+      wp_die('Core Terms definition not found.');
     }
 
     $tree = self::get_framework_tree($framework);
@@ -1011,7 +1011,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile taxonomy not found.');
+      wp_die('Core Terms definition not found.');
     }
 
     $tree = self::get_framework_tree($framework);
@@ -1118,7 +1118,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile profile taxonomy not found.');
+      wp_die('Core Terms definition not found.');
     }
 
     $tree = self::get_framework_tree($framework);
@@ -1238,7 +1238,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile profile taxonomy not found.');
+      wp_die('Core Terms definition not found.');
     }
 
     $tree = self::get_framework_tree($framework);
@@ -1250,7 +1250,7 @@ class CFM_Admin
     }
 
     if (self::node_kind($term_info['node']) !== 'term') {
-      wp_die('Only profile terms can be moved. Meta-Groups and system roots cannot be moved here.');
+      wp_die('Only terms can be moved. Meta-Groups and system roots cannot be moved here.');
     }
 
     if (!$new_parent_info || empty($new_parent_info['node']) || !is_array($new_parent_info['node'])) {
@@ -1346,7 +1346,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile profile taxonomy not found.');
+      wp_die('Core Terms definition not found.');
     }
 
     $tree = self::get_framework_tree($framework);
@@ -1357,7 +1357,7 @@ class CFM_Admin
     }
 
     if (self::node_kind($term_info['node']) !== 'term') {
-      wp_die('Only profile terms can be archived. Meta-Groups and system roots cannot be archived here.');
+      wp_die('Only terms can be archived. Meta-Groups and system roots cannot be archived here.');
     }
 
     $archive_uuids = self::collect_node_uuids($term_info['node']);
@@ -1792,7 +1792,7 @@ class CFM_Admin
       return [
         'success' => false,
         'code' => 'profile_taxonomy_not_found',
-        'message' => 'Profile Taxonomy not found.',
+        'message' => 'Core Terms definition not found.',
         'status' => 404,
       ];
     }
@@ -2252,7 +2252,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile profile taxonomy not found.');
+      wp_die('Core Terms definition not found.');
     }
 
     if (!$confirmed) {
@@ -2337,7 +2337,7 @@ class CFM_Admin
    * Canonical Meta-Group model for v0.3.3.
    *
    * Meta-Groups are stored as root-level tree nodes with kind=meta and includes=[term UUIDs].
-   * They are audience/collection helpers only; users are assigned profile terms, not Meta-Groups.
+   * They are audience/collection helpers only; users are assigned terms, not Meta-Groups.
    * The older cfm_meta_groups table/repository path is dormant and must not be used as the
    * source of truth unless a future migration explicitly promotes it.
    */
@@ -2453,7 +2453,7 @@ class CFM_Admin
       }
       echo '<br><details style="margin-top:6px;"><summary>Inspect Meta-Group</summary>';
       echo '<p class="description" style="margin:6px 0 0;">Meta-Group UUID: <code>' . esc_html((string) ($meta_group['uuid'] ?? '')) . '</code></p>';
-      echo '<p class="description" style="margin:4px 0 0;">This Meta-Group is not assignable. It stores references to existing profile terms for future audience and extension use.</p>';
+      echo '<p class="description" style="margin:4px 0 0;">This Meta-Group is not assignable. It stores references to existing terms for future audience and extension use.</p>';
       echo '</details>';
       echo '</td>';
       echo '<td><strong>Audience-only collection</strong><br><span class="description">Not directly assignable to users. User profiles still receive terms.</span></td>';
@@ -2936,11 +2936,11 @@ class CFM_Admin
 
   ?>
     <div class="wrap">
-      <h1>Profiles</h1>
+      <h1>Core Terms</h1>
 
       <?php if (isset($_GET['cfm_created'])) : ?>
         <div class="notice notice-success is-dismissible">
-          <p>Profile taxonomy created.</p>
+          <p>Core Terms definition created.</p>
         </div>
       <?php endif; ?>
 
@@ -2951,29 +2951,29 @@ class CFM_Admin
       <?php endif; ?>
 
       <p>
-        Define the profile taxonomy used across Teachers.Net. Other plugins and themes can consume these profile terms through Profilaxes APIs.
+        Define reusable terms for hierarchy, assignment, compilation, and future consumers.
       </p>
 
       <?php if (!$framework) : ?>
         <div class="card" style="max-width: 760px;">
-          <h2>Profile Taxonomy</h2>
+          <h2>Core Terms</h2>
           <p>
-            This site does not have a profile taxonomy yet. Create the primary site profile taxonomy before adding top-level terms or child terms.
+            This site does not have a Core Terms definition yet. Create the primary site Core Terms definition before adding top-level terms or child terms.
           </p>
 
           <form method="post">
             <?php wp_nonce_field('cfm_create_framework', 'cfm_nonce'); ?>
             <input type="hidden" name="cfm_action" value="create_framework">
-            <input type="hidden" name="cfm_name" value="Sandbox Profiles">
+            <input type="hidden" name="cfm_name" value="Primary Core Terms">
             <input type="hidden" name="cfm_slug" value="primary">
-            <input type="hidden" name="cfm_description" value="Primary site profile taxonomy.">
+            <input type="hidden" name="cfm_description" value="Primary Core Terms definition.">
 
-            <?php submit_button('Create Profile Taxonomy'); ?>
+            <?php submit_button('Create Core Terms'); ?>
           </form>
         </div>
       <?php else : ?>
         <div class="card" style="max-width: 760px;">
-          <h2>Current Profile Taxonomy</h2>
+          <h2>Current Core Terms</h2>
 
           <table class="widefat striped" style="max-width: 680px;">
             <tbody>
@@ -3002,7 +3002,7 @@ class CFM_Admin
 
           <div style="margin-top: 16px;">
             <a class="button button-primary" href="<?php echo esc_url(self::edit_url((int) $framework->id)); ?>">
-              Manage Profile Taxonomy
+              Manage Core Terms
             </a>
 
             <?php if (!empty($active_version)) : ?>
@@ -3010,14 +3010,14 @@ class CFM_Admin
                 <?php wp_nonce_field('cfm_compile_active_version', 'cfm_nonce'); ?>
                 <input type="hidden" name="cfm_action" value="compile_active_version">
                 <input type="hidden" name="framework_id" value="<?php echo esc_attr((string) $framework->id); ?>">
-                <?php submit_button('Rebuild Profile Taxonomy', 'secondary', 'submit', false); ?>
+                <?php submit_button('Rebuild Terms', 'secondary', 'submit', false); ?>
               </form>
             <?php endif; ?>
           </div>
 
           <?php if ($framework_count > 1) : ?>
             <p class="description">
-              Maintenance note: additional internal profile taxonomy records exist. The normal admin flow uses the primary profile taxonomy only.
+              Maintenance note: additional internal Core Terms definition records exist. The normal admin flow uses the primary Core Terms definition only.
             </p>
           <?php endif; ?>
         </div>
@@ -3518,7 +3518,7 @@ class CFM_Admin
       <?php if (empty($preview['is_valid'])) : ?>
         <p><strong>This file is not ready for import.</strong></p>
       <?php else : ?>
-        <p><strong>Validated.</strong> No database rows were changed by preview. You may now replace the current Profile Taxonomy with the uploaded tree.</p>
+        <p><strong>Validated.</strong> No database rows were changed by preview. You may now replace the current Core Terms with the uploaded tree.</p>
       <?php endif; ?>
 
       <table class="widefat striped" style="max-width: 900px;">
@@ -3557,7 +3557,7 @@ class CFM_Admin
             <td><?php echo esc_html(isset($preview['active_version_number']) && $preview['active_version_number'] !== null ? 'v' . $preview['active_version_number'] : 'Unknown'); ?></td>
           </tr>
           <tr>
-            <th>Uploaded Profile Terms</th>
+            <th>Uploaded Terms</th>
             <td><?php echo esc_html((string) ($preview['import_counts']['axes'] ?? 0)); ?></td>
           </tr>
           <tr>
@@ -3569,7 +3569,7 @@ class CFM_Admin
             <td><?php echo esc_html((string) ($preview['archived_count'] ?? 0)); ?></td>
           </tr>
           <tr>
-            <th>Current Profile Terms</th>
+            <th>Current Terms</th>
             <td><?php echo esc_html((string) ($preview['current_counts']['axes'] ?? 0)); ?></td>
           </tr>
           <tr>
@@ -3665,11 +3665,11 @@ class CFM_Admin
           <input type="hidden" name="cfm_action" value="import_taxonomy_replace">
           <input type="hidden" name="framework_id" value="<?php echo esc_attr((string) ($_GET['framework_id'] ?? '')); ?>">
 
-          <p><strong>Danger zone:</strong> this will replace the current canonical editable Profile Taxonomy tree, automatically save the current tree as a recovery snapshot, and rebuild runtime tables.</p>
+          <p><strong>Danger zone:</strong> this will replace the current canonical editable Core Terms tree, automatically save the current tree as a recovery snapshot, and rebuild runtime tables.</p>
 
           <label>
             <input type="checkbox" name="confirm_replace_taxonomy" value="1" required>
-            I understand this will replace the current Profile Taxonomy.
+            I understand this will replace the current Core Terms.
           </label>
 
           <p style="margin-top: 12px;">
@@ -3843,7 +3843,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile profile taxonomy not found.');
+      wp_die('Core Terms definition not found.');
     }
 
     $per_page = 20;
@@ -3865,7 +3865,7 @@ class CFM_Admin
                         . '&framework_id=' . (int) $framework->id
                     )
                   ); ?>">
-          ← Back to Profile Taxonomy
+          ← Back to Core Terms
         </a>
       </p>
 
@@ -4164,7 +4164,7 @@ class CFM_Admin
   ?>
     <h2>Compare Snapshot to Current Taxonomy</h2>
 
-    <p>This read-only comparison shows how the current Profile Taxonomy differs from this snapshot.</p>
+    <p>This read-only comparison shows how the current Core Terms differs from this snapshot.</p>
 
     <?php
     $total_differences = (int) ($comparison['added'] ?? 0)
@@ -4181,7 +4181,7 @@ class CFM_Admin
 
     <?php if ($total_differences === 0) : ?>
       <div class="notice notice-success inline" style="max-width: 900px;">
-        <p>No differences between this snapshot and the current Profile Taxonomy.</p>
+        <p>No differences between this snapshot and the current Core Terms.</p>
       </div>
     <?php endif; ?>
 
@@ -4310,7 +4310,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile profile taxonomy not found.');
+      wp_die('Core Terms definition not found.');
     }
 
     $version = CFM_Framework_Repository::get_version((int) $framework->id, $version_id);
@@ -4345,7 +4345,7 @@ class CFM_Admin
                         . '&action=edit'
                         . '&framework_id=' . (int) $framework->id
                     )
-                  ); ?>">Back to Profile Taxonomy</a>
+                  ); ?>">Back to Core Terms</a>
       </p>
 
       <table class="widefat striped" style="max-width: 900px;">
@@ -4427,7 +4427,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile profile taxonomy not found.');
+      wp_die('Core Terms definition not found.');
     }
 
     $version = CFM_Framework_Repository::get_version((int) $framework->id, $version_id);
@@ -4474,7 +4474,7 @@ class CFM_Admin
       <?php else : ?>
         <div class="notice notice-warning">
           <p>
-            This will restore the Profile Taxonomy from recovery snapshot v<?php echo esc_html((string) $version->version_number); ?>,
+            This will restore the Core Terms from recovery snapshot v<?php echo esc_html((string) $version->version_number); ?>,
             automatically save the current active tree as a pre-restore snapshot, and rebuild runtime tables.
           </p>
         </div>
@@ -4482,7 +4482,7 @@ class CFM_Admin
 
       <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'restore_not_confirmed') : ?>
         <div class="notice notice-error is-dismissible">
-          <p>Please confirm that you understand this restore will replace the current Profile Taxonomy.</p>
+          <p>Please confirm that you understand this restore will replace the current Core Terms.</p>
         </div>
       <?php endif; ?>
 
@@ -4495,7 +4495,7 @@ class CFM_Admin
       <table class="widefat striped" style="max-width: 900px;">
         <tbody>
           <tr>
-            <th style="width: 180px;">Profile Taxonomy</th>
+            <th style="width: 180px;">Core Terms</th>
             <td><?php echo esc_html($framework->name); ?></td>
           </tr>
           <tr>
@@ -4527,7 +4527,7 @@ class CFM_Admin
           <p>
             <label>
               <input type="checkbox" name="confirm_restore_snapshot" value="1" required>
-              I understand this will replace the current Profile Taxonomy with this recovery snapshot.
+              I understand this will replace the current Core Terms with this recovery snapshot.
             </label>
           </p>
 
@@ -4555,7 +4555,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile profile taxonomy not found.');
+      wp_die('Core Terms definition not found.');
     }
 
     $tree = self::get_framework_tree($framework);
@@ -4586,7 +4586,7 @@ class CFM_Admin
                         . '&action=edit'
                         . '&framework_id=' . (int) $framework->id
                     )
-                  ); ?>">← Back to Profile Taxonomy</a>
+                  ); ?>">← Back to Core Terms</a>
       </p>
 
       <div class="notice notice-warning">
@@ -4599,7 +4599,7 @@ class CFM_Admin
       <table class="widefat striped" style="max-width: 900px;">
         <tbody>
           <tr>
-            <th style="width: 180px;">Profile Taxonomy</th>
+            <th style="width: 180px;">Core Terms</th>
             <td><?php echo esc_html($framework->name); ?></td>
           </tr>
           <tr>
@@ -4734,7 +4734,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile profile taxonomy not found.');
+      wp_die('Core Terms definition not found.');
     }
 
     $tree = self::get_framework_tree($framework);
@@ -4770,7 +4770,7 @@ class CFM_Admin
       <h1>Edit Term: <?php echo esc_html($term['label'] ?? ''); ?></h1>
 
       <p>
-        <a href="<?php echo esc_url(admin_url('admin.php?page=cfm-frameworks&action=edit&framework_id=' . (int) $framework->id)); ?>">← Back to Profile Taxonomy</a>
+        <a href="<?php echo esc_url(admin_url('admin.php?page=cfm-frameworks&action=edit&framework_id=' . (int) $framework->id)); ?>">← Back to Core Terms</a>
       </p>
 
       <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'missing_edit_fields') : ?>
@@ -4849,7 +4849,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile taxonomy not found.');
+      wp_die('Core Terms definition not found.');
     }
 
     $tree = self::get_framework_tree($framework);
@@ -4998,7 +4998,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile profile taxonomy not found.');
+      wp_die('Core Terms definition not found.');
     }
 
     $tree = self::get_framework_tree($framework);
@@ -5040,13 +5040,13 @@ class CFM_Admin
                         . '&action=edit'
                         . '&framework_id=' . (int) $framework->id
                     )
-                  ); ?>">← Back to Profile Taxonomy</a>
+                  ); ?>">← Back to Core Terms</a>
       </p>
 
       <table class="widefat striped" style="max-width: 900px;">
         <tbody>
           <tr>
-            <th style="width: 180px;">Profile Taxonomy</th>
+            <th style="width: 180px;">Core Terms</th>
             <td><?php echo esc_html($framework->name); ?></td>
           </tr>
           <tr>
@@ -5123,7 +5123,7 @@ class CFM_Admin
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile profile taxonomy not found.');
+      wp_die('Core Terms definition not found.');
     }
 
     $active_version = CFM_Framework_Repository::get_active_version((int) $framework->id);
@@ -5263,7 +5263,7 @@ class CFM_Admin
 
       <p>
         <a href="<?php echo esc_url(admin_url('admin.php?page=cfm-frameworks&action=edit&framework_id=' . (int) $framework->id)); ?>">
-          ← Back to Profile Taxonomy
+          ← Back to Core Terms
         </a>
       </p>
 
@@ -5281,7 +5281,7 @@ class CFM_Admin
         <table class="widefat striped" style="max-width: 760px;">
           <tbody>
             <tr>
-              <th style="width: 180px;">Profile Taxonomy Slug</th>
+              <th style="width: 180px;">Core Terms Slug</th>
               <td><code><?php echo esc_html($framework->slug); ?></code></td>
             </tr>
             <tr>
@@ -5397,7 +5397,7 @@ CFM::get_siblings('<?php echo esc_html($framework->slug); ?>', '<?php echo esc_h
       <hr>
 
       <h2>Audience Contract Smoke Test</h2>
-      <p class="description">Developer diagnostic for the consumer-neutral Audience v1 contract. This tests <code>CFM::resolve_users($audience)</code>, which future plugins can use without duplicating Profilaxes taxonomy logic.</p>
+      <p class="description">Developer diagnostic for the consumer-neutral Audience v1 contract. This tests <code>CFM::resolve_users($audience)</code>, which future plugins can use without duplicating Core Terms logic.</p>
 
       <form method="get" style="max-width: 1100px; margin-bottom: 14px;">
         <input type="hidden" name="page" value="cfm-frameworks">
@@ -5751,7 +5751,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
     if (!$framework) {
-      wp_die('Profile profile taxonomy not found.');
+      wp_die('Core Terms definition not found.');
     }
 
     $tree = self::get_framework_tree($framework);
@@ -5809,7 +5809,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
   ?>
     <div class="wrap">
-      <h1>Profile Taxonomy</h1>
+      <h1>Core Terms</h1>
 
       <?php if (is_array($batch_error)) : ?>
         <style>
@@ -5896,7 +5896,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
       <?php if (isset($_GET['cfm_version_restored'])) : ?>
         <div class="notice notice-success is-dismissible">
-          <p>Profile version restored by creating a new active version.</p>
+          <p>Terms restored by creating a new active version.</p>
         </div>
       <?php endif; ?>
 
@@ -5914,13 +5914,13 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
       <?php if (isset($_GET['cfm_compiled'])) : ?>
         <div class="notice notice-success is-dismissible">
-          <p>Profile runtime tables rebuilt.</p>
+          <p>Runtime tables rebuilt.</p>
         </div>
       <?php endif; ?>
 
       <?php if (isset($_GET['cfm_autocompiled'])) : ?>
         <div class="notice notice-success is-dismissible">
-          <p>Profile changes saved and runtime tables rebuilt automatically.</p>
+          <p>Term changes saved and runtime tables rebuilt automatically.</p>
         </div>
       <?php endif; ?>
 
@@ -5943,7 +5943,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
       <?php if (isset($_GET['cfm_import_replaced'])) : ?>
         <div class="notice notice-success is-dismissible">
           <p>
-            Profile taxonomy imported as a replacement and runtime tables rebuilt.
+            Terms imported as a replacement and runtime tables rebuilt.
             A recovery snapshot was saved automatically before the import.
             <?php if (!empty($_GET['cfm_import_snapshot_id'])) : ?>
               <a href="<?php echo esc_url(self::version_snapshot_url((int) $framework->id, absint($_GET['cfm_import_snapshot_id']))); ?>">View recovery snapshot</a>.
@@ -6033,7 +6033,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
       <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'version_save_failed') : ?>
         <div class="notice notice-error is-dismissible">
-          <p>Profile changes could not be saved.</p>
+          <p>Term changes could not be saved.</p>
         </div>
       <?php endif; ?>
 
@@ -6045,7 +6045,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
       <?php if (isset($_GET['cfm_error']) && in_array($_GET['cfm_error'], ['missing_import_framework', 'missing_import_file', 'import_upload_failed', 'import_file_too_large', 'import_file_empty', 'import_invalid_json'], true)) : ?>
         <div class="notice notice-error is-dismissible">
-          <p>Import preview could not be generated. Confirm you selected a valid Profilaxes taxonomy JSON export and try again.</p>
+          <p>Import preview could not be generated. Confirm you selected a valid Core Terms JSON export and try again.</p>
         </div>
       <?php endif; ?>
 
@@ -6180,7 +6180,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           <?php wp_nonce_field('cfm_compile_active_version', 'cfm_nonce'); ?>
           <input type="hidden" name="cfm_action" value="compile_active_version">
           <input type="hidden" name="framework_id" value="<?php echo esc_attr($framework->id); ?>">
-          <?php submit_button('Rebuild Profile Taxonomy', 'secondary', 'submit', false); ?>
+          <?php submit_button('Rebuild Core Terms', 'secondary', 'submit', false); ?>
           <a class="button" href="<?php echo esc_url(self::compiled_debug_url((int) $framework->id)); ?>" style="margin-left: 8px;">Open Compiled Query Debug</a>
         </form>
       <?php endif; ?>
@@ -6189,11 +6189,11 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
       <h2>Export</h2>
       <p class="description">
-        Download the canonical editable profile taxonomy tree as JSON. This export preserves UUIDs, hierarchy, order, archive state when present, and active version metadata. Runtime compiler tables are intentionally not exported because they can be rebuilt.
+        Download the canonical editable Core Terms definition tree as JSON. This export preserves UUIDs, hierarchy, order, archive state when present, and active version metadata. Runtime compiler tables are intentionally not exported because they can be rebuilt.
       </p>
       <p>
         <a class="button" href="<?php echo esc_url(self::export_taxonomy_url((int) $framework->id)); ?>">
-          Export Profile Taxonomy JSON
+          Export Terms JSON
         </a>
       </p>
 
@@ -6201,7 +6201,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
       <h2 id="cfm-import">Import</h2>
       <p class="description">
-        Upload a Profilaxes taxonomy JSON export to validate it and preview what it contains. After a valid preview, you may import it as a full replacement. Replacement automatically saves the current tree as a recovery snapshot and rebuilds runtime tables.
+        Upload a Core Terms JSON export to validate it and preview what it contains. After a valid preview, you may import it as a full replacement. Replacement automatically saves the current tree as a recovery snapshot and rebuilds runtime tables.
       </p>
 
       <form method="post" enctype="multipart/form-data">
@@ -6212,7 +6212,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         <table class="form-table" role="presentation">
           <tr>
             <th scope="row">
-              <label for="taxonomy_import_file">Import Profile Taxonomy JSON</label>
+              <label for="taxonomy_import_file">Import Terms JSON</label>
             </th>
             <td>
               <input name="taxonomy_import_file" id="taxonomy_import_file" type="file" accept="application/json,.json" required>
@@ -6257,7 +6257,6 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         <div style="display:flex; gap:12px; flex-wrap:wrap; max-width: 1000px;">
           <div class="card" style="max-width: 420px;">
             <h3>Geography — US States</h3>
-            <p>Creates <strong>Region → United States</strong>, then adds the 50 states and District of Columbia beneath United States.</p>
             <form method="post">
               <?php wp_nonce_field('cfm_install_example_pack', 'cfm_nonce'); ?>
               <input type="hidden" name="cfm_action" value="install_example_pack">
@@ -6265,11 +6264,11 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
               <input type="hidden" name="example_pack" value="<?php echo esc_attr(CFM_Seeder::PACK_GEOGRAPHY_US_STATES); ?>">
               <?php submit_button('Install US States', 'secondary', 'submit', false); ?>
             </form>
+            <p>Creates <strong>Region → United States</strong>, then adds the 50 states and District of Columbia beneath United States.</p>
           </div>
 
           <div class="card" style="max-width: 420px;">
             <h3>Geography — Countries Lite</h3>
-            <p>Adds a small set of broadly useful country/global terms under <strong>Region</strong>. It does not replace or move United States or state terms.</p>
             <form method="post">
               <?php wp_nonce_field('cfm_install_example_pack', 'cfm_nonce'); ?>
               <input type="hidden" name="cfm_action" value="install_example_pack">
@@ -6277,6 +6276,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
               <input type="hidden" name="example_pack" value="<?php echo esc_attr(CFM_Seeder::PACK_GEOGRAPHY_COUNTRIES_LITE); ?>">
               <?php submit_button('Install Countries Lite', 'secondary', 'submit', false); ?>
             </form>
+            <p>Adds a small set of broadly useful country/global terms under <strong>Region</strong>. It does not replace or move United States or state terms.</p>
           </div>
         </div>
       <?php else : ?>
@@ -6285,10 +6285,10 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
       <hr>
 
-      <h2 id="cfm-existing-terms">Profile Taxonomy Tree</h2>
+      <h2 id="cfm-existing-terms">Terms</h2>
 
       <?php if (empty($axes)) : ?>
-        <p>No top-level terms created yet.</p>
+        <p>No top-level terms created yet. Install an example pack or add a term below.</p>
       <?php else : ?>
         <table class="widefat striped" style="max-width: 1000px;">
           <thead>
@@ -6335,8 +6335,8 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
       <h2 id="cfm-meta-groups">Meta-Groups</h2>
       <div class="notice notice-info inline">
-        <p><strong>Meta-Groups are audience-only collections.</strong> They collect existing terms for future audience and extension use without changing the Profile Taxonomy tree.</p>
-        <p>Users are assigned profile terms, not Meta-Groups. A Meta-Group can include terms from different branches without moving, copying, or replacing those terms.</p>
+        <p><strong>Meta-Groups are audience-only collections.</strong> They collect existing terms for future audience and extension use without changing the term tree.</p>
+        <p>Users are assigned terms, not Meta-Groups. A Meta-Group can include terms from different branches without moving, copying, or replacing those terms.</p>
       </div>
 
       <?php self::render_meta_groups_table($meta_groups, $terms_by_uuid, (int) $framework->id); ?>
@@ -6411,7 +6411,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
                     <?php self::render_meta_group_term_checklist(self::root_terms($tree)); ?>
                   </fieldset>
                 </div>
-                <p class="description">Meta-Groups do not create new terms, move terms in the tree, or become directly assignable user profile values.</p>
+                <p class="description">Meta-Groups do not create new terms, move terms in the tree, or become directly assignable user values.</p>
               </td>
             </tr>
           </table>
@@ -6490,7 +6490,8 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         <?php submit_button('Add Term'); ?>
       </form>
 
-      <h3>Add Multiple Terms</h3>
+      <h3>Quick Add Terms</h3>
+      <p class="description">Create multiple sibling terms at once. One term per line.</p>
       <form method="post">
         <?php wp_nonce_field('cfm_add_terms_batch', 'cfm_nonce'); ?>
 
@@ -6507,7 +6508,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
                 <option value="" <?php selected($selected_parent_uuid, '__top_level__'); ?>>Add as Top-Level Terms</option>
                 <?php self::render_parent_options($axes, $selected_parent_uuid); ?>
               </select>
-              <p class="description">Leave unchanged to create top-level terms, or select an existing term to create child terms.</p>
+              <p class="description">Leave unchanged to create top-level sibling terms, or select a parent to create child sibling terms under it.</p>
             </td>
           </tr>
 
@@ -6522,7 +6523,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           </tr>
         </table>
 
-        <?php submit_button('Add Multiple Terms'); ?>
+        <?php submit_button('Create Terms'); ?>
       </form>
 
       <?php if (is_array($batch_error)) : ?>

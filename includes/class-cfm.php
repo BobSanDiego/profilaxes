@@ -710,16 +710,16 @@ class CFM
   public static function register_assignment_admin_page(): void
   {
     add_users_page(
-      'Assign Profiles',
-      'Assign Profiles',
+      'Assign Terms',
+      'Assign Terms',
       'list_users',
       'cfm-framework-assignments',
       [__CLASS__, 'render_assignment_admin_page']
     );
 
     add_users_page(
-      'Labs: Inspect User Profile',
-      'Labs: Inspect User Profile',
+      'Labs: Inspect User Terms',
+      'Labs: Inspect User Terms',
       'list_users',
       'cfm-segmentation-tests',
       [__CLASS__, 'render_segmentation_tests_admin_page']
@@ -734,8 +734,8 @@ class CFM
     );
 
     add_users_page(
-      'Labs: Profile Statistics',
-      'Labs: Profile Statistics',
+      'Labs: Term Statistics',
+      'Labs: Term Statistics',
       'list_users',
       'cfm-profile-statistics',
       [__CLASS__, 'render_profile_statistics_admin_page']
@@ -752,11 +752,11 @@ class CFM
 
     echo '<div class="wrap">';
     echo '<h1>Labs: Audience Explorer</h1>';
-    echo '<p><strong>Labs tool:</strong> preserved for diagnostics and future consumer experiments. Not part of the frozen Core Terms public contract.</p>';
-    echo '<p>Find users who match one or more profile terms, including inherited parent/child profile meaning.</p>';
+    echo '<p><strong>Labs tool:</strong> Experimental tools for diagnostics and future extensions.</p>';
+    echo '<p>Find users who match one or more terms, including inherited parent/child meaning.</p>';
 
     if (empty($frameworks)) {
-      echo '<div class="notice notice-warning inline"><p>No compiled profile taxonomies are available.</p></div>';
+      echo '<div class="notice notice-warning inline"><p>No terms available yet. Create or install terms and they will become available automatically.</p></div>';
       echo '</div>';
       return;
     }
@@ -786,7 +786,7 @@ class CFM
 
     echo '<tr><th scope="row"><label for="cfm_audience_terms">Audience terms</label></th><td>';
     echo '<input type="text" id="cfm_audience_terms" name="terms" value="' . esc_attr($terms_query_raw) . '" class="regular-text" placeholder="Example: elementary, math" />';
-    echo '<p class="description">Enter slugs or UUIDs separated by commas or spaces. Example: <code>elementary, math</code>. Matching includes descendants, so <code>elementary</code> includes users assigned child terms such as <code>grade-1</code>.</p>';
+    echo '<p class="description">Enter term names or slugs separated by commas or spaces. Example: <code>elementary, math</code>. Matching includes descendants, so <code>elementary</code> includes users assigned child terms such as <code>grade-1</code>.</p>';
     echo '</td></tr>';
 
     echo '<tr><th scope="row"><label for="cfm_audience_operator">Operator</label></th><td>';
@@ -797,7 +797,7 @@ class CFM
 
     echo '<tr><th scope="row"><label for="cfm_audience_limit">Limit</label></th><td>';
     echo '<input type="number" id="cfm_audience_limit" name="limit" min="1" max="200" value="' . esc_attr((string) $limit) . '" class="small-text" />';
-    echo '<p class="description">Maximum users to display. The helper itself supports pagination through limit/offset arguments.</p>';
+    echo '<p class="description">Maximum users to display. Results are limited for readability.</p>';
     echo '</td></tr>';
 
     echo '</tbody></table>';
@@ -806,12 +806,11 @@ class CFM
     echo '</form>';
 
     echo '<hr />';
-    echo '<h2>Audience Query</h2>';
-    echo '<p><strong>Helper:</strong> <code>CFM::find_users()</code></p>';
+    echo '<h2>Matching Preview</h2>';
     echo '<pre style="max-width:760px;background:#fff;border:1px solid #ccd0d4;padding:12px;overflow:auto;">' . esc_html(self::format_audience_query_example($framework_slug, $target_terms, $operator, $limit)) . '</pre>';
 
     if (!$selected_framework) {
-      echo '<div class="notice notice-error inline"><p>Invalid profile taxonomy.</p></div>';
+      echo '<div class="notice notice-error inline"><p>Invalid Core Terms definition.</p></div>';
       echo '</div>';
       return;
     }
@@ -847,7 +846,7 @@ class CFM
     echo '<h2>Term-level Matches</h2>';
 
     if (empty($resolved_terms)) {
-      echo '<p>No valid terms were resolved for this profile.</p>';
+      echo '<p>No valid terms were resolved.</p>';
       echo '</div>';
       return;
     }
@@ -911,7 +910,7 @@ class CFM
     }
 
     echo '</tbody></table>';
-    echo '<p class="description">Read-only audience computation. Assignment edits remain under Users → Assign Profiles.</p>';
+    echo '<p class="description">Read-only audience computation. Assignment edits remain under Users → Assign Terms.</p>';
     echo '</div>';
   }
 
@@ -945,10 +944,10 @@ class CFM
       echo '<p><strong>Inherited audience terms:</strong> ' . esc_html(self::format_term_breadcrumbs($effective_terms, $terms_by_uuid)) . '</p>';
 
       if (current_user_can('list_users')) {
-        echo '<p><a class="button" href="' . esc_url($manage_url) . '">Manage profile assignments</a></p>';
+        echo '<p><a class="button" href="' . esc_url($manage_url) . '">Manage term assignments</a></p>';
       }
 
-      echo '<p class="description">Assignments are stored by stable term UUID and resolved through the compiled Profile Taxonomy.</p>';
+      echo '<p class="description">Assignments are stored by stable term UUID and resolved through the compiled Core Terms.</p>';
       echo '</td>';
       echo '</tr>';
     }
@@ -965,12 +964,12 @@ class CFM
     $frameworks = self::get_profile_frameworks();
 
     echo '<div class="wrap">';
-    echo '<h1>Labs: Inspect User Profile</h1>';
-    echo '<p><strong>Labs tool:</strong> read-only diagnostic for assignments and inherited effective terms. Not part of the frozen Core Terms public contract.</p>';
-    echo '<p>Read-only view of one user’s assigned profile selections and inherited effective terms.</p>';
+    echo '<h1>Labs: Inspect User Terms</h1>';
+    echo '<p><strong>Labs tool:</strong> Experimental tools for diagnostics and future extensions.</p>';
+    echo '<p>Read-only view of one user’s assigned terms and inherited effective terms.</p>';
 
     if (empty($frameworks)) {
-      echo '<div class="notice notice-warning inline"><p>No compiled profile taxonomies are available.</p></div>';
+      echo '<div class="notice notice-warning inline"><p>No terms available yet. Create or install terms and they will become available automatically.</p></div>';
       echo '</div>';
       return;
     }
@@ -1030,25 +1029,25 @@ class CFM
     }
 
     echo '</td></tr>';
-    echo '<tr><th scope="row"><label for="cfm_seg_term_query">Test term</label></th><td>';
+    echo '<tr><th scope="row"><label for="cfm_seg_term_query">Check term</label></th><td>';
     echo '<input type="text" id="cfm_seg_term_query" name="term_query" value="' . esc_attr($term_query) . '" class="regular-text" placeholder="Example: elementary, grade-1, math" />';
-    echo '<p class="description">Enter a term slug to test user matching and user counts.</p>';
+    echo '<p class="description">Enter a term slug to inspect user matching and user counts.</p>';
     echo '</td></tr>';
     echo '</tbody></table>';
-    submit_button('Run Tests', 'primary', '', false);
+    submit_button('Inspect User', 'primary', '', false);
     echo '</form>';
 
     if (!$selected_framework) {
-      echo '<div class="notice notice-error inline"><p>Invalid profile taxonomy.</p></div>';
+      echo '<div class="notice notice-error inline"><p>Invalid Core Terms definition.</p></div>';
       echo '</div>';
       return;
     }
 
     echo '<hr />';
-    echo '<h2>Profile Taxonomy</h2>';
+    echo '<h2>Core Terms</h2>';
     echo '<p><strong>' . esc_html((string) $selected_framework->name) . '</strong> <code>' . esc_html($framework_slug) . '</code></p>';
 
-    echo '<p class="description">Use Labs: Profile Statistics for population counts and distribution reports. Use Labs: Audience Explorer to locate matching users.</p>';
+    echo '<p class="description">Use Labs: Term Statistics for population counts and distribution reports. Use Labs: Audience Explorer to locate matching users.</p>';
 
     echo '<h2>User Term Resolution</h2>';
     if ($selected_user_id <= 0 || !$selected_user) {
@@ -1070,10 +1069,10 @@ class CFM
         $custom_effective_count = self::count_users($framework_slug, $term_query, 'profile', true);
 
         echo '<h2>Custom Test Term Results</h2>';
-        echo '<p><strong>Test term:</strong> <code>' . esc_html($term_query) . '</code></p>';
+        echo '<p><strong>Check term:</strong> <code>' . esc_html($term_query) . '</code></p>';
 
         if (!$custom_term) {
-          echo '<div class="notice notice-warning inline"><p>No compiled term with this slug exists in the selected profile taxonomy. Counts and matching should be treated as invalid/zero.</p></div>';
+          echo '<div class="notice notice-warning inline"><p>No term with this slug exists in the selected Core Terms definition. Counts and matching should be treated as invalid/zero.</p></div>';
         }
 
         echo '<table class="widefat striped" style="max-width:760px;"><thead><tr><th>Question</th><th>Result</th></tr></thead><tbody>';
@@ -1097,7 +1096,7 @@ class CFM
       }
 
       if (empty($checks)) {
-        echo '<tr><td colspan="2">No matching checks available for this profile taxonomy yet.</td></tr>';
+        echo '<tr><td colspan="2">No matching checks available yet.</td></tr>';
       } else {
         foreach ($checks as $check) {
           $is_true = $check['result'] === 'true' || (is_numeric($check['result']) && (int) $check['result'] > 0);
@@ -1124,12 +1123,12 @@ class CFM
     $frameworks = self::get_profile_frameworks();
 
     echo '<div class="wrap">';
-    echo '<h1>Labs: Profile Statistics</h1>';
-    echo '<p><strong>Labs tool:</strong> population snapshot and distribution diagnostics. Not part of the frozen Core Terms public contract.</p>';
-    echo '<p>This page summarizes user profile composition across compiled Profile Taxonomy terms.</p>';
+    echo '<h1>Labs: Term Statistics</h1>';
+    echo '<p><strong>Labs tool:</strong> Experimental tools for diagnostics and future extensions.</p>';
+    echo '<p>This page summarizes user term composition across available terms.</p>';
 
     if (empty($frameworks)) {
-      echo '<div class="notice notice-warning inline"><p>No compiled profile taxonomies are available.</p></div>';
+      echo '<div class="notice notice-warning inline"><p>No terms available yet. Create or install terms and they will become available automatically.</p></div>';
       echo '</div>';
       return;
     }
@@ -1154,7 +1153,7 @@ class CFM
     $selected_framework = CFM_Framework_Repository::get_framework($selected_framework_id);
 
     if (!$selected_framework) {
-      echo '<div class="notice notice-error inline"><p>Invalid profile taxonomy.</p></div>';
+      echo '<div class="notice notice-error inline"><p>Invalid Core Terms definition.</p></div>';
       echo '</div>';
       return;
     }
@@ -1173,15 +1172,15 @@ class CFM
     echo '<p class="description">Optional. Enter a term slug to inspect audience size.</p>';
     echo '</td></tr>';
     echo '</tbody></table>';
-    submit_button('View Snapshot', 'primary', '', false);
+    submit_button('Refresh Statistics', 'primary', '', false);
     echo '</form>';
 
     echo '<hr />';
-    echo '<h2>Profile Matrix</h2>';
+    echo '<h2>Term Distribution</h2>';
 
 
     if (empty($terms)) {
-      echo '<p>No compiled terms available.</p>';
+      echo '<p>No terms available yet.</p>';
       echo '</div>';
       return;
     }
@@ -1273,7 +1272,7 @@ class CFM
     echo '<p class="description">User counts include inherited matches. Example: a user assigned to Grade 1 also counts under Elementary and Grade Level.</p>';
 
     if ($term_query !== '' && !$search_term) {
-      echo '<div class="notice notice-warning inline"><p>No compiled term with slug <code>' . esc_html($term_query) . '</code> exists in this profile.</p></div>';
+      echo '<div class="notice notice-warning inline"><p>No term with slug <code>' . esc_html($term_query) . '</code> exists in this Core Terms definition.</p></div>';
     }
 
     echo '<div style="max-height:620px;overflow:auto;border:1px solid #ccd0d4;background:#fff;max-width:1050px;">';
@@ -1281,7 +1280,7 @@ class CFM
     echo '<thead><tr>';
     $profile_term_count = count($rows);
 
-    echo '<th><a href="' . $tree_url . '">Profile Terms (' . esc_html((string) $profile_term_count) . ')</a></th>';
+    echo '<th><a href="' . $tree_url . '">Terms (' . esc_html((string) $profile_term_count) . ')</a></th>';
     echo '<th><a href="' . $slug_url . '">Slug</a></th>';
     echo '<th><a href="' . $users_url . '">Users (' . esc_html((string) $total_users) . ')</a></th>';
     echo '<th>%</th>';
@@ -1318,21 +1317,21 @@ class CFM
 
     echo '</tbody></table>';
     echo '</div>';
-    echo '<p class="description">Click Profile Terms to restore tree order. Slug sorts alphabetically. Users sorts by audience size. The highlighted search row stays pinned above the table.</p>';
-    echo '<p class="description">This page is analytics/read-only. Assignment changes happen under Users → Assign Profiles.</p>';
+    echo '<p class="description">Click Terms to restore tree order. Slug sorts alphabetically. Users sorts by audience size. The highlighted search row stays pinned above the table.</p>';
+    echo '<p class="description">This page is analytics/read-only. Assignment changes happen under Users → Assign Terms.</p>';
     echo '</div>';
   }
 
   public static function render_assignment_admin_page(): void
   {
     if (!current_user_can('list_users')) {
-      wp_die('You do not have permission to manage profile assignments.');
+      wp_die('You do not have permission to manage term assignments.');
     }
 
     $frameworks = self::get_profile_frameworks();
 
     if (empty($frameworks)) {
-      echo '<div class="wrap"><h1>Assign Profiles</h1><p>No compiled profile taxonomies are available.</p></div>';
+      echo '<div class="wrap"><h1>Assign Terms</h1><p>No terms available yet. Create or install terms and they will become available automatically.</p></div>';
       return;
     }
 
@@ -1356,7 +1355,7 @@ class CFM
         $notice = 'Assignment save failed: invalid or inaccessible user.';
         $notice_type = 'error';
       } elseif (!self::framework_id_exists($frameworks, $selected_framework_id)) {
-        $notice = 'Assignment save failed: invalid profile taxonomy.';
+        $notice = 'Assignment save failed: invalid Core Terms definition.';
         $notice_type = 'error';
       } else {
         $posted_terms = isset($_POST['cfm_user_terms']) && is_array($_POST['cfm_user_terms'])
@@ -1369,8 +1368,8 @@ class CFM
           $saved_user = get_userdata($selected_user_id);
           $saved_framework = CFM_Framework_Repository::get_framework($selected_framework_id);
           $saved_user_label = $saved_user ? (($saved_user->display_name ?: $saved_user->user_login) . ' / ' . $saved_user->user_email) : ('User ID ' . $selected_user_id);
-          $saved_framework_label = $saved_framework ? (string) $saved_framework->name : ('Profile Taxonomy ID ' . $selected_framework_id);
-          $notice = 'Profile assignments saved for ' . $saved_user_label . ' in ' . $saved_framework_label . '.';
+          $saved_framework_label = $saved_framework ? (string) $saved_framework->name : ('Core Terms ID ' . $selected_framework_id);
+          $notice = 'Term assignments saved for ' . $saved_user_label . ' in ' . $saved_framework_label . '.';
         } else {
           $notice = 'Assignment save failed.';
           $notice_type = 'error';
@@ -1403,7 +1402,7 @@ class CFM
     $assigned = $selected_user_id > 0 ? CFM_Framework_Repository::get_user_term_uuids($selected_user_id, $selected_framework_id) : [];
 
     echo '<div class="wrap">';
-    echo '<h1>Assign Profiles</h1>';
+    echo '<h1>Assign Terms</h1>';
 
     if ($notice !== '') {
       echo '<div class="notice notice-' . esc_attr($notice_type) . ' is-dismissible"><p>' . esc_html($notice) . '</p></div>';
@@ -1449,13 +1448,13 @@ class CFM
     echo '</form>';
 
     if ($selected_user_id <= 0) {
-      echo '<p>Select a user from the search results, then click Load Selected User to edit saved profile selections.</p>';
+      echo '<p>Select a user from the search results, then click Load Selected User to edit saved term selections.</p>';
       echo '</div>';
       return;
     }
 
     if (!$selected_user || !$selected_framework) {
-      echo '<div class="notice notice-error inline"><p>Cannot load assignments: invalid user or profile taxonomy.</p></div>';
+      echo '<div class="notice notice-error inline"><p>Cannot load assignments: invalid user or Core Terms definition.</p></div>';
       echo '</div>';
       return;
     }
@@ -1473,10 +1472,10 @@ class CFM
     echo '<input type="hidden" name="user_id" value="' . esc_attr((string) $selected_user_id) . '" />';
     echo '<input type="hidden" name="framework_id" value="' . esc_attr((string) $selected_framework_id) . '" />';
 
-    echo '<h2>' . esc_html(($selected_framework ? $selected_framework->name : 'Profile Taxonomy') . ' Profile Assignments') . '</h2>';
+    echo '<h2>' . esc_html(($selected_framework ? $selected_framework->name : 'Core Terms') . ' Profile Assignments') . '</h2>';
 
     if (empty($terms)) {
-      echo '<p>No compiled terms are available for this profile taxonomy.</p>';
+      echo '<p>No compiled terms are available for this Core Terms definition.</p>';
     } else {
       echo '<div style="max-width:760px;background:#fff;border:1px solid #ccd0d4;padding:12px 16px;">';
 
