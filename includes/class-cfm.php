@@ -272,7 +272,7 @@ class CFM
 
 
   /**
-   * Return user IDs assigned to a Profile Term.
+   * Return user IDs assigned to a Term.
    *
    * Public extension helper for Jobs, Chatboards, Lessons, and future modules.
    * Example extension guard:
@@ -926,7 +926,7 @@ class CFM
       return;
     }
 
-    echo '<h2>Assigned Profile Terms</h2>';
+    echo '<h2>Assigned Terms</h2>';
     echo '<table class="form-table" role="presentation">';
 
     foreach ($frameworks as $framework) {
@@ -941,7 +941,7 @@ class CFM
       echo '<td>';
 
       echo '<p><strong>Assigned directly:</strong> ' . esc_html(self::format_term_breadcrumbs($assigned_terms, $terms_by_uuid)) . '</p>';
-      echo '<p><strong>Inherited audience terms:</strong> ' . esc_html(self::format_term_breadcrumbs($effective_terms, $terms_by_uuid)) . '</p>';
+      echo '<p><strong>Inherited terms:</strong> ' . esc_html(self::format_term_breadcrumbs($effective_terms, $terms_by_uuid)) . '</p>';
 
       if (current_user_can('list_users')) {
         echo '<p><a class="button" href="' . esc_url($manage_url) . '">Manage term assignments</a></p>';
@@ -1060,7 +1060,7 @@ class CFM
 
       echo '<p><strong>User:</strong> ' . esc_html($user_label) . '</p>';
       echo '<p><strong>Assigned directly:</strong> ' . esc_html(self::format_term_breadcrumbs($assigned_terms, $terms_by_uuid)) . '</p>';
-      echo '<p><strong>Inherited audience terms:</strong> ' . esc_html(self::format_term_breadcrumbs($effective_terms, $terms_by_uuid)) . '</p>';
+      echo '<p><strong>Inherited terms:</strong> ' . esc_html(self::format_term_breadcrumbs($effective_terms, $terms_by_uuid)) . '</p>';
 
       if ($term_query !== '') {
         $custom_term = self::get_term_by_slug($framework_slug, $term_query);
@@ -1472,50 +1472,41 @@ class CFM
     echo '<input type="hidden" name="user_id" value="' . esc_attr((string) $selected_user_id) . '" />';
     echo '<input type="hidden" name="framework_id" value="' . esc_attr((string) $selected_framework_id) . '" />';
 
-    echo '<h2>' . esc_html(($selected_framework ? $selected_framework->name : 'Core Terms') . ' Profile Assignments') . '</h2>';
+    echo '<h2>User Term Assignments</h2>';
+    echo '<p class="description">Select terms assigned directly to this user. Parent terms implied by child selections are shown checked and dimmed, but only direct selections are saved.</p>';
 
     if (empty($terms)) {
-      echo '<p>No compiled terms are available for this Core Terms definition.</p>';
+      echo '<p>No terms are available for this Core Terms definition yet.</p>';
     } else {
-      echo '<div style="max-width:760px;background:#fff;border:1px solid #ccd0d4;padding:12px 16px;">';
+      $effective_terms_for_ui = $selected_user_id > 0
+        ? self::get_user_effective_terms_by_framework_id($selected_user_id, $selected_framework_id)
+        : [];
+      $effective_uuids = [];
 
-      foreach ($terms as $term) {
-        $uuid = (string) $term->term_uuid;
-        $depth = max(0, (int) $term->depth);
-        $margin = 24 * $depth;
-
-        if ($depth === 0) {
-          echo '<div style="margin:12px 0 6px ' . esc_attr((string) $margin) . 'px;font-weight:600;">';
-          echo esc_html($term->label) . ' <code>' . esc_html($term->slug) . '</code>';
-          echo '</div>';
-          continue;
+      foreach ($effective_terms_for_ui as $effective_term_for_ui) {
+        if (is_object($effective_term_for_ui) && !empty($effective_term_for_ui->term_uuid)) {
+          $effective_uuids[] = (string) $effective_term_for_ui->term_uuid;
         }
-
-        $checked = checked(in_array($uuid, $assigned, true), true, false);
-
-        $breadcrumb = self::format_term_breadcrumb($term, $terms_by_uuid);
-
-        echo '<label style="display:block;margin:5px 0 5px ' . esc_attr((string) $margin) . 'px;" title="' . esc_attr($breadcrumb) . '">';
-        echo '<input type="checkbox" name="cfm_user_terms[]" value="' . esc_attr($uuid) . '" ' . $checked . ' /> ';
-        echo esc_html($term->label) . ' <code>' . esc_html($term->slug) . '</code>';
-        if ($breadcrumb !== (string) $term->label) {
-          echo ' <span class="description">' . esc_html($breadcrumb) . '</span>';
-        }
-        echo '</label>';
       }
 
+      $effective_uuids = array_values(array_unique($effective_uuids));
+
+      echo '<div data-cfm-user-term-assignment-tree="1" style="max-width:860px;background:#fff;border:1px solid #ccd0d4;padding:12px 16px;">';
+      echo '<div style="display:flex; justify-content:space-between; max-width:820px; margin:0 0 8px;">';
+      echo '<span><a href="#" data-cfm-assignment-expand="1">Expand all</a><span aria-hidden="true"> | </span><a href="#" data-cfm-assignment-expand="0">Collapse all</a></span>';
+      echo '<span class="description">Direct selections are saved. Dimmed parents are implied.</span>';
+      echo '</div>';
+      self::render_user_assignment_term_tree($terms, $assigned, $effective_uuids, $terms_by_uuid);
       echo '</div>';
 
       $assigned_terms = $selected_user_id > 0
         ? CFM_Framework_Repository::get_user_terms($selected_user_id, $selected_framework_id)
         : [];
-      $effective_terms = $selected_user_id > 0
-        ? self::get_user_effective_terms_by_framework_id($selected_user_id, $selected_framework_id)
-        : [];
+      $effective_terms = $effective_terms_for_ui;
 
       echo '<div style="max-width:760px;margin-top:12px;">';
       echo '<p><strong>Assigned directly:</strong> ' . esc_html(self::format_term_breadcrumbs($assigned_terms, $terms_by_uuid)) . '</p>';
-      echo '<p><strong>Inherited audience terms:</strong> ' . esc_html(self::format_term_breadcrumbs($effective_terms, $terms_by_uuid)) . '</p>';
+      echo '<p><strong>Inherited terms:</strong> ' . esc_html(self::format_term_breadcrumbs($effective_terms, $terms_by_uuid)) . '</p>';
       echo '</div>';
 
       echo '<p class="description">Only direct user selections are stored. Parent terms are inherited at query time through compiled closure tables.</p>';
@@ -1530,26 +1521,187 @@ class CFM
       echo '(function(){';
       echo 'var form=document.currentScript.closest("form");';
       echo 'if(!form){return;}';
-      echo 'var checkboxes=form.querySelectorAll("input[name=\"cfm_user_terms[]\"]");';
+      echo 'var tree=form.querySelector("[data-cfm-user-term-assignment-tree]");';
+      echo 'var checkboxes=form.querySelectorAll("input[name=\\"cfm_user_terms[]\\"]");';
+      echo 'var allBoxes=tree?tree.querySelectorAll(".cfm-user-term-checkbox"):checkboxes;';
       echo 'var saveWrap=form.querySelector(".cfm-save-assignments-wrap");';
       echo 'var dirtyNote=form.querySelector(".cfm-assignment-dirty-note");';
-      echo 'if(!saveWrap||!checkboxes.length){return;}';
-      echo 'var initial=[];';
-      echo 'checkboxes.forEach(function(cb,index){initial[index]=cb.checked;});';
-      echo 'function update(){';
+      echo 'if(!saveWrap||!allBoxes.length){return;}';
+      echo 'var byUuid={};';
+      echo 'allBoxes.forEach(function(cb){';
+      echo 'var uuid=cb.getAttribute("data-term-uuid")||"";';
+      echo 'if(!uuid){return;}';
+      echo 'byUuid[uuid]=cb;';
+      echo 'cb.dataset.initialDirect=cb.getAttribute("data-direct") === "1" ? "1" : "0";';
+      echo 'cb.dataset.userDirect=cb.dataset.initialDirect;';
+      echo '});';
+      echo 'function clearImplied(){';
+      echo 'allBoxes.forEach(function(cb){';
+      echo 'var direct=cb.dataset.userDirect === "1";';
+      echo 'cb.disabled=false;';
+      echo 'cb.classList.remove("cfm-term-implied");';
+      echo 'var label=cb.closest("label");';
+      echo 'if(label){label.classList.remove("cfm-term-implied-label");}';
+      echo 'var badge=label?label.querySelector(".cfm-implied-badge"):null;';
+      echo 'if(badge){badge.remove();}';
+      echo 'cb.checked=direct;';
+      echo '});';
+      echo '}';
+      echo 'function markImplied(cb){';
+      echo 'if(!cb || cb.dataset.userDirect === "1"){return;}';
+      echo 'cb.checked=true;';
+      echo 'cb.disabled=true;';
+      echo 'cb.classList.add("cfm-term-implied");';
+      echo 'var label=cb.closest("label");';
+      echo 'if(label){';
+      echo 'label.classList.add("cfm-term-implied-label");';
+      echo 'if(!label.querySelector(".cfm-implied-badge")){';
+      echo 'var badge=document.createElement("span");';
+      echo 'badge.className="description cfm-implied-badge";';
+      echo 'badge.textContent=" implied";';
+      echo 'label.appendChild(badge);';
+      echo '}';
+      echo '}';
+      echo '}';
+      echo 'function applyImplied(){';
+      echo 'clearImplied();';
+      echo 'allBoxes.forEach(function(cb){';
+      echo 'if(cb.dataset.userDirect !== "1"){return;}';
+      echo 'var parentUuid=cb.getAttribute("data-parent-uuid")||"";';
+      echo 'while(parentUuid && byUuid[parentUuid]){';
+      echo 'markImplied(byUuid[parentUuid]);';
+      echo 'parentUuid=byUuid[parentUuid].getAttribute("data-parent-uuid")||"";';
+      echo '}';
+      echo '});';
+      echo '}';
+      echo 'function updateDirty(){';
       echo 'var dirty=false;';
-      echo 'checkboxes.forEach(function(cb,index){if(cb.checked!==initial[index]){dirty=true;}});';
+      echo 'allBoxes.forEach(function(cb){if(cb.dataset.userDirect!==cb.dataset.initialDirect){dirty=true;}});';
       echo 'saveWrap.style.display=dirty?"inline-block":"none";';
       echo 'if(dirtyNote){dirtyNote.style.display=dirty?"inline":"none";}';
       echo '}';
-      echo 'checkboxes.forEach(function(cb){cb.addEventListener("change",update);});';
-      echo 'update();';
+      echo 'allBoxes.forEach(function(cb){';
+      echo 'cb.addEventListener("change",function(){';
+      echo 'cb.dataset.userDirect=cb.checked?"1":"0";';
+      echo 'applyImplied();';
+      echo 'updateDirty();';
+      echo '});';
+      echo '});';
+      echo 'if(tree){';
+      echo 'tree.addEventListener("click",function(event){';
+      echo 'var toggle=event.target.closest("[data-cfm-assignment-toggle]");';
+      echo 'if(!toggle){return;}';
+      echo 'event.preventDefault();';
+      echo 'var node=toggle.closest(".cfm-assignment-term-node");';
+      echo 'if(!node){return;}';
+      echo 'var children=node.querySelector(":scope > .cfm-assignment-children");';
+      echo 'if(!children){return;}';
+      echo 'var collapsed=children.style.display==="none";';
+      echo 'children.style.display=collapsed?"":"none";';
+      echo 'toggle.textContent=collapsed?"▾":"▸";';
+      echo '});';
+      echo '}';
+      echo 'document.querySelectorAll("[data-cfm-assignment-expand]").forEach(function(link){';
+      echo 'link.addEventListener("click",function(event){';
+      echo 'event.preventDefault();';
+      echo 'var expand=link.getAttribute("data-cfm-assignment-expand")==="1";';
+      echo 'document.querySelectorAll(".cfm-assignment-children").forEach(function(children){children.style.display=expand?"":"none";});';
+      echo 'document.querySelectorAll("[data-cfm-assignment-toggle]").forEach(function(toggle){toggle.textContent=expand?"▾":"▸";});';
+      echo '});';
+      echo '});';
+      echo 'applyImplied();';
+      echo 'updateDirty();';
       echo '})();';
       echo '</script>';
     }
 
     echo '</form>';
     echo '</div>';
+  }
+
+
+  private static function render_user_assignment_term_tree(array $terms, array $assigned_uuids, array $effective_uuids, array $terms_by_uuid): void
+  {
+    $children_by_parent = [];
+
+    foreach ($terms as $term) {
+      if (!is_object($term) || empty($term->term_uuid)) {
+        continue;
+      }
+
+      $parent_uuid = isset($term->parent_uuid) ? (string) $term->parent_uuid : '';
+
+      if ($parent_uuid === '') {
+        $parent_uuid = '__root__';
+      }
+
+      if (!isset($children_by_parent[$parent_uuid])) {
+        $children_by_parent[$parent_uuid] = [];
+      }
+
+      $children_by_parent[$parent_uuid][] = $term;
+    }
+
+    if (empty($children_by_parent['__root__'])) {
+      echo '<p>No terms are available for assignment.</p>';
+      return;
+    }
+
+    echo '<div class="cfm-user-assignment-tree">';
+    self::render_user_assignment_term_nodes($children_by_parent['__root__'], $children_by_parent, $assigned_uuids, $effective_uuids, $terms_by_uuid, 0);
+    echo '</div>';
+  }
+
+  private static function render_user_assignment_term_nodes(array $nodes, array $children_by_parent, array $assigned_uuids, array $effective_uuids, array $terms_by_uuid, int $depth): void
+  {
+    foreach ($nodes as $term) {
+      if (!is_object($term) || empty($term->term_uuid)) {
+        continue;
+      }
+
+      $uuid = (string) $term->term_uuid;
+      $parent_uuid = isset($term->parent_uuid) ? (string) $term->parent_uuid : '';
+      $children = $children_by_parent[$uuid] ?? [];
+      $has_children = !empty($children);
+      $direct = in_array($uuid, $assigned_uuids, true);
+      $implied = (!$direct && in_array($uuid, $effective_uuids, true));
+      $checked = ($direct || $implied) ? ' checked' : '';
+      $disabled = $implied ? ' disabled' : '';
+      $margin = max(0, $depth) * 18;
+      $breadcrumb = self::format_term_breadcrumb($term, $terms_by_uuid);
+
+      echo '<div class="cfm-assignment-term-node" style="margin:4px 0 4px ' . esc_attr((string) $margin) . 'px;">';
+      echo '<div class="cfm-assignment-term-row" style="display:flex;align-items:center;gap:6px;">';
+
+      if ($has_children) {
+        echo '<button type="button" class="button-link" data-cfm-assignment-toggle="1" aria-label="Expand or collapse children" style="width:18px;text-align:center;text-decoration:none;">▾</button>';
+      } else {
+        echo '<span aria-hidden="true" style="display:inline-block;width:18px;"></span>';
+      }
+
+      echo '<label' . ($implied ? ' class="cfm-term-implied-label"' : '') . ' title="' . esc_attr($breadcrumb) . '">';
+      echo '<input class="cfm-user-term-checkbox" type="checkbox" name="cfm_user_terms[]" value="' . esc_attr($uuid) . '" data-term-uuid="' . esc_attr($uuid) . '" data-parent-uuid="' . esc_attr($parent_uuid) . '" data-direct="' . esc_attr($direct ? '1' : '0') . '"' . $checked . $disabled . '> ';
+      echo esc_html((string) $term->label) . ' <code>' . esc_html((string) $term->slug) . '</code>';
+
+      if ($implied) {
+        echo ' <span class="description cfm-implied-badge">implied</span>';
+      }
+
+      if ($breadcrumb !== (string) $term->label) {
+        echo ' <span class="description">' . esc_html($breadcrumb) . '</span>';
+      }
+
+      echo '</label>';
+      echo '</div>';
+
+      if ($has_children) {
+        echo '<div class="cfm-assignment-children">';
+        self::render_user_assignment_term_nodes($children, $children_by_parent, $assigned_uuids, $effective_uuids, $terms_by_uuid, $depth + 1);
+        echo '</div>';
+      }
+
+      echo '</div>';
+    }
   }
 
   private static function parse_term_query_list(string $raw): array

@@ -2087,7 +2087,7 @@ class CFM_Admin
       echo '<input type="hidden" name="parent_uuid" value="' . esc_attr($parent_uuid) . '">';
       echo '<input type="hidden" name="order_revision" value="' . esc_attr((string) $revision) . '">';
       echo '<h3 style="margin-top:0;">' . esc_html((string) ($group['label'] ?? 'Sibling Group')) . '</h3>';
-      echo '<p class="description">Drag direct children into the desired order. Changes save automatically on drop; parent changes still use Move.</p>';
+      echo '<p class="description">Drag direct children into the desired order. Changes save automatically on drop.</p>';
       echo '<ul id="' . esc_attr($list_id) . '" class="cfm-sortable-list" style="margin:0 0 10px; max-width:520px;">';
 
       foreach ($children as $child) {
@@ -2214,7 +2214,13 @@ class CFM_Admin
       $current_path = $path . ' › ' . $label;
     }
 
-    if ($uuid !== '' && !in_array($kind, ['framework', 'root', 'meta'], true) && count($children) > 1) {
+    if ($uuid !== '' && in_array($kind, ['framework', 'root'], true) && count($children) > 1) {
+      $groups[] = [
+        'parent_uuid' => $uuid,
+        'label' => 'Top-level terms',
+        'children' => $children,
+      ];
+    } elseif ($uuid !== '' && !in_array($kind, ['framework', 'root', 'meta'], true) && count($children) > 1) {
       $groups[] = [
         'parent_uuid' => $uuid,
         'label' => $current_path,
@@ -6328,7 +6334,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
       <hr>
 
       <h2 id="cfm-ordering">Ordering</h2>
-      <p class="description">Ordering is sibling-scoped. Dragging changes display order only; use Move to change parentage.</p>
+      <p class="description">Ordering is sibling-scoped. Drag terms within each group to change their display order.</p>
       <?php self::render_ordering_controls((int) $framework->id, $tree); ?>
 
       <hr>
