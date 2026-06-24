@@ -792,26 +792,39 @@ class CFM_Admin
       wp_die('Parent not found.');
     }
 
-    foreach ($terms_to_add as $term) {
-      if (self::has_child_slug_conflict($tree, $parent_uuid, (string) $term['slug'])) {
-        self::redirect_batch_error(
-          $framework_id,
-          $is_top_level ? '__top_level__' : $parent_uuid,
-          'A batch term conflicts with an existing sibling slug: ' . (string) $term['slug'] . '. No terms were added.',
-          $batch_input
-        );
-      }
-    }
+    $existing_sibling_slugs = self::child_slug_lookup($tree, $parent_uuid);
+    $skipped_existing = [];
+    $terms_to_create = [];
 
     foreach ($terms_to_add as $term) {
+      $slug = (string) $term['slug'];
+
+      if (isset($existing_sibling_slugs[$slug])) {
+        $skipped_existing[] = [
+          'label' => (string) $term['label'],
+          'slug' => $slug,
+        ];
+        continue;
+      }
+
+      $existing_sibling_slugs[$slug] = true;
+      $terms_to_create[] = $term;
+    }
+
+    foreach ($terms_to_create as $term) {
       if (!self::append_child_to_node_by_uuid($tree, $parent_uuid, $term)) {
         wp_die('Parent not found.');
       }
     }
 
-    self::bump_order_revision($framework_id, $parent_uuid);
-
-    $compile_result = self::save_active_tree_and_compile($framework_id, $tree);
+    if (!empty($terms_to_create)) {
+      self::bump_order_revision($framework_id, $parent_uuid);
+      $compile_result = self::save_active_tree_and_compile($framework_id, $tree);
+    } else {
+      $compile_result = [
+        'query_arg' => '',
+      ];
+    }
 
     $parent_label = $is_top_level ? 'top level' : (string) ($parent_info['node']['label'] ?? 'selected parent');
     $transient_key = self::batch_added_terms_transient_key($framework_id);
@@ -819,7 +832,11 @@ class CFM_Admin
     set_transient($transient_key, [
       'parent_uuid' => $is_top_level ? '__top_level__' : $parent_uuid,
       'parent_label' => $parent_label,
-      'terms' => $terms_to_add,
+      'terms' => $terms_to_create,
+      'created_count' => count($terms_to_create),
+      'skipped_existing_count' => count($skipped_existing),
+      'errors_count' => 0,
+      'skipped_existing' => $skipped_existing,
     ], 5 * MINUTE_IN_SECONDS);
 
     wp_safe_redirect(
@@ -1651,6 +1668,41 @@ class CFM_Admin
     }
 
     return false;
+  }
+
+  private static function child_slug_lookup(array $tree, string $parent_uuid): array
+  {
+    $slugs = [];
+
+    if ($parent_uuid === '') {
+      return $slugs;
+    }
+
+    $parent_info = self::find_node_with_parent($tree, $parent_uuid);
+
+    if (!$parent_info || empty($parent_info['node']) || !is_array($parent_info['node'])) {
+      return $slugs;
+    }
+
+    $children = $parent_info['node']['children'] ?? [];
+
+    if (empty($children) || !is_array($children)) {
+      return $slugs;
+    }
+
+    foreach ($children as $child) {
+      if (!is_array($child)) {
+        continue;
+      }
+
+      $slug = self::normalize_slug((string) ($child['slug'] ?? $child['label'] ?? ''));
+
+      if ($slug !== '') {
+        $slugs[$slug] = true;
+      }
+    }
+
+    return $slugs;
   }
 
   private static function collect_node_uuids(array $node): array
@@ -5870,6 +5922,41 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         </div>
       <?php endif; ?>
 
+      <?php if (is_array($batch_added_terms)) : ?>
+        <?php
+        $batch_created_count = isset($batch_added_terms['created_count'])
+          ? absint($batch_added_terms['created_count'])
+          : count((array) ($batch_added_terms['terms'] ?? []));
+        $batch_skipped_existing_count = absint($batch_added_terms['skipped_existing_count'] ?? 0);
+        $batch_errors_count = absint($batch_added_terms['errors_count'] ?? 0);
+        $batch_skipped_existing = isset($batch_added_terms['skipped_existing']) && is_array($batch_added_terms['skipped_existing'])
+          ? $batch_added_terms['skipped_existing']
+          : [];
+        ?>
+        <div id="cfm-batch-added" class="notice notice-success is-dismissible">
+          <p>
+            <strong>Batch processed.</strong>
+            Created: <?php echo esc_html((string) $batch_created_count); ?>.
+            Skipped existing: <?php echo esc_html((string) $batch_skipped_existing_count); ?>.
+            Errors: <?php echo esc_html((string) $batch_errors_count); ?>.
+          </p>
+          <?php if (!empty($batch_skipped_existing)) : ?>
+            <p>
+              <strong>Skipped labels:</strong>
+              <?php
+              $skipped_labels = array_map(
+                static function ($term) {
+                  return is_array($term) ? (string) ($term['label'] ?? '') : '';
+                },
+                $batch_skipped_existing
+              );
+              echo esc_html(implode(', ', array_filter($skipped_labels)));
+              ?>
+            </p>
+          <?php endif; ?>
+        </div>
+      <?php endif; ?>
+
       <?php if (isset($_GET['cfm_meta_group_added'])) : ?>
         <div class="notice notice-success is-dismissible">
           <p>Meta-Group added.</p>
@@ -6524,7 +6611,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             </th>
             <td>
               <textarea name="batch_term_labels" id="batch_term_labels" class="large-text" rows="6" placeholder="Grade 4&#10;Grade 5&#10;Grade 6"><?php echo esc_textarea(is_array($batch_error) ? (string) ($batch_error['batch_input'] ?? '') : ''); ?></textarea>
-              <p class="description">One term label per line. Slug, short label, and description are generated from each label. The whole batch is rejected if any row conflicts.</p>
+              <p class="description">One term label per line. Slug, short label, and description are generated from each label. Existing sibling terms are skipped and reported.</p>
             </td>
           </tr>
         </table>
