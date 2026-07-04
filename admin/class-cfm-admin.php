@@ -612,7 +612,7 @@ class CFM_Admin
     }
 
     if ($term_description === '') {
-      $term_description = $term_label;
+      $term_description = self::default_community_for_label($term_label);
     }
 
     if ($framework_id <= 0 || $term_label === '' || $term_slug === '') {
@@ -748,7 +748,7 @@ class CFM_Admin
           'slug' => $slug,
           'short_label' => $label,
           'kind' => 'term',
-          'description' => $label,
+          'description' => self::default_community_for_label($label),
           'children' => [],
         ];
       }
@@ -884,7 +884,7 @@ class CFM_Admin
     }
 
     if ($description === '') {
-      $description = $label;
+      $description = self::default_community_for_label($label);
     }
 
     if ($framework_id <= 0 || $label === '' || $slug === '' || count($includes) < 2) {
@@ -1009,7 +1009,7 @@ class CFM_Admin
     }
 
     if ($description === '') {
-      $description = $label;
+      $description = self::default_community_for_label($label);
     }
 
     if ($framework_id <= 0 || $meta_group_uuid === '' || $label === '' || $slug === '' || count($includes) < 2) {
@@ -1120,7 +1120,7 @@ class CFM_Admin
     }
 
     if ($term_description === '') {
-      $term_description = $term_label;
+      $term_description = self::default_community_for_label($term_label);
     }
 
     if ($framework_id <= 0 || $term_uuid === '' || $parent_uuid === '' || $term_label === '' || $term_slug === '') {
@@ -1629,6 +1629,17 @@ class CFM_Admin
     $value = trim((string) $value, '-');
 
     return $value;
+  }
+
+  private static function default_community_for_label(string $label): string
+  {
+    $label = trim($label);
+
+    if ($label === '') {
+      return '';
+    }
+
+    return ucwords(strtolower($label)) . ' Teachers';
   }
 
   private static function has_child_slug_conflict(array $tree, string $parent_uuid, string $slug, string $exclude_uuid = ''): bool
@@ -4728,13 +4739,31 @@ class CFM_Admin
           return value;
         };
 
+        var defaultCommunity = function(value) {
+          value = String(value || '').trim();
+
+          if (!value) {
+            return '';
+          }
+
+          value = value.toLowerCase().replace(/\b[\w’'-]+/g, function(word) {
+            return word.charAt(0).toUpperCase() + word.slice(1);
+          });
+
+          return value + ' Teachers';
+        };
+
         var fillTarget = function(labelInput, target, detached) {
           if (detached[target.name]) {
             return;
           }
 
           var type = target.getAttribute('data-cfm-autofill-type');
-          target.value = type === 'slug' ? normalizeSlug(labelInput.value) : labelInput.value;
+          target.value = type === 'slug'
+            ? normalizeSlug(labelInput.value)
+            : (target.name === 'term_description' || target.name === 'meta_group_description')
+              ? defaultCommunity(labelInput.value)
+              : labelInput.value;
         };
 
         var wireGroup = function(groupName) {
@@ -4766,6 +4795,7 @@ class CFM_Admin
 
         wireGroup('add-axis');
         wireGroup('add-term');
+        wireGroup('add-meta-group');
         wireGroup('edit-term');
         wireGroup('edit-meta-group');
 
