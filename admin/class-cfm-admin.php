@@ -102,6 +102,11 @@ class CFM_Admin
       return;
     }
 
+    if ($action === 'core_terms_editor_save') {
+      self::handle_core_terms_editor_save();
+      return;
+    }
+
     if ($action === 'reorder_terms') {
       self::handle_reorder_terms();
       return;
@@ -1226,6 +1231,232 @@ class CFM_Admin
 
     wp_safe_redirect(admin_url('admin.php?page=cfm-frameworks&action=edit&framework_id=' . $framework_id . '&cfm_term_updated=1&cfm_parent_uuid=' . rawurlencode($parent_uuid) . $compile_result['query_arg'] . '#cfm-existing-terms'));
     exit;
+  }
+
+  private static function handle_core_terms_editor_save(): void
+  {
+    check_admin_referer('cfm_core_terms_editor_save', 'cfm_nonce');
+
+    if (!current_user_can('manage_options')) {
+      wp_die('You do not have permission to edit Core Terms.');
+    }
+
+    $framework_id = absint($_POST['framework_id'] ?? 0);
+    $changes_json = (string) wp_unslash($_POST['cfm_editor_changes'] ?? '');
+
+    if ($framework_id <= 0) {
+      wp_die('Core Terms definition not found.');
+    }
+
+    $framework = CFM_Framework_Repository::get_framework($framework_id);
+
+    if (!$framework) {
+      wp_die('Core Terms definition not found.');
+    }
+
+    $changes = json_decode($changes_json, true);
+
+    if (!is_array($changes)) {
+      $changes = [];
+    }
+
+    $tree = self::get_framework_tree($framework);
+    $prepared = self::prepare_core_terms_editor_changes($tree, $changes);
+
+    if (!empty($prepared['errors'])) {
+      set_transient(self::core_terms_editor_error_transient_key($framework_id), $prepared['errors'], MINUTE_IN_SECONDS);
+      wp_safe_redirect(self::editor_url($framework_id) . '&cfm_editor_error=1');
+      exit;
+    }
+
+    if (empty($prepared['changes'])) {
+      wp_safe_redirect(self::editor_url($framework_id) . '&cfm_editor_saved=0');
+      exit;
+    }
+
+    foreach ($prepared['changes'] as $change) {
+      self::update_node_metadata_by_uuid(
+        $tree,
+        (string) $change['uuid'],
+        (string) $change['label'],
+        (string) $change['slug'],
+        (string) $change['short_label'],
+        (string) $change['description']
+      );
+    }
+
+    $compile_result = self::save_active_tree_and_compile($framework_id, $tree);
+
+    if (empty($compile_result['success'])) {
+      set_transient(
+        self::core_terms_editor_error_transient_key($framework_id),
+        ['Core Terms changes could not be fully saved and rebuilt. Review the runtime rebuild status before retrying.'],
+        MINUTE_IN_SECONDS
+      );
+      wp_safe_redirect(self::editor_url($framework_id) . '&cfm_editor_error=1' . ($compile_result['query_arg'] ?? ''));
+      exit;
+    }
+
+    foreach ($prepared['changes'] as $change) {
+      $updated_term = self::find_node_with_parent($tree, (string) $change['uuid']);
+      do_action(
+        'cfm_term_updated',
+        $framework_id,
+        (string) $change['uuid'],
+        $updated_term && isset($updated_term['node']) && is_array($updated_term['node']) ? $updated_term['node'] : [],
+        (string) $change['parent_uuid'],
+        (string) $change['parent_uuid'],
+        $compile_result
+      );
+    }
+
+    wp_safe_redirect(
+      self::editor_url($framework_id)
+        . '&cfm_editor_saved=' . count($prepared['changes'])
+        . ($compile_result['query_arg'] ?? '')
+    );
+    exit;
+  }
+
+  private static function prepare_core_terms_editor_changes(array $tree, array $raw_changes): array
+  {
+    $errors = [];
+    $changes = [];
+    $seen_uuids = [];
+    $final_sibling_slugs = self::collect_core_terms_editor_sibling_slugs($tree);
+
+    foreach ($raw_changes as $index => $raw_change) {
+      if (!is_array($raw_change)) {
+        $errors[] = 'One submitted row was malformed.';
+        continue;
+      }
+
+      $uuid = sanitize_text_field((string) ($raw_change['uuid'] ?? ''));
+
+      if ($uuid === '') {
+        $errors[] = 'One edited row is missing its term identifier.';
+        continue;
+      }
+
+      if (isset($seen_uuids[$uuid])) {
+        $errors[] = 'A term was submitted more than once.';
+        continue;
+      }
+
+      $seen_uuids[$uuid] = true;
+      $node_info = self::find_node_with_parent($tree, $uuid);
+
+      if (!$node_info || empty($node_info['node']) || !is_array($node_info['node'])) {
+        $errors[] = 'One edited term no longer exists.';
+        continue;
+      }
+
+      if (self::node_kind($node_info['node']) !== 'term') {
+        $errors[] = 'Only Core Terms can be edited in this editor.';
+        continue;
+      }
+
+      $label = sanitize_text_field((string) ($raw_change['label'] ?? ''));
+      $slug = self::normalize_slug((string) ($raw_change['slug'] ?? ''));
+      $short_label = sanitize_text_field((string) ($raw_change['short_label'] ?? ''));
+      $description = sanitize_text_field((string) ($raw_change['description'] ?? ''));
+
+      if ($label === '') {
+        $errors[] = 'Label is required for edited row ' . ((int) $index + 1) . '.';
+      }
+
+      if ($slug === '') {
+        $errors[] = 'Slug is required for edited row ' . ((int) $index + 1) . '.';
+      }
+
+      if ($short_label === '') {
+        $errors[] = 'Short Label is required for edited row ' . ((int) $index + 1) . '.';
+      }
+
+      if ($description === '') {
+        $errors[] = 'Community is required for edited row ' . ((int) $index + 1) . '.';
+      }
+
+      $parent_uuid = '';
+
+      if (!empty($node_info['parent']) && is_array($node_info['parent'])) {
+        $parent_uuid = (string) ($node_info['parent']['uuid'] ?? '');
+      }
+
+      $slug_parent_key = $parent_uuid !== '' ? $parent_uuid : '__root__';
+
+      if ($slug !== '') {
+        if (!isset($final_sibling_slugs[$slug_parent_key])) {
+          $final_sibling_slugs[$slug_parent_key] = [];
+        }
+
+        $current_slug = self::normalize_slug((string) ($node_info['node']['slug'] ?? ''));
+
+        if ($current_slug !== '' && isset($final_sibling_slugs[$slug_parent_key][$current_slug]) && $final_sibling_slugs[$slug_parent_key][$current_slug] === $uuid) {
+          unset($final_sibling_slugs[$slug_parent_key][$current_slug]);
+        }
+
+        if (isset($final_sibling_slugs[$slug_parent_key][$slug]) && $final_sibling_slugs[$slug_parent_key][$slug] !== $uuid) {
+          $errors[] = 'The slug "' . $slug . '" already exists under the same parent.';
+        } else {
+          $final_sibling_slugs[$slug_parent_key][$slug] = $uuid;
+        }
+      }
+
+      $changes[] = [
+        'uuid' => $uuid,
+        'parent_uuid' => $parent_uuid,
+        'label' => $label,
+        'slug' => $slug,
+        'short_label' => $short_label,
+        'description' => $description,
+      ];
+    }
+
+    return [
+      'changes' => $changes,
+      'errors' => array_values(array_unique($errors)),
+    ];
+  }
+
+  private static function collect_core_terms_editor_sibling_slugs(array $node, string $fallback_parent_key = '__root__'): array
+  {
+    $groups = [];
+    $uuid = (string) ($node['uuid'] ?? '');
+    $children = $node['children'] ?? [];
+    $parent_key = $uuid !== '' ? $uuid : $fallback_parent_key;
+
+    if (is_array($children)) {
+      $groups[$parent_key] = [];
+
+      foreach ($children as $child) {
+        if (!is_array($child) || self::node_kind($child) !== 'term') {
+          continue;
+        }
+
+        $child_uuid = (string) ($child['uuid'] ?? '');
+        $slug = self::normalize_slug((string) ($child['slug'] ?? $child['label'] ?? ''));
+
+        if ($child_uuid !== '' && $slug !== '') {
+          $groups[$parent_key][$slug] = $child_uuid;
+        }
+      }
+
+      foreach ($children as $child) {
+        if (!is_array($child)) {
+          continue;
+        }
+
+        $groups = array_replace($groups, self::collect_core_terms_editor_sibling_slugs($child, $parent_key));
+      }
+    }
+
+    return $groups;
+  }
+
+  private static function core_terms_editor_error_transient_key(int $framework_id): string
+  {
+    return 'cfm_core_terms_editor_errors_' . $framework_id . '_' . get_current_user_id();
   }
 
   private static function handle_move_term(): void
@@ -5858,6 +6089,16 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
     $tree = self::get_framework_tree($framework);
     $terms = self::root_terms($tree);
+    $editor_errors = [];
+
+    if (isset($_GET['cfm_editor_error'])) {
+      $maybe_editor_errors = get_transient(self::core_terms_editor_error_transient_key((int) $framework->id));
+
+      if (is_array($maybe_editor_errors)) {
+        $editor_errors = array_values(array_filter(array_map('strval', $maybe_editor_errors)));
+        delete_transient(self::core_terms_editor_error_transient_key((int) $framework->id));
+      }
+    }
   ?>
     <div class="wrap">
       <h1>Core Terms Editor</h1>
@@ -5865,8 +6106,25 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         <a href="<?php echo esc_url(self::edit_url((int) $framework->id)); ?>">← Back to Core Terms</a>
       </p>
       <p class="description">
-        Read-only shell for reviewing the Core Terms hierarchy. Editing, saving, reordering, archiving, and Meta-Groups remain on the existing Core Terms screens.
+        Select a row to edit existing Core Term fields inline. Add, reorder, archive, and Meta-Groups remain on the existing Core Terms screens.
       </p>
+
+      <?php if (isset($_GET['cfm_editor_saved'])) : ?>
+        <div class="notice notice-success is-dismissible">
+          <p><?php echo absint($_GET['cfm_editor_saved']); ?> Core Term row(s) saved and runtime tables rebuilt.</p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (!empty($editor_errors)) : ?>
+        <div class="notice notice-error is-dismissible">
+          <p>Core Terms Editor changes were not saved.</p>
+          <ul>
+            <?php foreach ($editor_errors as $editor_error) : ?>
+              <li><?php echo esc_html($editor_error); ?></li>
+            <?php endforeach; ?>
+          </ul>
+        </div>
+      <?php endif; ?>
 
       <style>
         .cfm-core-terms-editor {
@@ -5875,6 +6133,24 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           display: grid;
           gap: 8px;
           max-width: 1200px;
+        }
+
+        .cfm-core-terms-editor-form {
+          max-width: 1200px;
+        }
+
+        .cfm-core-terms-editor-toolbar {
+          align-items: center;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin: 12px 0 14px;
+        }
+
+        .cfm-core-terms-editor-dirty-count {
+          color: #646970;
+          font-size: 13px;
+          margin-left: 4px;
         }
 
         .cfm-core-terms-editor-row {
@@ -6002,6 +6278,50 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           padding: 5px 4px;
         }
 
+        .cfm-core-terms-editor-display {
+          display: inline;
+        }
+
+        .cfm-core-terms-editor-edit {
+          display: none;
+        }
+
+        .cfm-core-terms-editor-row.is-selected .cfm-core-terms-editor-display {
+          display: none;
+        }
+
+        .cfm-core-terms-editor-row.is-selected .cfm-core-terms-editor-edit {
+          display: inline-flex;
+        }
+
+        .cfm-core-terms-editor-input {
+          background: transparent;
+          border: 1px solid transparent;
+          border-bottom-color: #c3c4c7;
+          border-radius: 0;
+          box-shadow: none;
+          box-sizing: border-box;
+          color: inherit;
+          font: inherit;
+          line-height: inherit;
+          margin: -2px 0;
+          min-height: 24px;
+          padding: 1px 2px;
+          width: 100%;
+        }
+
+        .cfm-core-terms-editor-input:focus {
+          background: #fff;
+          border-color: #2271b1;
+          box-shadow: 0 0 0 1px #2271b1;
+          outline: none;
+        }
+
+        .cfm-core-terms-editor-input-label {
+          font-size: 16px;
+          max-width: 100%;
+        }
+
         .cfm-core-terms-editor-field-label {
           color: #1d2327;
         }
@@ -6015,6 +6335,37 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           font-style: normal;
           gap: 0;
           line-height: 1.4;
+        }
+
+        .cfm-core-terms-editor-meta-edit {
+          align-items: center;
+          display: none;
+          gap: 0;
+          width: 100%;
+        }
+
+        .cfm-core-terms-editor-row.is-selected .cfm-core-terms-editor-meta-edit {
+          display: inline-flex;
+        }
+
+        .cfm-core-terms-editor-input-slug,
+        .cfm-core-terms-editor-input-short-label,
+        .cfm-core-terms-editor-input-community {
+          color: #646970;
+          font-size: 12px;
+          min-width: 0;
+        }
+
+        .cfm-core-terms-editor-input-slug {
+          width: 31%;
+        }
+
+        .cfm-core-terms-editor-input-short-label {
+          width: 24%;
+        }
+
+        .cfm-core-terms-editor-input-community {
+          width: 39%;
         }
 
         .cfm-core-terms-editor-meta-part,
@@ -6059,6 +6410,39 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
         .cfm-core-terms-editor-row.is-selected {
           background: #f6f7f7;
+        }
+
+        .cfm-core-terms-editor-row.is-dirty {
+          background: #fff8e5;
+        }
+
+        .cfm-core-terms-editor-row.is-selected.is-dirty {
+          background: #fff4ce;
+        }
+
+        .cfm-core-terms-editor-row.has-error {
+          background: #fcf0f1;
+        }
+
+        .cfm-core-terms-editor-row.has-error .cfm-core-terms-editor-input {
+          border-bottom-color: #d63638;
+        }
+
+        .cfm-core-terms-editor-status {
+          color: #8a6d00;
+          display: none;
+          font-size: 12px;
+          line-height: 1.3;
+          padding-top: 7px;
+        }
+
+        .cfm-core-terms-editor-row.is-dirty .cfm-core-terms-editor-status {
+          display: inline;
+        }
+
+        .cfm-core-terms-editor-row.has-error .cfm-core-terms-editor-status {
+          color: #b32d2e;
+          display: inline;
         }
 
         .cfm-core-terms-editor-term summary:focus {
@@ -6126,21 +6510,165 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         }
       </style>
 
-      <section class="cfm-core-terms-editor" aria-label="Core Terms Editor">
-        <?php self::render_core_terms_editor_reference_row(); ?>
-        <hr class="cfm-core-terms-editor-divider">
+      <form class="cfm-core-terms-editor-form" method="post" action="<?php echo esc_url(admin_url('admin.php?page=cfm-frameworks&action=editor&framework_id=' . (int) $framework->id)); ?>">
+        <?php wp_nonce_field('cfm_core_terms_editor_save', 'cfm_nonce'); ?>
+        <input type="hidden" name="cfm_action" value="core_terms_editor_save">
+        <input type="hidden" name="framework_id" value="<?php echo esc_attr((string) (int) $framework->id); ?>">
+        <input type="hidden" name="cfm_editor_changes" value="">
 
-        <?php if (empty($terms)) : ?>
-          <p>No Core Terms found.</p>
-        <?php else : ?>
-          <div class="cfm-core-terms-editor-tree">
-            <?php self::render_core_terms_editor_nodes($terms); ?>
-          </div>
-        <?php endif; ?>
-      </section>
+        <div class="cfm-core-terms-editor-toolbar" aria-label="Core Terms Editor actions">
+          <button type="submit" class="button button-primary cfm-core-terms-editor-save" disabled>Save Changes</button>
+          <button type="button" class="button cfm-core-terms-editor-reset" disabled>Reset Changes</button>
+          <span class="cfm-core-terms-editor-dirty-count" aria-live="polite">No unsaved changes.</span>
+        </div>
+
+        <section class="cfm-core-terms-editor" aria-label="Core Terms Editor">
+          <?php self::render_core_terms_editor_reference_row(); ?>
+          <hr class="cfm-core-terms-editor-divider">
+
+          <?php if (empty($terms)) : ?>
+            <p>No Core Terms found.</p>
+          <?php else : ?>
+            <div class="cfm-core-terms-editor-tree">
+              <?php self::render_core_terms_editor_nodes($terms); ?>
+            </div>
+          <?php endif; ?>
+        </section>
+      </form>
       <script>
         (function() {
+          var form = null;
           var selectedRow = null;
+          var dirtyRows = new Set();
+          var saveButton = null;
+          var resetButton = null;
+          var dirtyCount = null;
+          var changesInput = null;
+          var formSubmitting = false;
+
+          function normalizeSlug(value) {
+            return String(value || '')
+              .toLowerCase()
+              .replace(/&/g, ' and ')
+              .replace(/['’`]/g, '')
+              .replace(/[^a-z0-9]+/g, '-')
+              .replace(/-+/g, '-')
+              .replace(/^-|-$/g, '');
+          }
+
+          function rowValues(row) {
+            return {
+              uuid: row.getAttribute('data-term-uuid') || '',
+              label: inputValue(row, '.cfm-core-terms-editor-input-label'),
+              slug: normalizeSlug(inputValue(row, '.cfm-core-terms-editor-input-slug')),
+              short_label: inputValue(row, '.cfm-core-terms-editor-input-short-label'),
+              description: inputValue(row, '.cfm-core-terms-editor-input-community')
+            };
+          }
+
+          function originalValues(row) {
+            return {
+              uuid: row.getAttribute('data-term-uuid') || '',
+              label: row.getAttribute('data-original-label') || '',
+              slug: normalizeSlug(row.getAttribute('data-original-slug') || ''),
+              short_label: row.getAttribute('data-original-short-label') || '',
+              description: row.getAttribute('data-original-community') || ''
+            };
+          }
+
+          function inputValue(row, selector) {
+            var input = row.querySelector(selector);
+            return input ? input.value.trim() : '';
+          }
+
+          function setInputValue(row, selector, value) {
+            var input = row.querySelector(selector);
+
+            if (input) {
+              input.value = value;
+            }
+          }
+
+          function setText(row, selector, value) {
+            var target = row.querySelector(selector);
+
+            if (target) {
+              target.textContent = value;
+            }
+          }
+
+          function syncRowDisplay(row) {
+            var values = rowValues(row);
+
+            setText(row, '.cfm-core-terms-editor-label-display', values.label);
+            setText(row, '.cfm-core-terms-editor-meta-slug', values.slug);
+            setText(row, '.cfm-core-terms-editor-meta-short-label', values.short_label);
+            setText(row, '.cfm-core-terms-editor-meta-community', values.description);
+          }
+
+          function rowsEqual(a, b) {
+            return a.label === b.label &&
+              a.slug === b.slug &&
+              a.short_label === b.short_label &&
+              a.description === b.description;
+          }
+
+          function updateDirtyState(row) {
+            var values = rowValues(row);
+            var original = originalValues(row);
+            var dirty = !rowsEqual(values, original);
+
+            row.classList.toggle('is-dirty', dirty);
+
+            if (dirty) {
+              dirtyRows.add(row);
+            } else {
+              dirtyRows.delete(row);
+            }
+
+            updateToolbar();
+          }
+
+          function updateToolbar() {
+            var count = dirtyRows.size;
+            var hasDirty = count > 0;
+
+            if (saveButton) {
+              saveButton.disabled = !hasDirty;
+            }
+
+            if (resetButton) {
+              resetButton.disabled = !hasDirty;
+            }
+
+            if (dirtyCount) {
+              dirtyCount.textContent = hasDirty
+                ? count + ' unsaved row' + (count === 1 ? '.' : 's.')
+                : 'No unsaved changes.';
+            }
+          }
+
+          function clearRowError(row) {
+            row.classList.remove('has-error');
+            row.removeAttribute('data-error');
+
+            var status = row.querySelector('.cfm-core-terms-editor-status');
+
+            if (status) {
+              status.textContent = row.classList.contains('is-dirty') ? 'Unsaved' : '';
+            }
+          }
+
+          function setRowError(row, message) {
+            row.classList.add('has-error');
+            row.setAttribute('data-error', message);
+
+            var status = row.querySelector('.cfm-core-terms-editor-status');
+
+            if (status) {
+              status.textContent = message;
+            }
+          }
 
           function directRow(term) {
             return term.querySelector(':scope > details > summary > .cfm-core-terms-editor-row, :scope > .cfm-core-terms-editor-row');
@@ -6157,6 +6685,15 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
             row.classList.add('is-selected');
             selectedRow = row;
+
+            var firstInput = row.querySelector('.cfm-core-terms-editor-input-label');
+
+            if (firstInput) {
+              window.setTimeout(function() {
+                firstInput.focus();
+                firstInput.select();
+              }, 0);
+            }
           }
 
           function clearSelectedRow() {
@@ -6182,7 +6719,124 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             return Boolean(target.closest('.cfm-core-terms-editor-caret-slot'));
           }
 
+          function validateRows(rows) {
+            var valid = true;
+            var siblingSlugs = {};
+
+            document
+              .querySelectorAll('.cfm-core-terms-editor-row[data-term-uuid]')
+              .forEach(function(row) {
+                clearRowError(row);
+                var term = row.closest('.cfm-core-terms-editor-term');
+                var parent = term ? term.parentElement.closest('.cfm-core-terms-editor-term') : null;
+                var parentRow = parent ? directRow(parent) : null;
+                var parentKey = parentRow ? (parentRow.getAttribute('data-term-uuid') || 'root') : 'root';
+                var values = rowValues(row);
+
+                if (!siblingSlugs[parentKey]) {
+                  siblingSlugs[parentKey] = {};
+                }
+
+                if (values.slug) {
+                  if (siblingSlugs[parentKey][values.slug] && siblingSlugs[parentKey][values.slug] !== values.uuid) {
+                    setRowError(row, 'Duplicate slug');
+                    valid = false;
+                  } else {
+                    siblingSlugs[parentKey][values.slug] = values.uuid;
+                  }
+                }
+              });
+
+            rows.forEach(function(row) {
+              var values = rowValues(row);
+
+              if (!values.label) {
+                setRowError(row, 'Label required');
+                valid = false;
+              } else if (!values.slug) {
+                setRowError(row, 'Slug required');
+                valid = false;
+              } else if (!values.short_label) {
+                setRowError(row, 'Short Label required');
+                valid = false;
+              } else if (!values.description) {
+                setRowError(row, 'Community required');
+                valid = false;
+              }
+            });
+
+            return valid;
+          }
+
+          function resetChanges() {
+            document
+              .querySelectorAll('.cfm-core-terms-editor-row[data-term-uuid]')
+              .forEach(function(row) {
+                var original = originalValues(row);
+
+                setInputValue(row, '.cfm-core-terms-editor-input-label', original.label);
+                setInputValue(row, '.cfm-core-terms-editor-input-slug', original.slug);
+                setInputValue(row, '.cfm-core-terms-editor-input-short-label', original.short_label);
+                setInputValue(row, '.cfm-core-terms-editor-input-community', original.description);
+                syncRowDisplay(row);
+                clearRowError(row);
+                row.classList.remove('is-dirty');
+                dirtyRows.delete(row);
+              });
+
+            updateToolbar();
+          }
+
+          function bindForm() {
+            if (!form) {
+              return;
+            }
+
+            form.addEventListener('input', function(event) {
+              var row = event.target.closest('.cfm-core-terms-editor-row[data-term-uuid]');
+
+              if (!row) {
+                return;
+              }
+
+              if (event.target.matches('.cfm-core-terms-editor-input-slug')) {
+                event.target.value = normalizeSlug(event.target.value);
+              }
+
+              syncRowDisplay(row);
+              clearRowError(row);
+              updateDirtyState(row);
+            });
+
+            form.addEventListener('submit', function(event) {
+              var rows = Array.from(dirtyRows);
+
+              if (!rows.length) {
+                event.preventDefault();
+                return;
+              }
+
+              if (!validateRows(rows)) {
+                event.preventDefault();
+                return;
+              }
+
+              changesInput.value = JSON.stringify(rows.map(rowValues));
+              formSubmitting = true;
+            });
+
+            if (resetButton) {
+              resetButton.addEventListener('click', function() {
+                resetChanges();
+              });
+            }
+          }
+
           function handleEditorKeydown(event) {
+            if (event.target.closest('.cfm-core-terms-editor-input')) {
+              return;
+            }
+
             if (event.key !== 'Enter' && event.key !== ' ') {
               return;
             }
@@ -6216,6 +6870,10 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
               .querySelectorAll('.cfm-core-terms-editor-term summary')
               .forEach(function(summary) {
                 summary.addEventListener('click', function(event) {
+                  if (event.target.closest('.cfm-core-terms-editor-input')) {
+                    return;
+                  }
+
                   event.preventDefault();
                 });
               });
@@ -6225,6 +6883,11 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
               .forEach(function(row) {
                 row.addEventListener('click', function(event) {
                   if (isCaretClick(event.target)) {
+                    return;
+                  }
+
+                  if (event.target.closest('.cfm-core-terms-editor-input')) {
+                    selectRow(row);
                     return;
                   }
 
@@ -6250,10 +6913,26 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
                 clearSelectedRow();
               }
             });
+
+            window.addEventListener('beforeunload', function(event) {
+              if (formSubmitting || !dirtyRows.size) {
+                return;
+              }
+
+              event.preventDefault();
+              event.returnValue = '';
+            });
           }
 
           document.addEventListener('DOMContentLoaded', function() {
+            form = document.querySelector('.cfm-core-terms-editor-form');
+            saveButton = document.querySelector('.cfm-core-terms-editor-save');
+            resetButton = document.querySelector('.cfm-core-terms-editor-reset');
+            dirtyCount = document.querySelector('.cfm-core-terms-editor-dirty-count');
+            changesInput = document.querySelector('input[name="cfm_editor_changes"]');
             bindInteractions();
+            bindForm();
+            updateToolbar();
           });
           document.addEventListener('keydown', handleEditorKeydown);
         }());
@@ -6339,6 +7018,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
   private static function render_core_terms_editor_node_fields(array $term, bool $has_children, string $container_tag = 'div'): void
   {
+    $uuid = (string) ($term['uuid'] ?? '');
     $label = (string) ($term['label'] ?? '');
     $slug = (string) ($term['slug'] ?? '');
     $short_label = self::display_short_label_for_node($term);
@@ -6346,7 +7026,14 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
     $container_tag = $container_tag === 'span' ? 'span' : 'div';
 
-    echo '<' . esc_attr($container_tag) . ' class="cfm-core-terms-editor-row">';
+    echo '<' . esc_attr($container_tag)
+      . ' class="cfm-core-terms-editor-row"'
+      . ' data-term-uuid="' . esc_attr($uuid) . '"'
+      . ' data-original-label="' . esc_attr($label) . '"'
+      . ' data-original-slug="' . esc_attr($slug) . '"'
+      . ' data-original-short-label="' . esc_attr($short_label) . '"'
+      . ' data-original-community="' . esc_attr($community) . '"'
+      . '>';
     echo '<span class="cfm-core-terms-editor-rail">';
 
     if ($has_children) {
@@ -6359,16 +7046,28 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
     echo '<span class="cfm-core-terms-editor-handle" aria-hidden="true">::</span>';
     echo '</span>';
-    echo '<span class="cfm-core-terms-editor-field cfm-core-terms-editor-field-label">' . esc_html($label) . '</span>';
+    echo '<span class="cfm-core-terms-editor-field cfm-core-terms-editor-field-label">';
+    echo '<span class="cfm-core-terms-editor-display cfm-core-terms-editor-label-display">' . esc_html($label) . '</span>';
+    echo '<input class="cfm-core-terms-editor-edit cfm-core-terms-editor-input cfm-core-terms-editor-input-label" type="text" value="' . esc_attr($label) . '" aria-label="Label">';
+    echo '</span>';
     echo '<span class="cfm-core-terms-editor-field cfm-core-terms-editor-meta">';
+    echo '<span class="cfm-core-terms-editor-display cfm-core-terms-editor-meta-display">';
     echo '<span class="cfm-core-terms-editor-meta-part cfm-core-terms-editor-meta-slug">' . esc_html($slug) . '</span>';
     echo '<span class="cfm-core-terms-editor-meta-separator" aria-hidden="true">/</span>';
     echo '<span class="cfm-core-terms-editor-meta-part cfm-core-terms-editor-meta-short-label">' . esc_html($short_label) . '</span>';
     echo '<span class="cfm-core-terms-editor-meta-separator" aria-hidden="true">/</span>';
     echo '<span class="cfm-core-terms-editor-meta-part cfm-core-terms-editor-meta-community">' . esc_html($community) . '</span>';
     echo '</span>';
+    echo '<span class="cfm-core-terms-editor-edit cfm-core-terms-editor-meta-edit">';
+    echo '<input class="cfm-core-terms-editor-input cfm-core-terms-editor-input-slug" type="text" value="' . esc_attr($slug) . '" aria-label="Slug">';
+    echo '<span class="cfm-core-terms-editor-meta-separator" aria-hidden="true">/</span>';
+    echo '<input class="cfm-core-terms-editor-input cfm-core-terms-editor-input-short-label" type="text" value="' . esc_attr($short_label) . '" aria-label="Short Label">';
+    echo '<span class="cfm-core-terms-editor-meta-separator" aria-hidden="true">/</span>';
+    echo '<input class="cfm-core-terms-editor-input cfm-core-terms-editor-input-community" type="text" value="' . esc_attr($community) . '" aria-label="Community">';
+    echo '</span>';
+    echo '</span>';
 
-    echo '<span class="cfm-core-terms-editor-actions" aria-hidden="true"></span>';
+    echo '<span class="cfm-core-terms-editor-actions"><span class="cfm-core-terms-editor-status" aria-live="polite">Unsaved</span></span>';
     echo '</' . esc_attr($container_tag) . '>';
   }
 
