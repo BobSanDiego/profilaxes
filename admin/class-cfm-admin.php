@@ -6367,6 +6367,10 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           margin: 12px 0 14px;
         }
 
+        .cfm-core-terms-editor-toolbar[hidden] {
+          display: none;
+        }
+
         .cfm-core-terms-editor-dirty-count {
           color: #646970;
           font-size: 13px;
@@ -6535,6 +6539,12 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           min-height: 24px;
           padding: 1px 2px;
           width: 100%;
+        }
+
+        .cfm-core-terms-editor .cfm-core-terms-editor-input[type="text"] {
+          box-sizing: border-box;
+          min-height: 28px;
+          padding: 2px 6px;
         }
 
         .cfm-core-terms-editor-input:focus {
@@ -6762,7 +6772,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         <input type="hidden" name="framework_id" value="<?php echo esc_attr((string) (int) $framework->id); ?>">
         <input type="hidden" name="cfm_editor_changes" value="">
 
-        <div class="cfm-core-terms-editor-toolbar" aria-label="Core Terms Editor actions">
+        <div class="cfm-core-terms-editor-toolbar" aria-label="Core Terms Editor actions" hidden>
           <button type="submit" class="button button-primary cfm-core-terms-editor-save" disabled>Save Changes</button>
           <button type="button" class="button cfm-core-terms-editor-reset" disabled>Reset Changes</button>
           <span class="cfm-core-terms-editor-dirty-count" aria-live="polite">No unsaved changes.</span>
@@ -6789,6 +6799,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           var saveButton = null;
           var resetButton = null;
           var dirtyCount = null;
+          var toolbar = null;
           var changesInput = null;
           var formSubmitting = false;
           var rowSaveRequested = null;
@@ -6991,18 +7002,25 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             var count = dirtyRows.size;
             var hasDirty = count > 0;
 
+            if (toolbar) {
+              toolbar.hidden = !hasDirty;
+            }
+
             if (saveButton) {
               saveButton.disabled = !hasDirty;
+              saveButton.hidden = !hasDirty;
             }
 
             if (resetButton) {
               resetButton.disabled = !hasDirty;
+              resetButton.hidden = !hasDirty;
             }
 
             if (dirtyCount) {
+              dirtyCount.hidden = !hasDirty;
               dirtyCount.textContent = hasDirty
                 ? count + ' unsaved row' + (count === 1 ? '.' : 's.')
-                : 'No unsaved changes.';
+                : '';
             }
           }
 
@@ -7748,6 +7766,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             saveButton = document.querySelector('.cfm-core-terms-editor-save');
             resetButton = document.querySelector('.cfm-core-terms-editor-reset');
             dirtyCount = document.querySelector('.cfm-core-terms-editor-dirty-count');
+            toolbar = document.querySelector('.cfm-core-terms-editor-toolbar');
             changesInput = document.querySelector('input[name="cfm_editor_changes"]');
             restoreOpenState();
             bindInteractions();
