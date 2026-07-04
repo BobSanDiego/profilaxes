@@ -6132,6 +6132,15 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             selectedRow = row;
           }
 
+          function clearSelectedRow() {
+            if (!selectedRow) {
+              return;
+            }
+
+            selectedRow.classList.remove('is-selected');
+            selectedRow = null;
+          }
+
           function toggleTerm(term) {
             var details = term.querySelector(':scope > details');
 
@@ -6209,6 +6218,12 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
                   toggleTerm(term);
                 });
               });
+
+            document.addEventListener('click', function(event) {
+              if (!event.target.closest('.cfm-core-terms-editor-row')) {
+                clearSelectedRow();
+              }
+            });
           }
 
           document.addEventListener('DOMContentLoaded', function() {
