@@ -6440,6 +6440,17 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           display: inline;
         }
 
+        .cfm-core-terms-editor-row-save {
+          display: none;
+          min-height: 26px;
+          padding: 0 8px;
+        }
+
+        .cfm-core-terms-editor-row.is-selected.is-dirty .cfm-core-terms-editor-row-save {
+          display: inline-flex;
+          align-items: center;
+        }
+
         .cfm-core-terms-editor-row.has-error .cfm-core-terms-editor-status {
           color: #b32d2e;
           display: inline;
@@ -6545,6 +6556,8 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           var dirtyCount = null;
           var changesInput = null;
           var formSubmitting = false;
+          var rowSaveRequested = null;
+          var restoringDrafts = false;
 
           function normalizeSlug(value) {
             return String(value || '')
@@ -6564,6 +6577,50 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
               short_label: inputValue(row, '.cfm-core-terms-editor-input-short-label'),
               description: inputValue(row, '.cfm-core-terms-editor-input-community')
             };
+          }
+
+          function storageKey(name) {
+            var frameworkInput = form ? form.querySelector('input[name="framework_id"]') : null;
+            var frameworkId = frameworkInput ? frameworkInput.value : '0';
+
+            return 'cfmCoreTermsEditor.' + frameworkId + '.' + name;
+          }
+
+          function readStoredJson(name, fallback) {
+            try {
+              var stored = window.localStorage.getItem(storageKey(name));
+              return stored ? JSON.parse(stored) : fallback;
+            } catch (error) {
+              return fallback;
+            }
+          }
+
+          function writeStoredJson(name, value) {
+            try {
+              window.localStorage.setItem(storageKey(name), JSON.stringify(value));
+            } catch (error) {
+              return;
+            }
+          }
+
+          function removeStored(name) {
+            try {
+              window.localStorage.removeItem(storageKey(name));
+            } catch (error) {
+              return;
+            }
+          }
+
+          function escapeAttributeValue(value) {
+            return String(value || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+          }
+
+          function rowByUuid(uuid) {
+            if (!uuid) {
+              return null;
+            }
+
+            return document.querySelector('.cfm-core-terms-editor-row[data-term-uuid="' + escapeAttributeValue(uuid) + '"]');
           }
 
           function originalValues(row) {
@@ -6627,6 +6684,10 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             }
 
             updateToolbar();
+
+            if (!restoringDrafts) {
+              saveDraftState();
+            }
           }
 
           function updateToolbar() {
@@ -6674,6 +6735,131 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             return term.querySelector(':scope > details > summary > .cfm-core-terms-editor-row, :scope > .cfm-core-terms-editor-row');
           }
 
+          function collectOpenState() {
+            var openUuids = [];
+
+            document
+              .querySelectorAll('.cfm-core-terms-editor-term > details[open]')
+              .forEach(function(details) {
+                var row = details.querySelector(':scope > summary > .cfm-core-terms-editor-row[data-term-uuid]');
+                var uuid = row ? row.getAttribute('data-term-uuid') : '';
+
+                if (uuid) {
+                  openUuids.push(uuid);
+                }
+              });
+
+            return openUuids;
+          }
+
+          function saveOpenState() {
+            writeStoredJson('open', collectOpenState());
+          }
+
+          function restoreOpenState() {
+            var openUuids = readStoredJson('open', []);
+
+            if (!Array.isArray(openUuids)) {
+              return;
+            }
+
+            openUuids.forEach(function(uuid) {
+              var row = rowByUuid(uuid);
+              var details = row ? row.closest('details') : null;
+
+              if (details) {
+                details.open = true;
+              }
+            });
+          }
+
+          function currentDrafts() {
+            var drafts = {};
+
+            dirtyRows.forEach(function(row) {
+              var values = rowValues(row);
+
+              if (values.uuid) {
+                drafts[values.uuid] = values;
+              }
+            });
+
+            return drafts;
+          }
+
+          function saveDraftState() {
+            var drafts = currentDrafts();
+
+            if (Object.keys(drafts).length) {
+              writeStoredJson('drafts', drafts);
+            } else {
+              removeStored('drafts');
+            }
+          }
+
+          function applyRowValues(row, values) {
+            setInputValue(row, '.cfm-core-terms-editor-input-label', values.label || '');
+            setInputValue(row, '.cfm-core-terms-editor-input-slug', normalizeSlug(values.slug || ''));
+            setInputValue(row, '.cfm-core-terms-editor-input-short-label', values.short_label || '');
+            setInputValue(row, '.cfm-core-terms-editor-input-community', values.description || '');
+            syncRowDisplay(row);
+          }
+
+          function reconcileSavedDrafts() {
+            var drafts = readStoredJson('drafts', {});
+            var pending = readStoredJson('pendingSave', null);
+            var saved = new URLSearchParams(window.location.search).has('cfm_editor_saved');
+
+            if (!pending) {
+              return drafts && typeof drafts === 'object' ? drafts : {};
+            }
+
+            if (saved) {
+              if (pending.mode === 'all') {
+                drafts = {};
+              } else if (Array.isArray(pending.uuids)) {
+                pending.uuids.forEach(function(uuid) {
+                  delete drafts[uuid];
+                });
+              }
+            }
+
+            removeStored('pendingSave');
+
+            if (drafts && typeof drafts === 'object' && Object.keys(drafts).length) {
+              writeStoredJson('drafts', drafts);
+            } else {
+              removeStored('drafts');
+              drafts = {};
+            }
+
+            return drafts;
+          }
+
+          function restoreDraftState() {
+            var drafts = reconcileSavedDrafts();
+
+            if (!drafts || typeof drafts !== 'object') {
+              return;
+            }
+
+            restoringDrafts = true;
+
+            Object.keys(drafts).forEach(function(uuid) {
+              var row = rowByUuid(uuid);
+
+              if (!row || !drafts[uuid]) {
+                return;
+              }
+
+              applyRowValues(row, drafts[uuid]);
+              updateDirtyState(row);
+            });
+
+            restoringDrafts = false;
+            updateToolbar();
+          }
+
           function selectRow(row) {
             if (!row || selectedRow === row) {
               return;
@@ -6713,6 +6899,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             }
 
             details.open = !details.open;
+            saveOpenState();
           }
 
           function isCaretClick(target) {
@@ -6784,7 +6971,31 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
                 dirtyRows.delete(row);
               });
 
+            removeStored('drafts');
+            removeStored('pendingSave');
             updateToolbar();
+          }
+
+          function prepareSubmit(rows, mode) {
+            if (!rows.length) {
+              return false;
+            }
+
+            if (!validateRows(rows)) {
+              return false;
+            }
+
+            changesInput.value = JSON.stringify(rows.map(rowValues));
+            saveOpenState();
+            saveDraftState();
+            writeStoredJson('pendingSave', {
+              mode: mode,
+              uuids: rows.map(function(row) {
+                return row.getAttribute('data-term-uuid') || '';
+              }).filter(Boolean)
+            });
+            formSubmitting = true;
+            return true;
           }
 
           function bindForm() {
@@ -6809,20 +7020,14 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             });
 
             form.addEventListener('submit', function(event) {
-              var rows = Array.from(dirtyRows);
+              var rows = rowSaveRequested ? [rowSaveRequested] : Array.from(dirtyRows);
+              var mode = rowSaveRequested ? 'row' : 'all';
+              rowSaveRequested = null;
 
-              if (!rows.length) {
+              if (!prepareSubmit(rows, mode)) {
                 event.preventDefault();
                 return;
               }
-
-              if (!validateRows(rows)) {
-                event.preventDefault();
-                return;
-              }
-
-              changesInput.value = JSON.stringify(rows.map(rowValues));
-              formSubmitting = true;
             });
 
             if (resetButton) {
@@ -6830,6 +7035,33 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
                 resetChanges();
               });
             }
+
+            form
+              .querySelectorAll('.cfm-core-terms-editor-row-save')
+              .forEach(function(button) {
+                button.addEventListener('click', function(event) {
+                  var row = button.closest('.cfm-core-terms-editor-row[data-term-uuid]');
+
+                  event.preventDefault();
+                  event.stopPropagation();
+
+                  if (!row || !row.classList.contains('is-dirty')) {
+                    return;
+                  }
+
+                  rowSaveRequested = row;
+
+                  if (form.requestSubmit) {
+                    form.requestSubmit(saveButton);
+                  } else {
+                    var submitEvent = new Event('submit', { bubbles: true, cancelable: true });
+
+                    if (form.dispatchEvent(submitEvent)) {
+                      form.submit();
+                    }
+                  }
+                });
+              });
           }
 
           function handleEditorKeydown(event) {
@@ -6930,8 +7162,10 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             resetButton = document.querySelector('.cfm-core-terms-editor-reset');
             dirtyCount = document.querySelector('.cfm-core-terms-editor-dirty-count');
             changesInput = document.querySelector('input[name="cfm_editor_changes"]');
+            restoreOpenState();
             bindInteractions();
             bindForm();
+            restoreDraftState();
             updateToolbar();
           });
           document.addEventListener('keydown', handleEditorKeydown);
@@ -7067,7 +7301,10 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
     echo '</span>';
     echo '</span>';
 
-    echo '<span class="cfm-core-terms-editor-actions"><span class="cfm-core-terms-editor-status" aria-live="polite">Unsaved</span></span>';
+    echo '<span class="cfm-core-terms-editor-actions">';
+    echo '<button type="button" class="button button-small cfm-core-terms-editor-row-save">Save Row</button>';
+    echo '<span class="cfm-core-terms-editor-status" aria-live="polite">Unsaved</span>';
+    echo '</span>';
     echo '</' . esc_attr($container_tag) . '>';
   }
 
