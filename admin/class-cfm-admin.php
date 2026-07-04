@@ -5870,6 +5870,8 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
       <style>
         .cfm-core-terms-editor {
+          --cfm-core-terms-depth-offset: 0px;
+          --cfm-core-terms-label-width: 300px;
           display: grid;
           gap: 8px;
           max-width: 1200px;
@@ -5879,21 +5881,21 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           align-items: center;
           display: grid;
           gap: 12px;
-          grid-template-columns: 64px minmax(120px, var(--cfm-core-terms-label-width, 220px)) minmax(260px, 1fr) 96px;
+          grid-template-columns: 64px minmax(120px, calc(var(--cfm-core-terms-label-width) - var(--cfm-core-terms-depth-offset))) minmax(260px, 1fr) 96px;
         }
 
         .cfm-core-terms-editor-reference {
           display: grid;
           gap: 6px;
           margin-bottom: 6px;
-          padding: 4px 0 0;
+          padding: 4px 0 0 11px;
         }
 
         .cfm-core-terms-editor-reference-row {
           align-items: center;
           display: grid;
           gap: 12px;
-          grid-template-columns: minmax(240px, 1.45fr) minmax(150px, 0.8fr) minmax(120px, 0.55fr) minmax(240px, 1.35fr);
+          grid-template-columns: 64px var(--cfm-core-terms-label-width) minmax(260px, 1fr) 96px;
         }
 
         .cfm-core-terms-editor-reference-labels {
@@ -5915,10 +5917,14 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
         .cfm-core-terms-editor-reference-example span {
           color: #50575e;
-          display: block;
           font-style: italic;
           min-height: 24px;
           padding: 2px 0;
+        }
+
+        .cfm-core-terms-editor-reference-spacer,
+        .cfm-core-terms-editor-reference-actions {
+          min-height: 1px;
         }
 
         .cfm-core-terms-editor-divider {
@@ -6051,6 +6057,26 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           margin: 6px 0 0 26px;
         }
 
+        .cfm-core-terms-editor-depth-1 > details > summary > .cfm-core-terms-editor-row,
+        .cfm-core-terms-editor-depth-1 > .cfm-core-terms-editor-row {
+          --cfm-core-terms-depth-offset: 37px;
+        }
+
+        .cfm-core-terms-editor-depth-2 > details > summary > .cfm-core-terms-editor-row,
+        .cfm-core-terms-editor-depth-2 > .cfm-core-terms-editor-row {
+          --cfm-core-terms-depth-offset: 74px;
+        }
+
+        .cfm-core-terms-editor-depth-3 > details > summary > .cfm-core-terms-editor-row,
+        .cfm-core-terms-editor-depth-3 > .cfm-core-terms-editor-row {
+          --cfm-core-terms-depth-offset: 111px;
+        }
+
+        .cfm-core-terms-editor-depth-4 > details > summary > .cfm-core-terms-editor-row,
+        .cfm-core-terms-editor-depth-4 > .cfm-core-terms-editor-row {
+          --cfm-core-terms-depth-offset: 148px;
+        }
+
         @media (max-width: 900px) {
           .cfm-core-terms-editor-row {
             gap: 8px;
@@ -6059,6 +6085,11 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
           .cfm-core-terms-editor-reference-row {
             grid-template-columns: 1fr;
+          }
+
+          .cfm-core-terms-editor-reference-spacer,
+          .cfm-core-terms-editor-reference-actions {
+            display: none;
           }
 
           .cfm-core-terms-editor-field,
@@ -6097,49 +6128,6 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             return term.querySelector(':scope > details > summary > .cfm-core-terms-editor-row, :scope > .cfm-core-terms-editor-row');
           }
 
-          function measureLabel(label, context) {
-            var style = window.getComputedStyle(label);
-            var canvas = context.canvas || (context.canvas = document.createElement('canvas'));
-            var ctx = canvas.getContext('2d');
-            ctx.font = style.font;
-            return Math.ceil(ctx.measureText(label.textContent.trim()).width) + 16;
-          }
-
-          function isVisible(element) {
-            return Boolean(element.offsetWidth || element.offsetHeight || element.getClientRects().length);
-          }
-
-          function alignGroup(group) {
-            var terms = group.querySelectorAll(':scope > .cfm-core-terms-editor-term');
-            var context = {};
-            var originLabel = group.querySelector(':scope > .cfm-core-terms-editor-term .cfm-core-terms-editor-field-label');
-            var originLeft = originLabel ? originLabel.getBoundingClientRect().left : 0;
-            var width = 120;
-
-            terms.forEach(function(term) {
-              term
-                .querySelectorAll('.cfm-core-terms-editor-field-label')
-                .forEach(function(label) {
-                  var offset;
-
-                  if (!isVisible(label)) {
-                    return;
-                  }
-
-                  offset = Math.max(0, label.getBoundingClientRect().left - originLeft);
-                  width = Math.max(width, offset + measureLabel(label, context));
-                });
-            });
-
-            group.style.setProperty('--cfm-core-terms-label-width', Math.min(width, 360) + 'px');
-          }
-
-          function alignGroups() {
-            document
-              .querySelectorAll('.cfm-core-terms-editor-tree, .cfm-core-terms-editor-children')
-              .forEach(alignGroup);
-          }
-
           function selectRow(row) {
             if (!row || selectedRow === row) {
               return;
@@ -6170,7 +6158,6 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             }
 
             details.open = !details.open;
-            alignGroups();
           }
 
           function isCaretClick(target) {
@@ -6248,16 +6235,9 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           }
 
           document.addEventListener('DOMContentLoaded', function() {
-            alignGroups();
             bindInteractions();
           });
           document.addEventListener('keydown', handleEditorKeydown);
-          window.addEventListener('resize', alignGroups);
-          document.addEventListener('toggle', function(event) {
-            if (event.target.matches('.cfm-core-terms-editor-term details')) {
-              alignGroups();
-            }
-          }, true);
         }());
       </script>
     </div>
@@ -6269,16 +6249,22 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
     ?>
     <div class="cfm-core-terms-editor-reference" aria-label="Core Term Format">
       <div class="cfm-core-terms-editor-reference-row cfm-core-terms-editor-reference-labels">
+        <span class="cfm-core-terms-editor-reference-spacer" aria-hidden="true"></span>
         <span title="The full canonical name for this term." tabindex="0">Label</span>
-        <span title="The stable machine-readable identifier generated from the label." tabindex="0">Slug</span>
-        <span title="Compact display text for narrow UI placements." tabindex="0">Short Label</span>
-        <span title="The canonical professional community associated with this term." tabindex="0">Community</span>
+        <span>
+          <span title="The stable machine-readable identifier generated from the label." tabindex="0">Slug</span>
+          <span aria-hidden="true"> / </span>
+          <span title="Compact display text for narrow UI placements." tabindex="0">Short Label</span>
+          <span aria-hidden="true"> / </span>
+          <span title="The canonical professional community associated with this term." tabindex="0">Community</span>
+        </span>
+        <span class="cfm-core-terms-editor-reference-actions" aria-hidden="true"></span>
       </div>
       <div class="cfm-core-terms-editor-reference-row cfm-core-terms-editor-reference-example" aria-label="Example Core Term values">
+        <span class="cfm-core-terms-editor-reference-spacer" aria-hidden="true"></span>
         <span>Adult Education</span>
-        <span>adult-education</span>
-        <span>Adult Ed</span>
-        <span>Adult Educators</span>
+        <span>adult-education / Adult Ed / Adult Educators</span>
+        <span class="cfm-core-terms-editor-reference-actions" aria-hidden="true"></span>
       </div>
     </div>
     <?php
