@@ -5886,9 +5886,16 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
         .cfm-core-terms-editor-reference {
           display: grid;
-          gap: 6px;
+          gap: 1px;
           margin-bottom: 6px;
           padding: 4px 0 0 11px;
+        }
+
+        .cfm-core-terms-editor-reference-title {
+          color: #1d2327;
+          font-size: 13px;
+          font-weight: 600;
+          margin-bottom: 2px;
         }
 
         .cfm-core-terms-editor-reference-row {
@@ -5896,6 +5903,16 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           display: grid;
           gap: 12px;
           grid-template-columns: 64px var(--cfm-core-terms-label-width) minmax(260px, 1fr) 96px;
+        }
+
+        .cfm-core-terms-editor-reference-metadata {
+          display: grid;
+          gap: 12px;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .cfm-core-terms-editor-reference-metadata span {
+          text-align: center;
         }
 
         .cfm-core-terms-editor-reference-labels {
@@ -6248,14 +6265,13 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
   {
     ?>
     <div class="cfm-core-terms-editor-reference" aria-label="Core Term Format">
+      <div class="cfm-core-terms-editor-reference-title">Reference Guide</div>
       <div class="cfm-core-terms-editor-reference-row cfm-core-terms-editor-reference-labels">
         <span class="cfm-core-terms-editor-reference-spacer" aria-hidden="true"></span>
         <span title="The full canonical name for this term." tabindex="0">Label</span>
-        <span>
+        <span class="cfm-core-terms-editor-reference-metadata">
           <span title="The stable machine-readable identifier generated from the label." tabindex="0">Slug</span>
-          <span aria-hidden="true"> / </span>
           <span title="Compact display text for narrow UI placements." tabindex="0">Short Label</span>
-          <span aria-hidden="true"> / </span>
           <span title="The canonical professional community associated with this term." tabindex="0">Community</span>
         </span>
         <span class="cfm-core-terms-editor-reference-actions" aria-hidden="true"></span>
@@ -6263,7 +6279,11 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
       <div class="cfm-core-terms-editor-reference-row cfm-core-terms-editor-reference-example" aria-label="Example Core Term values">
         <span class="cfm-core-terms-editor-reference-spacer" aria-hidden="true"></span>
         <span>Adult Education</span>
-        <span>adult-education / Adult Ed / Adult Educators</span>
+        <span class="cfm-core-terms-editor-reference-metadata">
+          <span>adult-education</span>
+          <span>Adult Ed</span>
+          <span>Adult Educators</span>
+        </span>
         <span class="cfm-core-terms-editor-reference-actions" aria-hidden="true"></span>
       </div>
     </div>
