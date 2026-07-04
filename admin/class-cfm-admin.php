@@ -5958,7 +5958,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           gap: 8px;
           grid-template-columns: 28px 20px;
           justify-content: start;
-          min-height: 38px;
+          min-height: 32px;
         }
 
         .cfm-core-terms-editor-caret-slot {
@@ -5997,9 +5997,9 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           box-sizing: border-box;
           color: #1d2327;
           display: block;
-          min-height: 38px;
+          min-height: 32px;
           overflow-wrap: anywhere;
-          padding: 8px 4px;
+          padding: 5px 4px;
         }
 
         .cfm-core-terms-editor-field-label {
@@ -6034,7 +6034,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         }
 
         .cfm-core-terms-editor-term + .cfm-core-terms-editor-term {
-          margin-top: 4px;
+          margin-top: 3px;
         }
 
         .cfm-core-terms-editor-term details {
@@ -6071,8 +6071,8 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
         .cfm-core-terms-editor-children {
           display: grid;
-          gap: 4px;
-          margin: 6px 0 0 26px;
+          gap: 3px;
+          margin: 5px 0 0 26px;
         }
 
         .cfm-core-terms-editor-depth-1 > details > summary > .cfm-core-terms-editor-row,
