@@ -107,6 +107,16 @@ class CFM_Admin
       return;
     }
 
+    if ($action === 'core_terms_editor_archive') {
+      self::handle_core_terms_editor_archive();
+      return;
+    }
+
+    if ($action === 'core_terms_editor_undo_archive') {
+      self::handle_core_terms_editor_undo_archive();
+      return;
+    }
+
     if ($action === 'reorder_terms') {
       self::handle_reorder_terms();
       return;
@@ -1382,6 +1392,176 @@ class CFM_Admin
     exit;
   }
 
+  private static function handle_core_terms_editor_archive(): void
+  {
+    check_admin_referer('cfm_core_terms_editor_archive', 'cfm_nonce');
+
+    if (!current_user_can('manage_options')) {
+      wp_die('You do not have permission to archive Core Terms.');
+    }
+
+    $framework_id = absint($_POST['framework_id'] ?? 0);
+    $term_uuid = sanitize_text_field((string) wp_unslash($_POST['term_uuid'] ?? ''));
+
+    if ($framework_id <= 0 || $term_uuid === '') {
+      wp_safe_redirect(self::editor_url($framework_id) . '&cfm_editor_error=1');
+      exit;
+    }
+
+    $framework = CFM_Framework_Repository::get_framework($framework_id);
+
+    if (!$framework) {
+      wp_die('Core Terms definition not found.');
+    }
+
+    $tree = self::get_framework_tree($framework);
+    $term_info = self::find_node_with_parent($tree, $term_uuid);
+
+    if (!$term_info || empty($term_info['node']) || !is_array($term_info['node'])) {
+      wp_die('Term not found.');
+    }
+
+    if (self::node_kind($term_info['node']) !== 'term') {
+      wp_die('Only Core Terms can be archived in this editor.');
+    }
+
+    $archive_uuids = self::collect_node_uuids($term_info['node']);
+    $assignment_count = self::count_user_term_assignments($archive_uuids);
+
+    if ($assignment_count > 0) {
+      wp_safe_redirect(self::editor_url($framework_id) . '&cfm_editor_archive_blocked=1&cfm_assignment_count=' . (int) $assignment_count);
+      exit;
+    }
+
+    $parent_uuid = '';
+    $insert_after_uuid = '';
+
+    if (!empty($term_info['parent']) && is_array($term_info['parent'])) {
+      $parent_uuid = (string) ($term_info['parent']['uuid'] ?? '');
+      $insert_after_uuid = self::previous_child_uuid((array) $term_info['parent'], $term_uuid);
+    }
+
+    $removed_term = null;
+
+    if (!self::remove_child_node_by_uuid($tree, $term_uuid, $removed_term) || !is_array($removed_term)) {
+      wp_die('Unable to archive term.');
+    }
+
+    if ($parent_uuid !== '') {
+      self::bump_order_revision($framework_id, $parent_uuid);
+    }
+
+    $compile_result = self::save_active_tree_and_compile($framework_id, $tree);
+
+    if (empty($compile_result['success'])) {
+      wp_die('Core Term branch was removed but runtime tables could not be rebuilt.');
+    }
+
+    $undo_key = wp_generate_password(20, false, false);
+    set_transient(self::core_terms_editor_archive_transient_key($framework_id, $undo_key), [
+      'framework_id' => $framework_id,
+      'parent_uuid' => $parent_uuid,
+      'insert_after_uuid' => $insert_after_uuid,
+      'term' => $removed_term,
+      'archived_at' => time(),
+    ], 30 * MINUTE_IN_SECONDS);
+
+    do_action('cfm_term_deleted', $framework_id, $term_uuid, $removed_term, $parent_uuid, $compile_result);
+
+    wp_safe_redirect(
+      self::editor_url($framework_id)
+        . '&cfm_editor_archived=1'
+        . '&cfm_undo_archive=' . rawurlencode($undo_key)
+        . ($compile_result['query_arg'] ?? '')
+    );
+    exit;
+  }
+
+  private static function handle_core_terms_editor_undo_archive(): void
+  {
+    check_admin_referer('cfm_core_terms_editor_undo_archive', 'cfm_nonce');
+
+    if (!current_user_can('manage_options')) {
+      wp_die('You do not have permission to restore Core Terms.');
+    }
+
+    $framework_id = absint($_POST['framework_id'] ?? 0);
+    $undo_key = sanitize_text_field((string) wp_unslash($_POST['undo_key'] ?? ''));
+
+    if ($framework_id <= 0 || $undo_key === '') {
+      wp_safe_redirect(self::editor_url($framework_id) . '&cfm_editor_error=1');
+      exit;
+    }
+
+    $transient_key = self::core_terms_editor_archive_transient_key($framework_id, $undo_key);
+    $archive = get_transient($transient_key);
+
+    if (!is_array($archive) || empty($archive['term']) || !is_array($archive['term'])) {
+      wp_safe_redirect(self::editor_url($framework_id) . '&cfm_editor_undo_expired=1');
+      exit;
+    }
+
+    $framework = CFM_Framework_Repository::get_framework($framework_id);
+
+    if (!$framework) {
+      wp_die('Core Terms definition not found.');
+    }
+
+    $tree = self::get_framework_tree($framework);
+    $term = (array) $archive['term'];
+    $term_uuid = (string) ($term['uuid'] ?? '');
+    $parent_uuid = (string) ($archive['parent_uuid'] ?? '');
+    $insert_after_uuid = (string) ($archive['insert_after_uuid'] ?? '');
+
+    if ($term_uuid === '' || self::find_node_with_parent($tree, $term_uuid)) {
+      wp_safe_redirect(self::editor_url($framework_id) . '&cfm_editor_undo_conflict=1');
+      exit;
+    }
+
+    $slug = self::normalize_slug((string) ($term['slug'] ?? ''));
+
+    if ($slug === '' || self::has_child_slug_conflict($tree, $parent_uuid, $slug, $term_uuid)) {
+      wp_safe_redirect(self::editor_url($framework_id) . '&cfm_editor_undo_conflict=1');
+      exit;
+    }
+
+    $restored = false;
+
+    if ($insert_after_uuid !== '' && self::find_node_with_parent($tree, $insert_after_uuid)) {
+      $restored = self::insert_child_after_uuid($tree, $parent_uuid, $insert_after_uuid, $term);
+    }
+
+    if (!$restored) {
+      $restored = self::prepend_child_to_node_by_uuid($tree, $parent_uuid, $term);
+    }
+
+    if (!$restored) {
+      wp_safe_redirect(self::editor_url($framework_id) . '&cfm_editor_undo_conflict=1');
+      exit;
+    }
+
+    if ($parent_uuid !== '') {
+      self::bump_order_revision($framework_id, $parent_uuid);
+    }
+
+    $compile_result = self::save_active_tree_and_compile($framework_id, $tree);
+
+    if (empty($compile_result['success'])) {
+      wp_die('Core Term branch was restored but runtime tables could not be rebuilt.');
+    }
+
+    delete_transient($transient_key);
+
+    do_action('cfm_term_created', $framework_id, $term_uuid, $term, $parent_uuid, $compile_result);
+
+    wp_safe_redirect(
+      self::editor_url($framework_id)
+        . '&cfm_editor_unarchived=1'
+        . ($compile_result['query_arg'] ?? '')
+    );
+    exit;
+  }
+
   private static function prepare_core_terms_editor_changes(array $tree, array $raw_changes): array
   {
     $errors = [];
@@ -1635,6 +1815,35 @@ class CFM_Admin
   private static function core_terms_editor_error_transient_key(int $framework_id): string
   {
     return 'cfm_core_terms_editor_errors_' . $framework_id . '_' . get_current_user_id();
+  }
+
+  private static function core_terms_editor_archive_transient_key(int $framework_id, string $undo_key): string
+  {
+    return 'cfm_core_terms_editor_archive_' . $framework_id . '_' . get_current_user_id() . '_' . sanitize_key($undo_key);
+  }
+
+  private static function previous_child_uuid(array $parent_node, string $child_uuid): string
+  {
+    $previous_uuid = '';
+    $children = $parent_node['children'] ?? [];
+
+    if (empty($children) || !is_array($children)) {
+      return '';
+    }
+
+    foreach ($children as $child) {
+      if (!is_array($child)) {
+        continue;
+      }
+
+      if ((string) ($child['uuid'] ?? '') === $child_uuid) {
+        return $previous_uuid;
+      }
+
+      $previous_uuid = (string) ($child['uuid'] ?? '');
+    }
+
+    return '';
   }
 
   private static function handle_move_term(): void
@@ -2008,6 +2217,38 @@ class CFM_Admin
       }
 
       if (self::append_child_to_node_by_uuid($candidate, $parent_uuid, $child)) {
+        unset($candidate);
+        return true;
+      }
+    }
+
+    unset($candidate);
+    return false;
+  }
+
+  private static function prepend_child_to_node_by_uuid(array &$node, string $parent_uuid, array $child): bool
+  {
+    $node_uuid = (string) ($node['uuid'] ?? '');
+
+    if ($node_uuid === $parent_uuid || ($parent_uuid === '' && $node_uuid === '')) {
+      if (!isset($node['children']) || !is_array($node['children'])) {
+        $node['children'] = [];
+      }
+
+      array_unshift($node['children'], $child);
+      return true;
+    }
+
+    if (empty($node['children']) || !is_array($node['children'])) {
+      return false;
+    }
+
+    foreach ($node['children'] as &$candidate) {
+      if (!is_array($candidate)) {
+        continue;
+      }
+
+      if (self::prepend_child_to_node_by_uuid($candidate, $parent_uuid, $child)) {
         unset($candidate);
         return true;
       }
@@ -6326,12 +6567,62 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         <a href="<?php echo esc_url(self::edit_url((int) $framework->id)); ?>">← Back to Core Terms</a>
       </p>
       <p class="description">
-        Select a row to edit existing Core Term fields inline, insert a sibling draft, or add a child draft. Reorder, archive, and Meta-Groups remain on the existing Core Terms screens.
+        Select a row to edit existing Core Term fields inline, insert a sibling draft, add a child draft, or archive a branch. Reorder and Meta-Groups remain on the existing Core Terms screens.
       </p>
 
       <?php if (isset($_GET['cfm_editor_saved'])) : ?>
         <div class="notice notice-success is-dismissible">
           <p><?php echo absint($_GET['cfm_editor_saved']); ?> Core Term row(s) saved and runtime tables rebuilt.</p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_editor_archived'])) : ?>
+        <div class="notice notice-warning">
+          <p>
+            Core Term branch archived from the active tree and runtime tables rebuilt.
+            <?php if (!empty($_GET['cfm_undo_archive'])) : ?>
+              You can restore it now.
+            <?php endif; ?>
+          </p>
+          <?php if (!empty($_GET['cfm_undo_archive'])) : ?>
+            <form method="post" style="margin: 8px 0 0;">
+              <?php wp_nonce_field('cfm_core_terms_editor_undo_archive', 'cfm_nonce'); ?>
+              <input type="hidden" name="cfm_action" value="core_terms_editor_undo_archive">
+              <input type="hidden" name="framework_id" value="<?php echo esc_attr((string) (int) $framework->id); ?>">
+              <input type="hidden" name="undo_key" value="<?php echo esc_attr(sanitize_text_field(wp_unslash($_GET['cfm_undo_archive']))); ?>">
+              <button type="submit" class="button button-secondary">Undo Archive</button>
+            </form>
+          <?php endif; ?>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_editor_unarchived'])) : ?>
+        <div class="notice notice-success is-dismissible">
+          <p>Archived Core Term branch restored and runtime tables rebuilt.</p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_editor_archive_blocked'])) : ?>
+        <div class="notice notice-error">
+          <p>
+            This branch cannot be archived because it or one of its descendants has active user assignments.
+            Move or reassign users first.
+            <?php if (!empty($_GET['cfm_assignment_count'])) : ?>
+              Assignment count: <?php echo esc_html((string) absint($_GET['cfm_assignment_count'])); ?>.
+            <?php endif; ?>
+          </p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_editor_undo_expired'])) : ?>
+        <div class="notice notice-error is-dismissible">
+          <p>The archive undo window has expired. Use version history if you need to recover that branch.</p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_editor_undo_conflict'])) : ?>
+        <div class="notice notice-error is-dismissible">
+          <p>The archived branch could not be restored because its original location or slug is no longer available.</p>
         </div>
       <?php endif; ?>
 
@@ -6691,9 +6982,14 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
         .cfm-core-terms-editor-row.is-selected:not(.is-draft) .cfm-core-terms-editor-insert-sibling,
         .cfm-core-terms-editor-row.is-selected:not(.is-draft) .cfm-core-terms-editor-add-child,
+        .cfm-core-terms-editor-row.is-selected:not(.is-draft) .cfm-core-terms-editor-archive-branch,
         .cfm-core-terms-editor-row.is-selected.is-draft .cfm-core-terms-editor-cancel-draft {
           align-items: center;
           display: inline-flex !important;
+        }
+
+        .cfm-core-terms-editor-archive-branch {
+          color: #b32d2e;
         }
 
         .cfm-core-terms-editor-row.has-error .cfm-core-terms-editor-status {
@@ -6791,9 +7087,17 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           <?php endif; ?>
         </section>
       </form>
+      <form class="cfm-core-terms-editor-archive-form" method="post" action="<?php echo esc_url(admin_url('admin.php?page=cfm-frameworks&action=editor&framework_id=' . (int) $framework->id)); ?>" hidden>
+        <?php wp_nonce_field('cfm_core_terms_editor_archive', 'cfm_nonce'); ?>
+        <input type="hidden" name="cfm_action" value="core_terms_editor_archive">
+        <input type="hidden" name="framework_id" value="<?php echo esc_attr((string) (int) $framework->id); ?>">
+        <input type="hidden" name="term_uuid" value="">
+      </form>
       <script>
         (function() {
           var form = null;
+          var archiveForm = null;
+          var archiveTermInput = null;
           var selectedRow = null;
           var dirtyRows = new Set();
           var saveButton = null;
@@ -7171,6 +7475,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
                 '<button type="button" class="button button-small cfm-core-terms-editor-row-save" hidden>Save Row</button>' +
                 '<button type="button" class="button button-small cfm-core-terms-editor-row-action cfm-core-terms-editor-insert-sibling">Insert Sibling</button>' +
                 '<button type="button" class="button button-small cfm-core-terms-editor-row-action cfm-core-terms-editor-add-child">Add Child</button>' +
+                '<button type="button" class="button button-small cfm-core-terms-editor-row-action cfm-core-terms-editor-archive-branch">Archive Branch</button>' +
                 '<button type="button" class="button button-small cfm-core-terms-editor-row-action cfm-core-terms-editor-cancel-draft">Cancel</button>' +
                 '<span class="cfm-core-terms-editor-status" aria-live="polite">Unsaved</span>' +
               '</span>';
@@ -7288,6 +7593,26 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             term.remove();
             saveDraftState();
             updateToolbar();
+          }
+
+          function archiveBranch(row) {
+            var label = row ? inputValue(row, '.cfm-core-terms-editor-input-label') : '';
+
+            if (!row || isDraftRow(row) || !archiveForm || !archiveTermInput) {
+              return;
+            }
+
+            if (dirtyRows.size && !window.confirm('Archive this branch and discard unsaved editor changes?')) {
+              return;
+            }
+
+            if (!window.confirm('Archive the branch "' + (label || 'this Core Term') + '" from the active tree? You can undo immediately after archiving.')) {
+              return;
+            }
+
+            formSubmitting = true;
+            archiveTermInput.value = row.getAttribute('data-term-uuid') || '';
+            archiveForm.submit();
           }
 
           function reconcileSavedDrafts() {
@@ -7607,6 +7932,10 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
                 event.preventDefault();
                 event.stopPropagation();
                 addDraftChild(row);
+              } else if (event.target.closest('.cfm-core-terms-editor-archive-branch')) {
+                event.preventDefault();
+                event.stopPropagation();
+                archiveBranch(row);
               } else if (event.target.closest('.cfm-core-terms-editor-cancel-draft')) {
                 event.preventDefault();
                 event.stopPropagation();
@@ -7763,6 +8092,8 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
           document.addEventListener('DOMContentLoaded', function() {
             form = document.querySelector('.cfm-core-terms-editor-form');
+            archiveForm = document.querySelector('.cfm-core-terms-editor-archive-form');
+            archiveTermInput = archiveForm ? archiveForm.querySelector('input[name="term_uuid"]') : null;
             saveButton = document.querySelector('.cfm-core-terms-editor-save');
             resetButton = document.querySelector('.cfm-core-terms-editor-reset');
             dirtyCount = document.querySelector('.cfm-core-terms-editor-dirty-count');
@@ -7912,6 +8243,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
     echo '<button type="button" class="button button-small cfm-core-terms-editor-row-save" hidden>Save Row</button>';
     echo '<button type="button" class="button button-small cfm-core-terms-editor-row-action cfm-core-terms-editor-insert-sibling">Insert Sibling</button>';
     echo '<button type="button" class="button button-small cfm-core-terms-editor-row-action cfm-core-terms-editor-add-child">Add Child</button>';
+    echo '<button type="button" class="button button-small cfm-core-terms-editor-row-action cfm-core-terms-editor-archive-branch">Archive Branch</button>';
     echo '<button type="button" class="button button-small cfm-core-terms-editor-row-action cfm-core-terms-editor-cancel-draft">Cancel</button>';
     echo '<span class="cfm-core-terms-editor-status" aria-live="polite">Unsaved</span>';
     echo '</span>';
