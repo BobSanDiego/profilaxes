@@ -6437,7 +6437,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         }
 
         .cfm-core-terms-editor-row.is-dirty .cfm-core-terms-editor-status {
-          display: inline;
+          display: none;
         }
 
         .cfm-core-terms-editor-row-save {
