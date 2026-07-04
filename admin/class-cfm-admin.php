@@ -6441,13 +6441,13 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         }
 
         .cfm-core-terms-editor-row-save {
-          display: none;
+          display: none !important;
           min-height: 26px;
           padding: 0 8px;
         }
 
-        .cfm-core-terms-editor-row.is-selected.is-dirty .cfm-core-terms-editor-row-save {
-          display: inline-flex;
+        .cfm-core-terms-editor-row.is-selected.is-dirty .cfm-core-terms-editor-row-save:not([hidden]) {
+          display: inline-flex !important;
           align-items: center;
         }
 
@@ -6670,6 +6670,22 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
               a.description === b.description;
           }
 
+          function updateRowSaveVisibility(row) {
+            var button = row ? row.querySelector('.cfm-core-terms-editor-row-save') : null;
+
+            if (!button) {
+              return;
+            }
+
+            button.hidden = !(row.classList.contains('is-selected') && row.classList.contains('is-dirty'));
+          }
+
+          function updateAllRowSaveVisibility() {
+            document
+              .querySelectorAll('.cfm-core-terms-editor-row[data-term-uuid]')
+              .forEach(updateRowSaveVisibility);
+          }
+
           function updateDirtyState(row) {
             var values = rowValues(row);
             var original = originalValues(row);
@@ -6684,6 +6700,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             }
 
             updateToolbar();
+            updateRowSaveVisibility(row);
 
             if (!restoringDrafts) {
               saveDraftState();
@@ -6867,10 +6884,12 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
             if (selectedRow) {
               selectedRow.classList.remove('is-selected');
+              updateRowSaveVisibility(selectedRow);
             }
 
             row.classList.add('is-selected');
             selectedRow = row;
+            updateRowSaveVisibility(row);
 
             var firstInput = row.querySelector('.cfm-core-terms-editor-input-label');
 
@@ -6888,6 +6907,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             }
 
             selectedRow.classList.remove('is-selected');
+            updateRowSaveVisibility(selectedRow);
             selectedRow = null;
           }
 
@@ -6968,6 +6988,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
                 syncRowDisplay(row);
                 clearRowError(row);
                 row.classList.remove('is-dirty');
+                updateRowSaveVisibility(row);
                 dirtyRows.delete(row);
               });
 
@@ -7166,6 +7187,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             bindInteractions();
             bindForm();
             restoreDraftState();
+            updateAllRowSaveVisibility();
             updateToolbar();
           });
           document.addEventListener('keydown', handleEditorKeydown);
@@ -7302,7 +7324,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
     echo '</span>';
 
     echo '<span class="cfm-core-terms-editor-actions">';
-    echo '<button type="button" class="button button-small cfm-core-terms-editor-row-save">Save Row</button>';
+    echo '<button type="button" class="button button-small cfm-core-terms-editor-row-save" hidden>Save Row</button>';
     echo '<span class="cfm-core-terms-editor-status" aria-live="polite">Unsaved</span>';
     echo '</span>';
     echo '</' . esc_attr($container_tag) . '>';
