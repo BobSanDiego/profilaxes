@@ -5883,13 +5883,10 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         }
 
         .cfm-core-terms-editor-reference {
-          background: #f6f7f7;
-          border: 1px solid #dcdcde;
-          border-radius: 4px;
           display: grid;
-          gap: 8px;
+          gap: 6px;
           margin-bottom: 6px;
-          padding: 12px;
+          padding: 4px 0 0;
         }
 
         .cfm-core-terms-editor-reference-row {
@@ -5917,19 +5914,17 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         }
 
         .cfm-core-terms-editor-reference-example span {
-          background: #fff;
-          border: 1px solid #edf0f2;
-          border-radius: 3px;
           color: #50575e;
           display: block;
-          min-height: 32px;
-          padding: 7px 8px;
+          font-style: italic;
+          min-height: 24px;
+          padding: 2px 0;
         }
 
         .cfm-core-terms-editor-divider {
           border: 0;
-          border-top: 1px solid #dcdcde;
-          margin: 2px 0 6px;
+          border-top: 1px solid #c3c4c7;
+          margin: 0 0 8px;
         }
 
         .cfm-core-terms-editor-rail {
@@ -6067,10 +6062,10 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         <span title="The canonical professional community associated with this term." tabindex="0">Community</span>
       </div>
       <div class="cfm-core-terms-editor-reference-row cfm-core-terms-editor-reference-example" aria-label="Example Core Term values">
-        <span>Science</span>
-        <span>science</span>
-        <span>Science</span>
-        <span>Science Teachers</span>
+        <span>Adult Education</span>
+        <span>adult-education</span>
+        <span>Adult Ed</span>
+        <span>Adult Educators</span>
       </div>
     </div>
     <?php
