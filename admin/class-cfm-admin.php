@@ -5882,23 +5882,54 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           grid-template-columns: 64px minmax(240px, 1.45fr) minmax(150px, 0.8fr) minmax(120px, 0.55fr) minmax(240px, 1.35fr) 96px;
         }
 
-        .cfm-core-terms-editor-header {
-          border-bottom: 1px solid #dcdcde;
+        .cfm-core-terms-editor-reference {
+          background: #f6f7f7;
+          border: 1px solid #dcdcde;
+          border-radius: 4px;
+          display: grid;
+          gap: 8px;
+          margin-bottom: 6px;
+          padding: 12px;
+        }
+
+        .cfm-core-terms-editor-reference-row {
+          align-items: center;
+          display: grid;
+          gap: 12px;
+          grid-template-columns: minmax(240px, 1.45fr) minmax(150px, 0.8fr) minmax(120px, 0.55fr) minmax(240px, 1.35fr);
+        }
+
+        .cfm-core-terms-editor-reference-labels {
           color: #1d2327;
           font-size: 12px;
           font-weight: 600;
           letter-spacing: 0.02em;
-          padding: 0 0 8px;
           text-transform: uppercase;
         }
 
-        .cfm-core-terms-editor-header span[title] {
+        .cfm-core-terms-editor-reference-labels span[title] {
           cursor: help;
           outline-offset: 2px;
         }
 
-        .cfm-core-terms-editor-header span[title]:focus {
+        .cfm-core-terms-editor-reference-labels span[title]:focus {
           box-shadow: 0 0 0 2px #2271b1;
+        }
+
+        .cfm-core-terms-editor-reference-example span {
+          background: #fff;
+          border: 1px solid #edf0f2;
+          border-radius: 3px;
+          color: #50575e;
+          display: block;
+          min-height: 32px;
+          padding: 7px 8px;
+        }
+
+        .cfm-core-terms-editor-divider {
+          border: 0;
+          border-top: 1px solid #dcdcde;
+          margin: 2px 0 6px;
         }
 
         .cfm-core-terms-editor-rail {
@@ -5920,9 +5951,9 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         }
 
         .cfm-core-terms-editor-caret {
-          border-bottom: 6px solid transparent;
-          border-left: 7px solid #646970;
-          border-top: 6px solid transparent;
+          border-bottom: 4px solid transparent;
+          border-left: 5px solid #787c82;
+          border-top: 4px solid transparent;
           display: inline-block;
           height: 0;
           transition: transform 120ms ease;
@@ -5950,12 +5981,6 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           min-height: 38px;
           overflow-wrap: anywhere;
           padding: 8px 4px;
-        }
-
-        .cfm-core-terms-editor-depth-0 > details > summary .cfm-core-terms-editor-field,
-        .cfm-core-terms-editor-depth-0 > .cfm-core-terms-editor-row .cfm-core-terms-editor-field,
-        .cfm-core-terms-editor-has-children > details > summary .cfm-core-terms-editor-field {
-          font-weight: 600;
         }
 
         .cfm-core-terms-editor-term {
@@ -6002,7 +6027,10 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             grid-template-columns: 48px 1fr;
           }
 
-          .cfm-core-terms-editor-header span:not(:first-child),
+          .cfm-core-terms-editor-reference-row {
+            grid-template-columns: 1fr;
+          }
+
           .cfm-core-terms-editor-field,
           .cfm-core-terms-editor-actions {
             grid-column: 2;
@@ -6016,6 +6044,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
       <section class="cfm-core-terms-editor" aria-label="Core Terms Editor">
         <?php self::render_core_terms_editor_reference_row(); ?>
+        <hr class="cfm-core-terms-editor-divider">
 
         <?php if (empty($terms)) : ?>
           <p>No Core Terms found.</p>
@@ -6030,13 +6059,19 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
   private static function render_core_terms_editor_reference_row(): void
   {
     ?>
-    <div class="cfm-core-terms-editor-header cfm-core-terms-editor-row" aria-label="Core Term Format">
-      <span class="cfm-core-terms-editor-rail" aria-hidden="true"></span>
-      <span title="The full canonical name for this term." tabindex="0">Label</span>
-      <span title="The stable machine-readable identifier generated from the label." tabindex="0">Slug</span>
-      <span title="Compact display text for narrow UI placements." tabindex="0">Short Label</span>
-      <span title="The canonical professional community associated with this term." tabindex="0">Community</span>
-      <span title="Reserved for future add, archive, undo, and reorder controls." tabindex="0">Actions</span>
+    <div class="cfm-core-terms-editor-reference" aria-label="Core Term Format">
+      <div class="cfm-core-terms-editor-reference-row cfm-core-terms-editor-reference-labels">
+        <span title="The full canonical name for this term." tabindex="0">Label</span>
+        <span title="The stable machine-readable identifier generated from the label." tabindex="0">Slug</span>
+        <span title="Compact display text for narrow UI placements." tabindex="0">Short Label</span>
+        <span title="The canonical professional community associated with this term." tabindex="0">Community</span>
+      </div>
+      <div class="cfm-core-terms-editor-reference-row cfm-core-terms-editor-reference-example" aria-label="Example Core Term values">
+        <span>Science</span>
+        <span>science</span>
+        <span>Science</span>
+        <span>Science Teachers</span>
+      </div>
     </div>
     <?php
   }
