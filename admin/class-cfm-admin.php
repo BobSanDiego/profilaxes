@@ -5907,12 +5907,13 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
         .cfm-core-terms-editor-reference-metadata {
           display: grid;
-          gap: 12px;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 0;
+          grid-template-columns: 150px 130px 190px;
+          justify-content: start;
         }
 
         .cfm-core-terms-editor-reference-metadata span {
-          text-align: center;
+          text-align: left;
         }
 
         .cfm-core-terms-editor-reference-labels {
