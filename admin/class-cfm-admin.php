@@ -5879,7 +5879,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           align-items: center;
           display: grid;
           gap: 12px;
-          grid-template-columns: 64px minmax(120px, var(--cfm-core-terms-label-width, 220px)) minmax(360px, 1fr) 96px;
+          grid-template-columns: 64px minmax(120px, var(--cfm-core-terms-label-width, 220px)) minmax(260px, 1fr) 96px;
         }
 
         .cfm-core-terms-editor-reference {
@@ -5984,15 +5984,24 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
         .cfm-core-terms-editor-meta {
           align-items: center;
-          display: grid;
-          gap: 12px;
-          grid-template-columns: minmax(130px, 0.85fr) minmax(100px, 0.55fr) minmax(200px, 1.2fr);
+          color: #646970;
+          display: inline-flex;
+          flex-wrap: wrap;
+          font-size: 12px;
+          font-style: normal;
+          gap: 0;
+          line-height: 1.4;
         }
 
-        .cfm-core-terms-editor-field-meta {
+        .cfm-core-terms-editor-meta-part,
+        .cfm-core-terms-editor-meta-separator {
           color: #646970;
           font-size: 12px;
           font-style: normal;
+        }
+
+        .cfm-core-terms-editor-meta-separator {
+          padding: 0 6px;
         }
 
         .cfm-core-terms-editor-term {
@@ -6059,7 +6068,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           }
 
           .cfm-core-terms-editor-meta {
-            grid-template-columns: 1fr;
+            display: flex;
           }
 
           .cfm-core-terms-editor-actions {
@@ -6096,18 +6105,30 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             return Math.ceil(ctx.measureText(label.textContent.trim()).width) + 16;
           }
 
+          function isVisible(element) {
+            return Boolean(element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+          }
+
           function alignGroup(group) {
             var terms = group.querySelectorAll(':scope > .cfm-core-terms-editor-term');
             var context = {};
+            var originLabel = group.querySelector(':scope > .cfm-core-terms-editor-term .cfm-core-terms-editor-field-label');
+            var originLeft = originLabel ? originLabel.getBoundingClientRect().left : 0;
             var width = 120;
 
             terms.forEach(function(term) {
-              var row = directRow(term);
-              var label = row ? row.querySelector('.cfm-core-terms-editor-field-label') : null;
+              term
+                .querySelectorAll('.cfm-core-terms-editor-field-label')
+                .forEach(function(label) {
+                  var offset;
 
-              if (label) {
-                width = Math.max(width, measureLabel(label, context));
-              }
+                  if (!isVisible(label)) {
+                    return;
+                  }
+
+                  offset = Math.max(0, label.getBoundingClientRect().left - originLeft);
+                  width = Math.max(width, offset + measureLabel(label, context));
+                });
             });
 
             group.style.setProperty('--cfm-core-terms-label-width', Math.min(width, 360) + 'px');
@@ -6332,10 +6353,12 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
     echo '<span class="cfm-core-terms-editor-handle" aria-hidden="true">::</span>';
     echo '</span>';
     echo '<span class="cfm-core-terms-editor-field cfm-core-terms-editor-field-label">' . esc_html($label) . '</span>';
-    echo '<span class="cfm-core-terms-editor-meta">';
-    echo '<span class="cfm-core-terms-editor-field cfm-core-terms-editor-field-meta">' . esc_html($slug) . '</span>';
-    echo '<span class="cfm-core-terms-editor-field cfm-core-terms-editor-field-meta">' . esc_html($short_label) . '</span>';
-    echo '<span class="cfm-core-terms-editor-field cfm-core-terms-editor-field-meta">' . esc_html($community) . '</span>';
+    echo '<span class="cfm-core-terms-editor-field cfm-core-terms-editor-meta">';
+    echo '<span class="cfm-core-terms-editor-meta-part cfm-core-terms-editor-meta-slug">' . esc_html($slug) . '</span>';
+    echo '<span class="cfm-core-terms-editor-meta-separator" aria-hidden="true">/</span>';
+    echo '<span class="cfm-core-terms-editor-meta-part cfm-core-terms-editor-meta-short-label">' . esc_html($short_label) . '</span>';
+    echo '<span class="cfm-core-terms-editor-meta-separator" aria-hidden="true">/</span>';
+    echo '<span class="cfm-core-terms-editor-meta-part cfm-core-terms-editor-meta-community">' . esc_html($community) . '</span>';
     echo '</span>';
 
     echo '<span class="cfm-core-terms-editor-actions" aria-hidden="true"></span>';
