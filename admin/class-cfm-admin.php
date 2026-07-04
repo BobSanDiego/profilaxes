@@ -5879,7 +5879,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           align-items: center;
           display: grid;
           gap: 12px;
-          grid-template-columns: 64px minmax(240px, 1.45fr) minmax(150px, 0.8fr) minmax(120px, 0.55fr) minmax(240px, 1.35fr) 96px;
+          grid-template-columns: 64px minmax(120px, var(--cfm-core-terms-label-width, 220px)) minmax(360px, 1fr) 96px;
         }
 
         .cfm-core-terms-editor-reference {
@@ -5978,6 +5978,23 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           padding: 8px 4px;
         }
 
+        .cfm-core-terms-editor-field-label {
+          color: #1d2327;
+        }
+
+        .cfm-core-terms-editor-meta {
+          align-items: center;
+          display: grid;
+          gap: 12px;
+          grid-template-columns: minmax(130px, 0.85fr) minmax(100px, 0.55fr) minmax(200px, 1.2fr);
+        }
+
+        .cfm-core-terms-editor-field-meta {
+          color: #646970;
+          font-size: 12px;
+          font-style: normal;
+        }
+
         .cfm-core-terms-editor-term {
           border-left: 1px solid #edf0f2;
           padding-left: 10px;
@@ -5995,7 +6012,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           cursor: pointer;
           display: block;
           list-style: none;
-          outline-offset: 2px;
+          outline: none;
         }
 
         .cfm-core-terms-editor-term summary::-webkit-details-marker {
@@ -6003,11 +6020,16 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         }
 
         .cfm-core-terms-editor-term summary .cfm-core-terms-editor-row {
+          border-radius: 4px;
           width: 100%;
         }
 
         .cfm-core-terms-editor-term summary:focus {
-          box-shadow: 0 0 0 2px #2271b1;
+          box-shadow: none;
+        }
+
+        .cfm-core-terms-editor-term summary:focus .cfm-core-terms-editor-row {
+          background: #f6f7f7;
         }
 
         .cfm-core-terms-editor-children {
@@ -6027,8 +6049,13 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           }
 
           .cfm-core-terms-editor-field,
+          .cfm-core-terms-editor-meta,
           .cfm-core-terms-editor-actions {
             grid-column: 2;
+          }
+
+          .cfm-core-terms-editor-meta {
+            grid-template-columns: 1fr;
           }
 
           .cfm-core-terms-editor-actions {
@@ -6044,9 +6071,57 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         <?php if (empty($terms)) : ?>
           <p>No Core Terms found.</p>
         <?php else : ?>
-          <?php self::render_core_terms_editor_nodes($terms); ?>
+          <div class="cfm-core-terms-editor-tree">
+            <?php self::render_core_terms_editor_nodes($terms); ?>
+          </div>
         <?php endif; ?>
       </section>
+      <script>
+        (function() {
+          function directRow(term) {
+            return term.querySelector(':scope > details > summary > .cfm-core-terms-editor-row, :scope > .cfm-core-terms-editor-row');
+          }
+
+          function measureLabel(label, context) {
+            var style = window.getComputedStyle(label);
+            var canvas = context.canvas || (context.canvas = document.createElement('canvas'));
+            var ctx = canvas.getContext('2d');
+            ctx.font = style.font;
+            return Math.ceil(ctx.measureText(label.textContent.trim()).width) + 16;
+          }
+
+          function alignGroup(group) {
+            var terms = group.querySelectorAll(':scope > .cfm-core-terms-editor-term');
+            var context = {};
+            var width = 120;
+
+            terms.forEach(function(term) {
+              var row = directRow(term);
+              var label = row ? row.querySelector('.cfm-core-terms-editor-field-label') : null;
+
+              if (label) {
+                width = Math.max(width, measureLabel(label, context));
+              }
+            });
+
+            group.style.setProperty('--cfm-core-terms-label-width', Math.min(width, 360) + 'px');
+          }
+
+          function alignGroups() {
+            document
+              .querySelectorAll('.cfm-core-terms-editor-tree, .cfm-core-terms-editor-children')
+              .forEach(alignGroup);
+          }
+
+          document.addEventListener('DOMContentLoaded', alignGroups);
+          window.addEventListener('resize', alignGroups);
+          document.addEventListener('toggle', function(event) {
+            if (event.target.matches('.cfm-core-terms-editor-term details')) {
+              alignGroups();
+            }
+          }, true);
+        }());
+      </script>
     </div>
   <?php
   }
@@ -6119,12 +6194,10 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
   private static function render_core_terms_editor_node_fields(array $term, bool $has_children, string $container_tag = 'div'): void
   {
-    $fields = [
-      (string) ($term['label'] ?? ''),
-      (string) ($term['slug'] ?? ''),
-      self::display_short_label_for_node($term),
-      self::display_description_for_node($term),
-    ];
+    $label = (string) ($term['label'] ?? '');
+    $slug = (string) ($term['slug'] ?? '');
+    $short_label = self::display_short_label_for_node($term);
+    $community = self::display_description_for_node($term);
 
     $container_tag = $container_tag === 'span' ? 'span' : 'div';
 
@@ -6139,10 +6212,12 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
     echo '</span>';
     echo '<span class="cfm-core-terms-editor-handle">::</span>';
     echo '</span>';
-
-    foreach ($fields as $field) {
-      echo '<span class="cfm-core-terms-editor-field">' . esc_html($field) . '</span>';
-    }
+    echo '<span class="cfm-core-terms-editor-field cfm-core-terms-editor-field-label">' . esc_html($label) . '</span>';
+    echo '<span class="cfm-core-terms-editor-meta">';
+    echo '<span class="cfm-core-terms-editor-field cfm-core-terms-editor-field-meta">' . esc_html($slug) . '</span>';
+    echo '<span class="cfm-core-terms-editor-field cfm-core-terms-editor-field-meta">' . esc_html($short_label) . '</span>';
+    echo '<span class="cfm-core-terms-editor-field cfm-core-terms-editor-field-meta">' . esc_html($community) . '</span>';
+    echo '</span>';
 
     echo '<span class="cfm-core-terms-editor-actions" aria-hidden="true"></span>';
     echo '</' . esc_attr($container_tag) . '>';
