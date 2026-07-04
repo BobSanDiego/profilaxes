@@ -3667,7 +3667,7 @@ class CFM_Admin
             <td><?php echo esc_html((string) ($preview['missing_short_label_count'] ?? 0)); ?></td>
           </tr>
           <tr>
-            <th>Missing Descriptions</th>
+            <th>Missing Communities</th>
             <td><?php echo esc_html((string) ($preview['missing_description_count'] ?? 0)); ?></td>
           </tr>
           <tr>
@@ -4282,7 +4282,7 @@ class CFM_Admin
           <td><?php echo esc_html((string) ($comparison['short_label_changed'] ?? 0)); ?></td>
         </tr>
         <tr>
-          <th>Descriptions changed</th>
+          <th>Communities changed</th>
           <td><?php echo esc_html((string) ($comparison['description_changed'] ?? 0)); ?></td>
         </tr>
         <tr>
@@ -4303,7 +4303,7 @@ class CFM_Admin
     <?php self::render_field_change_samples('Label change samples', $comparison['label_change_samples'] ?? []); ?>
     <?php self::render_field_change_samples('Slug change samples', $comparison['slug_change_samples'] ?? []); ?>
     <?php self::render_field_change_samples('Short label change samples', $comparison['short_label_change_samples'] ?? []); ?>
-    <?php self::render_field_change_samples('Description change samples', $comparison['description_change_samples'] ?? []); ?>
+    <?php self::render_field_change_samples('Community change samples', $comparison['description_change_samples'] ?? []); ?>
     <?php self::render_field_change_samples('Parent change samples', $comparison['parent_change_samples'] ?? []); ?>
     <?php self::render_field_change_samples('Archive status change samples', $comparison['archive_change_samples'] ?? []); ?>
   <?php
@@ -4869,10 +4869,10 @@ class CFM_Admin
           </tr>
 
           <tr>
-            <th scope="row"><label for="term_description">Description</label></th>
+            <th scope="row"><label for="term_description">Community</label></th>
             <td>
-              <textarea name="term_description" id="term_description" class="large-text" rows="3" data-cfm-autofill-target="edit-term" data-cfm-autofill-type="copy"><?php echo esc_textarea(self::display_description_for_node($term)); ?></textarea>
-              <p class="description">Plain-text explanation for hover/help text and richer display contexts. Leave blank to use the term label.</p>
+              <input name="term_description" id="term_description" type="text" class="regular-text" value="<?php echo esc_attr(self::display_description_for_node($term)); ?>" data-cfm-autofill-target="edit-term" data-cfm-autofill-type="copy">
+              <p class="description">Community-facing context. Leave blank to use the term label.</p>
             </td>
           </tr>
 
@@ -4996,10 +4996,10 @@ class CFM_Admin
           </tr>
 
           <tr>
-            <th scope="row"><label for="meta_group_description">Description</label></th>
+            <th scope="row"><label for="meta_group_description">Community</label></th>
             <td>
-              <textarea name="meta_group_description" id="meta_group_description" class="large-text" rows="3" data-cfm-autofill-target="edit-meta-group" data-cfm-autofill-type="copy"><?php echo esc_textarea(self::display_description_for_node($meta_group)); ?></textarea>
-              <p class="description">Plain-text explanation. Leave blank to use the Meta-Group label.</p>
+              <input name="meta_group_description" id="meta_group_description" type="text" class="regular-text" value="<?php echo esc_attr(self::display_description_for_node($meta_group)); ?>" data-cfm-autofill-target="edit-meta-group" data-cfm-autofill-type="copy">
+              <p class="description">Community-facing context. Leave blank to use the Meta-Group label.</p>
             </td>
           </tr>
 
@@ -6478,11 +6478,11 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
             <tr>
               <th scope="row">
-                <label for="meta_group_description">Description</label>
+                <label for="meta_group_description">Community</label>
               </th>
               <td>
-                <textarea name="meta_group_description" id="meta_group_description" class="large-text" rows="3" data-cfm-autofill-target="add-meta-group" data-cfm-autofill-type="copy"></textarea>
-                <p class="description">Plain-text explanation. Leave blank to use the Meta-Group label.</p>
+                <input name="meta_group_description" id="meta_group_description" type="text" class="regular-text" data-cfm-autofill-target="add-meta-group" data-cfm-autofill-type="copy">
+                <p class="description">Community-facing context. Leave blank to use the Meta-Group label.</p>
               </td>
             </tr>
 
@@ -6571,11 +6571,11 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
           <tr>
             <th scope="row">
-              <label for="term_description">Description</label>
+              <label for="term_description">Community</label>
             </th>
             <td>
-              <textarea name="term_description" id="term_description" class="large-text" rows="3" data-cfm-autofill-target="add-term" data-cfm-autofill-type="copy"></textarea>
-              <p class="description">Plain-text explanation. Leave blank to use the term label.</p>
+              <input name="term_description" id="term_description" type="text" class="regular-text" data-cfm-autofill-target="add-term" data-cfm-autofill-type="copy">
+              <p class="description">Community-facing context. Leave blank to use the term label.</p>
             </td>
           </tr>
         </table>
@@ -6611,7 +6611,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             </th>
             <td>
               <textarea name="batch_term_labels" id="batch_term_labels" class="large-text" rows="6" placeholder="Grade 4&#10;Grade 5&#10;Grade 6"><?php echo esc_textarea(is_array($batch_error) ? (string) ($batch_error['batch_input'] ?? '') : ''); ?></textarea>
-              <p class="description">One term label per line. Slug, short label, and description are generated from each label. Existing sibling terms are skipped and reported.</p>
+              <p class="description">One term label per line. Slug, short label, and Community are generated from each label. Existing sibling terms are skipped and reported.</p>
             </td>
           </tr>
         </table>
