@@ -2914,6 +2914,11 @@ class CFM_Admin
       return;
     }
 
+    if ($action === 'editor') {
+      self::render_core_terms_editor_page();
+      return;
+    }
+
     if ($action === 'versions') {
       self::render_versions_page();
       return;
@@ -3797,6 +3802,15 @@ class CFM_Admin
     return admin_url(
       'admin.php?page=cfm-frameworks'
         . '&action=edit'
+        . '&framework_id=' . $framework_id
+    );
+  }
+
+  private static function editor_url(int $framework_id): string
+  {
+    return admin_url(
+      'admin.php?page=cfm-frameworks'
+        . '&action=editor'
         . '&framework_id=' . $framework_id
     );
   }
@@ -5826,6 +5840,203 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
   <?php
   }
 
+  public static function render_core_terms_editor_page(): void
+  {
+    if (!current_user_can('manage_options')) {
+      wp_die('You do not have permission to access this page.');
+    }
+
+    $framework_id = isset($_GET['framework_id'])
+      ? absint($_GET['framework_id'])
+      : 0;
+
+    $framework = CFM_Framework_Repository::get_framework($framework_id);
+
+    if (!$framework) {
+      wp_die('Core Terms definition not found.');
+    }
+
+    $tree = self::get_framework_tree($framework);
+    $terms = self::root_terms($tree);
+  ?>
+    <div class="wrap">
+      <h1>Core Terms Editor</h1>
+      <p>
+        <a href="<?php echo esc_url(self::edit_url((int) $framework->id)); ?>">← Back to Core Terms</a>
+      </p>
+      <p class="description">
+        Read-only shell for reviewing the Core Terms hierarchy. Editing, saving, reordering, archiving, and Meta-Groups remain on the existing Core Terms screens.
+      </p>
+
+      <style>
+        .cfm-core-terms-editor {
+          display: grid;
+          gap: 10px;
+          max-width: 1200px;
+        }
+
+        .cfm-core-terms-editor-row {
+          align-items: stretch;
+          display: grid;
+          gap: 10px;
+          grid-template-columns: minmax(180px, 1.25fr) minmax(150px, 1fr) minmax(150px, 1fr) minmax(220px, 1.25fr);
+        }
+
+        .cfm-core-terms-editor-reference {
+          background: #f6f7f7;
+          border: 1px solid #c3c4c7;
+          border-radius: 4px;
+          padding: 12px;
+        }
+
+        .cfm-core-terms-editor-reference strong {
+          display: block;
+          margin-bottom: 8px;
+        }
+
+        .cfm-core-terms-editor-reference span,
+        .cfm-core-terms-editor-field {
+          background: #fff;
+          border: 1px solid #c3c4c7;
+          border-radius: 4px;
+          box-sizing: border-box;
+          color: #1d2327;
+          display: block;
+          min-height: 34px;
+          overflow-wrap: anywhere;
+          padding: 7px 9px;
+        }
+
+        .cfm-core-terms-editor-reference span {
+          font-weight: 600;
+        }
+
+        .cfm-core-terms-editor-term {
+          border-left: 2px solid #dcdcde;
+          padding-left: 12px;
+        }
+
+        .cfm-core-terms-editor-term + .cfm-core-terms-editor-term {
+          margin-top: 8px;
+        }
+
+        .cfm-core-terms-editor-term details {
+          margin: 0;
+        }
+
+        .cfm-core-terms-editor-term summary {
+          cursor: pointer;
+          list-style-position: outside;
+        }
+
+        .cfm-core-terms-editor-term summary .cfm-core-terms-editor-row {
+          display: inline-grid;
+          vertical-align: top;
+          width: calc(100% - 24px);
+        }
+
+        .cfm-core-terms-editor-children {
+          display: grid;
+          gap: 8px;
+          margin: 8px 0 0 18px;
+        }
+
+        @media (max-width: 900px) {
+          .cfm-core-terms-editor-row {
+            grid-template-columns: 1fr;
+          }
+
+          .cfm-core-terms-editor-term summary .cfm-core-terms-editor-row {
+            width: calc(100% - 20px);
+          }
+        }
+      </style>
+
+      <section class="cfm-core-terms-editor" aria-label="Core Terms Editor">
+        <?php self::render_core_terms_editor_reference_row(); ?>
+
+        <?php if (empty($terms)) : ?>
+          <p>No Core Terms found.</p>
+        <?php else : ?>
+          <?php self::render_core_terms_editor_nodes($terms); ?>
+        <?php endif; ?>
+      </section>
+    </div>
+  <?php
+  }
+
+  private static function render_core_terms_editor_reference_row(): void
+  {
+    ?>
+    <div class="cfm-core-terms-editor-reference" aria-label="Core Term Format">
+      <strong>Core Term Format</strong>
+      <div class="cfm-core-terms-editor-row">
+        <span title="The full canonical name for this term.">Label</span>
+        <span title="The stable machine-readable identifier generated from the label.">Slug</span>
+        <span title="Compact display text for narrow UI placements.">Short Label</span>
+        <span title="The canonical professional community associated with this term.">Community</span>
+      </div>
+    </div>
+    <?php
+  }
+
+  private static function render_core_terms_editor_nodes(array $terms): void
+  {
+    foreach ($terms as $term) {
+      if (!is_array($term) || self::node_kind($term) !== 'term') {
+        continue;
+      }
+
+      self::render_core_terms_editor_node($term);
+    }
+  }
+
+  private static function render_core_terms_editor_node(array $term): void
+  {
+    $children = isset($term['children']) && is_array($term['children'])
+      ? array_values(array_filter($term['children'], static function ($child): bool {
+        return is_array($child) && self::node_kind($child) === 'term';
+      }))
+      : [];
+
+    echo '<div class="cfm-core-terms-editor-term">';
+
+    if (!empty($children)) {
+      echo '<details>';
+      echo '<summary>';
+      self::render_core_terms_editor_node_fields($term, 'span');
+      echo '</summary>';
+      echo '<div class="cfm-core-terms-editor-children">';
+      self::render_core_terms_editor_nodes($children);
+      echo '</div>';
+      echo '</details>';
+    } else {
+      self::render_core_terms_editor_node_fields($term);
+    }
+
+    echo '</div>';
+  }
+
+  private static function render_core_terms_editor_node_fields(array $term, string $container_tag = 'div'): void
+  {
+    $fields = [
+      (string) ($term['label'] ?? ''),
+      (string) ($term['slug'] ?? ''),
+      self::display_short_label_for_node($term),
+      self::display_description_for_node($term),
+    ];
+
+    $container_tag = $container_tag === 'span' ? 'span' : 'div';
+
+    echo '<' . esc_attr($container_tag) . ' class="cfm-core-terms-editor-row">';
+
+    foreach ($fields as $field) {
+      echo '<span class="cfm-core-terms-editor-field">' . esc_html($field) . '</span>';
+    }
+
+    echo '</' . esc_attr($container_tag) . '>';
+  }
+
   public static function render_framework_edit_page(): void
   {
     if (!current_user_can('manage_options')) {
@@ -5898,6 +6109,9 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
   ?>
     <div class="wrap">
       <h1>Core Terms</h1>
+      <p>
+        <a class="button button-secondary" href="<?php echo esc_url(self::editor_url((int) $framework->id)); ?>">Core Terms Editor</a>
+      </p>
 
       <?php if (is_array($batch_error)) : ?>
         <style>
