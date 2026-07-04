@@ -6024,6 +6024,10 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           width: 100%;
         }
 
+        .cfm-core-terms-editor-row.is-selected {
+          background: #f6f7f7;
+        }
+
         .cfm-core-terms-editor-term summary:focus {
           box-shadow: none;
         }
@@ -6078,6 +6082,8 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
       </section>
       <script>
         (function() {
+          var selectedRow = null;
+
           function directRow(term) {
             return term.querySelector(':scope > details > summary > .cfm-core-terms-editor-row, :scope > .cfm-core-terms-editor-row');
           }
@@ -6113,7 +6119,103 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
               .forEach(alignGroup);
           }
 
-          document.addEventListener('DOMContentLoaded', alignGroups);
+          function selectRow(row) {
+            if (!row || selectedRow === row) {
+              return;
+            }
+
+            if (selectedRow) {
+              selectedRow.classList.remove('is-selected');
+            }
+
+            row.classList.add('is-selected');
+            selectedRow = row;
+          }
+
+          function toggleTerm(term) {
+            var details = term.querySelector(':scope > details');
+
+            if (!details) {
+              return;
+            }
+
+            details.open = !details.open;
+            alignGroups();
+          }
+
+          function isCaretClick(target) {
+            return Boolean(target.closest('.cfm-core-terms-editor-caret-slot'));
+          }
+
+          function handleEditorKeydown(event) {
+            if (event.key !== 'Enter' && event.key !== ' ') {
+              return;
+            }
+
+            var caret = event.target.closest('.cfm-core-terms-editor-caret-slot');
+
+            if (caret) {
+              var term = caret.closest('.cfm-core-terms-editor-term');
+
+              if (!term) {
+                return;
+              }
+
+              event.preventDefault();
+              toggleTerm(term);
+              return;
+            }
+
+            var summary = event.target.closest('.cfm-core-terms-editor-term summary');
+
+            if (summary) {
+              var row = summary.querySelector('.cfm-core-terms-editor-row');
+
+              event.preventDefault();
+              selectRow(row);
+            }
+          }
+
+          function bindInteractions() {
+            document
+              .querySelectorAll('.cfm-core-terms-editor-term summary')
+              .forEach(function(summary) {
+                summary.addEventListener('click', function(event) {
+                  event.preventDefault();
+                });
+              });
+
+            document
+              .querySelectorAll('.cfm-core-terms-editor-row')
+              .forEach(function(row) {
+                row.addEventListener('click', function(event) {
+                  if (isCaretClick(event.target)) {
+                    return;
+                  }
+
+                  event.preventDefault();
+                  selectRow(row);
+                });
+              });
+
+            document
+              .querySelectorAll('.cfm-core-terms-editor-caret-slot[role="button"]')
+              .forEach(function(caret) {
+                caret.addEventListener('click', function(event) {
+                  var term = caret.closest('.cfm-core-terms-editor-term');
+
+                  event.preventDefault();
+                  event.stopPropagation();
+                  toggleTerm(term);
+                });
+              });
+          }
+
+          document.addEventListener('DOMContentLoaded', function() {
+            alignGroups();
+            bindInteractions();
+          });
+          document.addEventListener('keydown', handleEditorKeydown);
           window.addEventListener('resize', alignGroups);
           document.addEventListener('toggle', function(event) {
             if (event.target.matches('.cfm-core-terms-editor-term details')) {
@@ -6202,15 +6304,17 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
     $container_tag = $container_tag === 'span' ? 'span' : 'div';
 
     echo '<' . esc_attr($container_tag) . ' class="cfm-core-terms-editor-row">';
-    echo '<span class="cfm-core-terms-editor-rail" aria-hidden="true">';
-    echo '<span class="cfm-core-terms-editor-caret-slot">';
+    echo '<span class="cfm-core-terms-editor-rail">';
 
     if ($has_children) {
+      echo '<span class="cfm-core-terms-editor-caret-slot" role="button" tabindex="0" aria-label="Expand or collapse term">';
       echo '<span class="cfm-core-terms-editor-caret"></span>';
+      echo '</span>';
+    } else {
+      echo '<span class="cfm-core-terms-editor-caret-slot" aria-hidden="true"></span>';
     }
 
-    echo '</span>';
-    echo '<span class="cfm-core-terms-editor-handle">::</span>';
+    echo '<span class="cfm-core-terms-editor-handle" aria-hidden="true">::</span>';
     echo '</span>';
     echo '<span class="cfm-core-terms-editor-field cfm-core-terms-editor-field-label">' . esc_html($label) . '</span>';
     echo '<span class="cfm-core-terms-editor-meta">';
