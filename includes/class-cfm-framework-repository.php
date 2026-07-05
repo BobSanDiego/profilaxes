@@ -974,6 +974,36 @@ class CFM_Framework_Repository
     return $updated !== false;
   }
 
+  public static function mark_term_archive_deleted(string $archive_key): bool
+  {
+    global $wpdb;
+
+    $archive_key = sanitize_key($archive_key);
+
+    if ($archive_key === '') {
+      return false;
+    }
+
+    $table = $wpdb->prefix . 'cfm_term_archives';
+
+    $updated = $wpdb->update(
+      $table,
+      [
+        'deleted_at' => current_time('mysql'),
+        'deleted_by' => get_current_user_id() ?: null,
+      ],
+      [
+        'archive_key' => $archive_key,
+        'restored_at' => null,
+        'deleted_at' => null,
+      ],
+      ['%s', '%d'],
+      ['%s', '%s', '%s']
+    );
+
+    return $updated !== false;
+  }
+
 
   public static function get_user_term_uuids(int $user_id, int $framework_id, string $context = 'profile'): array
   {

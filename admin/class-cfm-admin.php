@@ -122,6 +122,11 @@ class CFM_Admin
       return;
     }
 
+    if ($action === 'core_terms_archive_delete') {
+      self::handle_core_terms_archive_delete();
+      return;
+    }
+
     if ($action === 'reorder_terms') {
       self::handle_reorder_terms();
       return;
@@ -1688,6 +1693,44 @@ class CFM_Admin
     do_action('cfm_term_created', $framework_id, $term_uuid, $term, $parent_uuid, $compile_result);
 
     wp_safe_redirect($restore_url . '&cfm_archive_restored=1' . ($compile_result['query_arg'] ?? ''));
+    exit;
+  }
+
+  private static function handle_core_terms_archive_delete(): void
+  {
+    check_admin_referer('cfm_core_terms_archive_delete', 'cfm_nonce');
+
+    if (!current_user_can('manage_options')) {
+      wp_die('You do not have permission to delete Core Terms archives.');
+    }
+
+    $archive_key = sanitize_text_field((string) wp_unslash($_POST['archive_key'] ?? ''));
+    $archive = CFM_Framework_Repository::get_term_archive_by_key($archive_key);
+
+    if (!$archive) {
+      wp_safe_redirect(self::archived_terms_url() . '&cfm_archive_delete_error=missing');
+      exit;
+    }
+
+    $framework_id = (int) ($archive->framework_id ?? 0);
+    $delete_url = self::archived_terms_url($framework_id);
+
+    if (!empty($archive->restored_at)) {
+      wp_safe_redirect($delete_url . '&cfm_archive_delete_error=restored');
+      exit;
+    }
+
+    if (!empty($archive->deleted_at)) {
+      wp_safe_redirect($delete_url . '&cfm_archive_delete_error=deleted');
+      exit;
+    }
+
+    if (!CFM_Framework_Repository::mark_term_archive_deleted($archive_key)) {
+      wp_safe_redirect($delete_url . '&cfm_archive_delete_error=failed');
+      exit;
+    }
+
+    wp_safe_redirect($delete_url . '&cfm_archive_deleted=1');
     exit;
   }
 
@@ -4823,7 +4866,7 @@ class CFM_Admin
       wp_die('Core Terms definition not found.');
     }
 
-    $archives = CFM_Framework_Repository::get_term_archives($framework_id, false);
+    $archives = CFM_Framework_Repository::get_term_archives($framework_id, true);
     $framework_cache = [];
     $now = current_time('timestamp');
 
@@ -4846,6 +4889,12 @@ class CFM_Admin
         </div>
       <?php endif; ?>
 
+      <?php if (isset($_GET['cfm_archive_deleted'])) : ?>
+        <div class="notice notice-success is-dismissible">
+          <p>Archived Core Terms branch deleted from restore eligibility.</p>
+        </div>
+      <?php endif; ?>
+
       <?php if (isset($_GET['cfm_archive_restore_error'])) :
         $error = sanitize_key(wp_unslash($_GET['cfm_archive_restore_error']));
         $message = 'Archived Core Terms branch could not be restored.';
@@ -4858,6 +4907,23 @@ class CFM_Admin
           $message = 'Deleted Core Terms archives cannot be restored from this screen.';
         } elseif ($error === 'conflict') {
           $message = 'Archived Core Terms branch could not be restored because it conflicts with the active tree.';
+        }
+      ?>
+        <div class="notice notice-error is-dismissible">
+          <p><?php echo esc_html($message); ?></p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_archive_delete_error'])) :
+        $error = sanitize_key(wp_unslash($_GET['cfm_archive_delete_error']));
+        $message = 'Archived Core Terms branch could not be deleted.';
+
+        if ($error === 'missing') {
+          $message = 'Archived Core Terms branch could not be found.';
+        } elseif ($error === 'restored') {
+          $message = 'Restored Core Terms archives cannot be deleted from this screen.';
+        } elseif ($error === 'deleted') {
+          $message = 'Archived Core Terms branch has already been deleted.';
         }
       ?>
         <div class="notice notice-error is-dismissible">
@@ -4907,7 +4973,20 @@ class CFM_Admin
               $restored_by = (int) ($archive->restored_by ?? 0);
               $restored_user = $restored_by > 0 ? get_userdata($restored_by) : false;
               $deleted_at = (string) ($archive->deleted_at ?? '');
+              $deleted_by = (int) ($archive->deleted_by ?? 0);
+              $deleted_user = $deleted_by > 0 ? get_userdata($deleted_by) : false;
               $can_restore = $restored_at === '' && $deleted_at === '';
+              $can_delete = $restored_at === '' && $deleted_at === '';
+              $recent_archive = $days_archived < 7;
+              $delete_confirmation = $recent_archive
+                ? sprintf(
+                  "Delete the archived branch record for \"%s\"?\n\nThis archive was created recently. If you delete it now, this branch cannot be restored from Archived Terms. The active Core Terms tree will not be changed.",
+                  $branch_label
+                )
+                : sprintf(
+                  "Delete the archived branch record for \"%s\"?\n\nThis branch will no longer be restorable from Archived Terms. The active Core Terms tree will not be changed.",
+                  $branch_label
+                );
             ?>
               <tr>
                 <td>
@@ -4934,7 +5013,16 @@ class CFM_Admin
                     Not restored
                   <?php endif; ?>
                 </td>
-                <td><?php echo esc_html($deleted_at !== '' ? 'Deleted' : 'Not deleted'); ?></td>
+                <td>
+                  <?php if ($deleted_at !== '') : ?>
+                    Deleted <?php echo esc_html($deleted_at); ?>
+                    <?php if ($deleted_user) : ?>
+                      <br>by <?php echo esc_html($deleted_user->display_name); ?>
+                    <?php endif; ?>
+                  <?php else : ?>
+                    Not deleted
+                  <?php endif; ?>
+                </td>
                 <td>
                   <?php if ($can_restore) : ?>
                     <form method="post">
@@ -4943,7 +5031,18 @@ class CFM_Admin
                       <input type="hidden" name="archive_key" value="<?php echo esc_attr((string) $archive->archive_key); ?>">
                       <button type="submit" class="button button-secondary">Restore Branch</button>
                     </form>
-                  <?php else : ?>
+                  <?php endif; ?>
+
+                  <?php if ($can_delete) : ?>
+                    <form method="post" onsubmit="return confirm(this.getAttribute('data-confirm-message'));" data-confirm-message="<?php echo esc_attr($delete_confirmation); ?>">
+                      <?php wp_nonce_field('cfm_core_terms_archive_delete', 'cfm_nonce'); ?>
+                      <input type="hidden" name="cfm_action" value="core_terms_archive_delete">
+                      <input type="hidden" name="archive_key" value="<?php echo esc_attr((string) $archive->archive_key); ?>">
+                      <button type="submit" class="button button-link-delete">Delete Archive</button>
+                    </form>
+                  <?php endif; ?>
+
+                  <?php if (!$can_restore && !$can_delete) : ?>
                     <span aria-hidden="true">&mdash;</span>
                     <span class="screen-reader-text">No action available</span>
                   <?php endif; ?>
