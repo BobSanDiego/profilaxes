@@ -916,6 +916,38 @@ class CFM_Framework_Repository
     return $archive ?: null;
   }
 
+  public static function get_term_archives(int $framework_id = 0, bool $include_deleted = false): array
+  {
+    global $wpdb;
+
+    $table = $wpdb->prefix . 'cfm_term_archives';
+    $where = [];
+    $params = [];
+
+    if ($framework_id > 0) {
+      $where[] = 'framework_id = %d';
+      $params[] = $framework_id;
+    }
+
+    if (!$include_deleted) {
+      $where[] = 'deleted_at IS NULL';
+    }
+
+    $sql = "SELECT * FROM {$table}";
+
+    if (!empty($where)) {
+      $sql .= ' WHERE ' . implode(' AND ', $where);
+    }
+
+    $sql .= ' ORDER BY archived_at DESC, id DESC';
+
+    $archives = !empty($params)
+      ? $wpdb->get_results($wpdb->prepare($sql, ...$params))
+      : $wpdb->get_results($sql);
+
+    return is_array($archives) ? $archives : [];
+  }
+
   public static function mark_term_archive_restored(string $archive_key): bool
   {
     global $wpdb;

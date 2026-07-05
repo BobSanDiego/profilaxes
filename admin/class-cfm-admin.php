@@ -117,6 +117,11 @@ class CFM_Admin
       return;
     }
 
+    if ($action === 'core_terms_archive_restore') {
+      self::handle_core_terms_archive_restore();
+      return;
+    }
+
     if ($action === 'reorder_terms') {
       self::handle_reorder_terms();
       return;
@@ -1596,6 +1601,93 @@ class CFM_Admin
         . '&cfm_editor_unarchived=1'
         . ($compile_result['query_arg'] ?? '')
     );
+    exit;
+  }
+
+  private static function handle_core_terms_archive_restore(): void
+  {
+    check_admin_referer('cfm_core_terms_archive_restore', 'cfm_nonce');
+
+    if (!current_user_can('manage_options')) {
+      wp_die('You do not have permission to restore Core Terms.');
+    }
+
+    $archive_key = sanitize_text_field((string) wp_unslash($_POST['archive_key'] ?? ''));
+    $archive = CFM_Framework_Repository::get_term_archive_by_key($archive_key);
+
+    if (!$archive) {
+      wp_safe_redirect(self::archived_terms_url() . '&cfm_archive_restore_error=missing');
+      exit;
+    }
+
+    $framework_id = (int) ($archive->framework_id ?? 0);
+    $restore_url = self::archived_terms_url($framework_id);
+
+    if (!empty($archive->deleted_at)) {
+      wp_safe_redirect($restore_url . '&cfm_archive_restore_error=deleted');
+      exit;
+    }
+
+    if (!empty($archive->restored_at)) {
+      wp_safe_redirect($restore_url . '&cfm_archive_restore_error=restored');
+      exit;
+    }
+
+    $framework = CFM_Framework_Repository::get_framework($framework_id);
+
+    if (!$framework) {
+      wp_die('Core Terms definition not found.');
+    }
+
+    $branch = json_decode((string) ($archive->branch_json ?? ''), true);
+    $term = is_array($branch) ? $branch : [];
+    $term_uuid = (string) ($term['uuid'] ?? '');
+    $parent_uuid = (string) ($archive->parent_uuid ?? '');
+    $insert_after_uuid = (string) ($archive->insert_after_uuid ?? '');
+    $tree = self::get_framework_tree($framework);
+
+    if ($term_uuid === '' || self::find_node_with_parent($tree, $term_uuid)) {
+      wp_safe_redirect($restore_url . '&cfm_archive_restore_error=conflict');
+      exit;
+    }
+
+    $slug = self::normalize_slug((string) ($term['slug'] ?? ''));
+
+    if ($slug === '' || self::has_child_slug_conflict($tree, $parent_uuid, $slug, $term_uuid)) {
+      wp_safe_redirect($restore_url . '&cfm_archive_restore_error=conflict');
+      exit;
+    }
+
+    $restored = false;
+
+    if ($insert_after_uuid !== '' && self::find_node_with_parent($tree, $insert_after_uuid)) {
+      $restored = self::insert_child_after_uuid($tree, $parent_uuid, $insert_after_uuid, $term);
+    }
+
+    if (!$restored) {
+      $restored = self::prepend_child_to_node_by_uuid($tree, $parent_uuid, $term);
+    }
+
+    if (!$restored) {
+      wp_safe_redirect($restore_url . '&cfm_archive_restore_error=conflict');
+      exit;
+    }
+
+    if ($parent_uuid !== '') {
+      self::bump_order_revision($framework_id, $parent_uuid);
+    }
+
+    $compile_result = self::save_active_tree_and_compile($framework_id, $tree);
+
+    if (empty($compile_result['success'])) {
+      wp_die('Core Term branch was restored but runtime tables could not be rebuilt.');
+    }
+
+    CFM_Framework_Repository::mark_term_archive_restored($archive_key);
+
+    do_action('cfm_term_created', $framework_id, $term_uuid, $term, $parent_uuid, $compile_result);
+
+    wp_safe_redirect($restore_url . '&cfm_archive_restored=1' . ($compile_result['query_arg'] ?? ''));
     exit;
   }
 
@@ -3706,6 +3798,11 @@ class CFM_Admin
       return;
     }
 
+    if ($action === 'archived_terms') {
+      self::render_archived_terms_page();
+      return;
+    }
+
     if ($action === 'versions') {
       self::render_versions_page();
       return;
@@ -4602,6 +4699,17 @@ class CFM_Admin
     );
   }
 
+  private static function archived_terms_url(int $framework_id = 0): string
+  {
+    $url = admin_url('admin.php?page=cfm-frameworks&action=archived_terms');
+
+    if ($framework_id > 0) {
+      $url = add_query_arg('framework_id', $framework_id, $url);
+    }
+
+    return $url;
+  }
+
   private static function versions_url(int $framework_id, int $paged = 1): string
   {
     $url = admin_url(
@@ -4698,6 +4806,155 @@ class CFM_Admin
     ], admin_url('admin.php'));
 
     return wp_nonce_url($url, 'cfm_export_taxonomy_' . $framework_id);
+  }
+
+  public static function render_archived_terms_page(): void
+  {
+    if (!current_user_can('manage_options')) {
+      wp_die('You do not have permission to access this page.');
+    }
+
+    $framework_id = absint($_GET['framework_id'] ?? 0);
+    $framework = $framework_id > 0
+      ? CFM_Framework_Repository::get_framework($framework_id)
+      : null;
+
+    if ($framework_id > 0 && !$framework) {
+      wp_die('Core Terms definition not found.');
+    }
+
+    $archives = CFM_Framework_Repository::get_term_archives($framework_id, false);
+    $framework_cache = [];
+    $now = current_time('timestamp');
+
+    ?>
+    <div class="wrap">
+      <h1>Archived Terms</h1>
+
+      <p>
+        <?php if ($framework) : ?>
+          <a class="button button-secondary" href="<?php echo esc_url(self::editor_url((int) $framework->id)); ?>">Back to Core Terms Editor</a>
+          <a class="button button-secondary" href="<?php echo esc_url(self::edit_url((int) $framework->id)); ?>">Back to Core Terms</a>
+        <?php else : ?>
+          <a class="button button-secondary" href="<?php echo esc_url(admin_url('admin.php?page=cfm-frameworks')); ?>">Back to Core Terms</a>
+        <?php endif; ?>
+      </p>
+
+      <?php if (isset($_GET['cfm_archive_restored'])) : ?>
+        <div class="notice notice-success is-dismissible">
+          <p>Archived Core Terms branch restored.</p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_archive_restore_error'])) :
+        $error = sanitize_key(wp_unslash($_GET['cfm_archive_restore_error']));
+        $message = 'Archived Core Terms branch could not be restored.';
+
+        if ($error === 'missing') {
+          $message = 'Archived Core Terms branch could not be found.';
+        } elseif ($error === 'restored') {
+          $message = 'Archived Core Terms branch has already been restored.';
+        } elseif ($error === 'deleted') {
+          $message = 'Deleted Core Terms archives cannot be restored from this screen.';
+        } elseif ($error === 'conflict') {
+          $message = 'Archived Core Terms branch could not be restored because it conflicts with the active tree.';
+        }
+      ?>
+        <div class="notice notice-error is-dismissible">
+          <p><?php echo esc_html($message); ?></p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (empty($archives)) : ?>
+        <p>No archived Core Terms branches found.</p>
+      <?php else : ?>
+        <table class="widefat striped">
+          <thead>
+            <tr>
+              <th scope="col">Branch</th>
+              <th scope="col">Framework</th>
+              <th scope="col">Archived Date</th>
+              <th scope="col">Days Archived</th>
+              <th scope="col">Archived By</th>
+              <th scope="col">Restored Status</th>
+              <th scope="col">Deleted Status</th>
+              <th scope="col">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php foreach ($archives as $archive) :
+              $archive_framework_id = (int) ($archive->framework_id ?? 0);
+
+              if (!array_key_exists($archive_framework_id, $framework_cache)) {
+                $framework_cache[$archive_framework_id] = $archive_framework_id > 0
+                  ? CFM_Framework_Repository::get_framework($archive_framework_id)
+                  : null;
+              }
+
+              $archive_framework = $framework_cache[$archive_framework_id];
+              $branch = json_decode((string) ($archive->branch_json ?? ''), true);
+              $branch_label = is_array($branch) && !empty($branch['label'])
+                ? (string) $branch['label']
+                : '(Unknown branch)';
+              $archived_at = (string) ($archive->archived_at ?? '');
+              $archived_timestamp = $archived_at !== '' ? strtotime($archived_at) : false;
+              $days_archived = $archived_timestamp
+                ? max(0, (int) floor(($now - $archived_timestamp) / DAY_IN_SECONDS))
+                : 0;
+              $archived_by = (int) ($archive->archived_by ?? 0);
+              $archived_user = $archived_by > 0 ? get_userdata($archived_by) : false;
+              $restored_at = (string) ($archive->restored_at ?? '');
+              $restored_by = (int) ($archive->restored_by ?? 0);
+              $restored_user = $restored_by > 0 ? get_userdata($restored_by) : false;
+              $deleted_at = (string) ($archive->deleted_at ?? '');
+              $can_restore = $restored_at === '' && $deleted_at === '';
+            ?>
+              <tr>
+                <td>
+                  <strong><?php echo esc_html($branch_label); ?></strong>
+                  <?php if (!empty($archive->root_term_uuid)) : ?>
+                    <br><code><?php echo esc_html((string) $archive->root_term_uuid); ?></code>
+                  <?php endif; ?>
+                </td>
+                <td>
+                  <?php echo esc_html($archive_framework ? (string) $archive_framework->name : 'Unknown framework'); ?>
+                </td>
+                <td><?php echo esc_html($archived_at !== '' ? $archived_at : 'Unknown'); ?></td>
+                <td><?php echo esc_html((string) $days_archived); ?></td>
+                <td>
+                  <?php echo esc_html($archived_user ? $archived_user->display_name : ($archived_by > 0 ? 'User #' . $archived_by : 'Unknown')); ?>
+                </td>
+                <td>
+                  <?php if ($restored_at !== '') : ?>
+                    Restored <?php echo esc_html($restored_at); ?>
+                    <?php if ($restored_user) : ?>
+                      <br>by <?php echo esc_html($restored_user->display_name); ?>
+                    <?php endif; ?>
+                  <?php else : ?>
+                    Not restored
+                  <?php endif; ?>
+                </td>
+                <td><?php echo esc_html($deleted_at !== '' ? 'Deleted' : 'Not deleted'); ?></td>
+                <td>
+                  <?php if ($can_restore) : ?>
+                    <form method="post">
+                      <?php wp_nonce_field('cfm_core_terms_archive_restore', 'cfm_nonce'); ?>
+                      <input type="hidden" name="cfm_action" value="core_terms_archive_restore">
+                      <input type="hidden" name="archive_key" value="<?php echo esc_attr((string) $archive->archive_key); ?>">
+                      <button type="submit" class="button button-secondary">Restore Branch</button>
+                    </form>
+                  <?php else : ?>
+                    <span aria-hidden="true">&mdash;</span>
+                    <span class="screen-reader-text">No action available</span>
+                  <?php endif; ?>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      <?php endif; ?>
+    </div>
+    <?php
   }
 
   public static function render_versions_page(): void
@@ -8840,6 +9097,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
       <h1>Core Terms</h1>
       <p>
         <a class="button button-secondary" href="<?php echo esc_url(self::editor_url((int) $framework->id)); ?>">Core Terms Editor</a>
+        <a class="button button-secondary" href="<?php echo esc_url(self::archived_terms_url((int) $framework->id)); ?>">Archived Terms</a>
       </p>
 
       <?php if (is_array($batch_error)) : ?>
