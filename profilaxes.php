@@ -3,7 +3,7 @@
 /**
  * Plugin Name: Core Terms
  * Description: Core Terms infrastructure for community term hierarchy, assignment, compilation, and Labs diagnostics.
- * Version: 0.6.0
+ * Version: 0.6.1
  * Author: Teachers.Net
  * Text Domain: profilaxes
  */
@@ -12,7 +12,7 @@ if (!defined('ABSPATH')) {
   exit;
 }
 
-define('CFM_VERSION', '0.6.0');
+define('CFM_VERSION', '0.6.1');
 define('CFM_PLUGIN_FILE', __FILE__);
 define('CFM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('CFM_PLUGIN_URL', plugin_dir_url(__FILE__));

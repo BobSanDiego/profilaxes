@@ -35,6 +35,7 @@ class CFM
     $required_schema_flags = [
       'cfm_schema_term_metadata_v1',
       'cfm_schema_meta_groups_v1',
+      'cfm_schema_term_archives_v1',
     ];
 
     foreach ($required_schema_flags as $flag) {

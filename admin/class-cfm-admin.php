@@ -1467,12 +1467,29 @@ class CFM_Admin
     }
 
     $undo_key = wp_generate_password(20, false, false);
+    $archived_at = current_time('mysql');
+    $archive_id = CFM_Framework_Repository::create_term_archive([
+      'archive_key' => $undo_key,
+      'framework_id' => $framework_id,
+      'root_term_uuid' => $term_uuid,
+      'parent_uuid' => $parent_uuid,
+      'insert_after_uuid' => $insert_after_uuid,
+      'branch' => $removed_term,
+      'archived_at' => $archived_at,
+    ]);
+
+    if ($archive_id <= 0) {
+      wp_die('Core Term branch was archived but durable archive storage could not be written.');
+    }
+
     set_transient(self::core_terms_editor_archive_transient_key($framework_id, $undo_key), [
+      'archive_key' => $undo_key,
+      'archive_id' => $archive_id,
       'framework_id' => $framework_id,
       'parent_uuid' => $parent_uuid,
       'insert_after_uuid' => $insert_after_uuid,
       'term' => $removed_term,
-      'archived_at' => time(),
+      'archived_at' => $archived_at,
     ], 30 * MINUTE_IN_SECONDS);
 
     do_action('cfm_term_deleted', $framework_id, $term_uuid, $removed_term, $parent_uuid, $compile_result);
@@ -1504,8 +1521,9 @@ class CFM_Admin
 
     $transient_key = self::core_terms_editor_archive_transient_key($framework_id, $undo_key);
     $archive = get_transient($transient_key);
+    $durable_archive = CFM_Framework_Repository::get_term_archive_by_key($undo_key);
 
-    if (!is_array($archive) || empty($archive['term']) || !is_array($archive['term'])) {
+    if ((!is_array($archive) || empty($archive['term']) || !is_array($archive['term'])) && !$durable_archive) {
       wp_safe_redirect(self::editor_url($framework_id) . '&cfm_editor_undo_expired=1');
       exit;
     }
@@ -1517,10 +1535,19 @@ class CFM_Admin
     }
 
     $tree = self::get_framework_tree($framework);
-    $term = (array) $archive['term'];
+
+    if ($durable_archive) {
+      $branch = json_decode((string) $durable_archive->branch_json, true);
+      $term = is_array($branch) ? $branch : [];
+      $parent_uuid = (string) ($durable_archive->parent_uuid ?? '');
+      $insert_after_uuid = (string) ($durable_archive->insert_after_uuid ?? '');
+    } else {
+      $term = (array) $archive['term'];
+      $parent_uuid = (string) ($archive['parent_uuid'] ?? '');
+      $insert_after_uuid = (string) ($archive['insert_after_uuid'] ?? '');
+    }
+
     $term_uuid = (string) ($term['uuid'] ?? '');
-    $parent_uuid = (string) ($archive['parent_uuid'] ?? '');
-    $insert_after_uuid = (string) ($archive['insert_after_uuid'] ?? '');
 
     if ($term_uuid === '' || self::find_node_with_parent($tree, $term_uuid)) {
       wp_safe_redirect(self::editor_url($framework_id) . '&cfm_editor_undo_conflict=1');
@@ -1560,6 +1587,7 @@ class CFM_Admin
     }
 
     delete_transient($transient_key);
+    CFM_Framework_Repository::mark_term_archive_restored($undo_key);
 
     do_action('cfm_term_created', $framework_id, $term_uuid, $term, $parent_uuid, $compile_result);
 

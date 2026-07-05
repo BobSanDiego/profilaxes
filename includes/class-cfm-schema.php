@@ -20,6 +20,7 @@ class CFM_Schema
         $closure       = $wpdb->prefix . 'cfm_term_closure';
         $relationships = $wpdb->prefix . 'cfm_term_relationships';
         $user_terms    = $wpdb->prefix . 'cfm_user_terms';
+        $term_archives = $wpdb->prefix . 'cfm_term_archives';
         // Dormant legacy/experimental table. Current Meta-Group source of truth is active tree_json kind=meta nodes.
         $meta_groups   = $wpdb->prefix . 'cfm_meta_groups';
 
@@ -139,6 +140,31 @@ class CFM_Schema
             ) {$charset_collate};
         ");
 
+        dbDelta("
+            CREATE TABLE {$term_archives} (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                archive_key VARCHAR(64) NOT NULL,
+                framework_id BIGINT UNSIGNED NOT NULL,
+                root_term_uuid CHAR(36) NOT NULL,
+                parent_uuid CHAR(36) NULL,
+                insert_after_uuid CHAR(36) NULL,
+                branch_json LONGTEXT NOT NULL,
+                archived_at DATETIME NOT NULL,
+                archived_by BIGINT UNSIGNED NULL,
+                restored_at DATETIME NULL,
+                restored_by BIGINT UNSIGNED NULL,
+                deleted_at DATETIME NULL,
+                deleted_by BIGINT UNSIGNED NULL,
+                PRIMARY KEY  (id),
+                UNIQUE KEY archive_key (archive_key),
+                KEY framework_id (framework_id),
+                KEY root_term_uuid (root_term_uuid),
+                KEY parent_uuid (parent_uuid),
+                KEY archived_at (archived_at),
+                KEY restored_at (restored_at),
+                KEY deleted_at (deleted_at)
+            ) {$charset_collate};
+        ");
 
         // Retained for backward compatibility only. Do not use as canonical Meta-Group storage.
         dbDelta("

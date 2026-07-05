@@ -837,6 +837,112 @@ class CFM_Framework_Repository
   }
 
 
+  public static function create_term_archive(array $archive): int
+  {
+    global $wpdb;
+
+    $framework_id = max(0, (int) ($archive['framework_id'] ?? 0));
+    $archive_key = sanitize_key((string) ($archive['archive_key'] ?? ''));
+    $root_term_uuid = sanitize_text_field((string) ($archive['root_term_uuid'] ?? ''));
+    $parent_uuid = sanitize_text_field((string) ($archive['parent_uuid'] ?? ''));
+    $insert_after_uuid = sanitize_text_field((string) ($archive['insert_after_uuid'] ?? ''));
+    $branch = isset($archive['branch']) && is_array($archive['branch']) ? $archive['branch'] : [];
+
+    if ($framework_id <= 0 || $archive_key === '' || $root_term_uuid === '' || empty($branch)) {
+      return 0;
+    }
+
+    $table = $wpdb->prefix . 'cfm_term_archives';
+    $archived_at = sanitize_text_field((string) ($archive['archived_at'] ?? ''));
+
+    if ($archived_at === '') {
+      $archived_at = current_time('mysql');
+    }
+
+    $inserted = $wpdb->insert(
+      $table,
+      [
+        'archive_key' => $archive_key,
+        'framework_id' => $framework_id,
+        'root_term_uuid' => $root_term_uuid,
+        'parent_uuid' => $parent_uuid !== '' ? $parent_uuid : null,
+        'insert_after_uuid' => $insert_after_uuid !== '' ? $insert_after_uuid : null,
+        'branch_json' => wp_json_encode(self::normalize_tree_for_storage($branch)),
+        'archived_at' => $archived_at,
+        'archived_by' => get_current_user_id() ?: null,
+        'restored_at' => null,
+        'restored_by' => null,
+        'deleted_at' => null,
+        'deleted_by' => null,
+      ],
+      [
+        '%s',
+        '%d',
+        '%s',
+        '%s',
+        '%s',
+        '%s',
+        '%s',
+        '%d',
+        '%s',
+        '%d',
+        '%s',
+        '%d',
+      ]
+    );
+
+    return $inserted ? (int) $wpdb->insert_id : 0;
+  }
+
+  public static function get_term_archive_by_key(string $archive_key): ?object
+  {
+    global $wpdb;
+
+    $archive_key = sanitize_key($archive_key);
+
+    if ($archive_key === '') {
+      return null;
+    }
+
+    $table = $wpdb->prefix . 'cfm_term_archives';
+
+    $archive = $wpdb->get_row(
+      $wpdb->prepare(
+        "SELECT * FROM {$table} WHERE archive_key = %s LIMIT 1",
+        $archive_key
+      )
+    );
+
+    return $archive ?: null;
+  }
+
+  public static function mark_term_archive_restored(string $archive_key): bool
+  {
+    global $wpdb;
+
+    $archive_key = sanitize_key($archive_key);
+
+    if ($archive_key === '') {
+      return false;
+    }
+
+    $table = $wpdb->prefix . 'cfm_term_archives';
+
+    $updated = $wpdb->update(
+      $table,
+      [
+        'restored_at' => current_time('mysql'),
+        'restored_by' => get_current_user_id() ?: null,
+      ],
+      ['archive_key' => $archive_key],
+      ['%s', '%d'],
+      ['%s']
+    );
+
+    return $updated !== false;
+  }
+
+
   public static function get_user_term_uuids(int $user_id, int $framework_id, string $context = 'profile'): array
   {
     global $wpdb;
