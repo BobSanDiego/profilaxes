@@ -1311,13 +1311,22 @@ class CFM_Admin
 
       $added = false;
 
-      if ((string) $new_term['insert_after_uuid'] !== '') {
+      if ((string) ($new_term['insert_before_uuid'] ?? '') !== '') {
+        $added = self::insert_child_before_uuid(
+          $tree,
+          (string) $new_term['parent_uuid'],
+          (string) $new_term['insert_before_uuid'],
+          $term
+        );
+      } elseif ((string) $new_term['insert_after_uuid'] !== '') {
         $added = self::insert_child_after_uuid(
           $tree,
           (string) $new_term['parent_uuid'],
           (string) $new_term['insert_after_uuid'],
           $term
         );
+      } elseif ((string) ($new_term['insert_mode'] ?? '') === 'add_child_prepend') {
+        $added = self::prepend_child_to_node_by_uuid($tree, (string) $new_term['parent_uuid'], $term);
       } else {
         $added = self::append_child_to_node_by_uuid($tree, (string) $new_term['parent_uuid'], $term);
       }
@@ -1717,8 +1726,9 @@ class CFM_Admin
     $insert_mode = sanitize_key((string) ($raw_change['insert_mode'] ?? ''));
     $parent_uuid = sanitize_text_field((string) ($raw_change['parent_uuid'] ?? ''));
     $insert_after_uuid = sanitize_text_field((string) ($raw_change['insert_after_uuid'] ?? ''));
+    $insert_before_uuid = sanitize_text_field((string) ($raw_change['insert_before_uuid'] ?? ''));
 
-    if ($insert_mode === 'insert_sibling') {
+    if ($insert_mode === 'insert_sibling' || $insert_mode === 'insert_sibling_after') {
       $sibling_info = self::find_node_with_parent($tree, $insert_after_uuid);
 
       if (!$sibling_info || empty($sibling_info['node']) || !is_array($sibling_info['node']) || self::node_kind($sibling_info['node']) !== 'term') {
@@ -1730,7 +1740,19 @@ class CFM_Admin
           $parent_uuid = (string) ($sibling_info['parent']['uuid'] ?? '');
         }
       }
-    } elseif ($insert_mode === 'add_child') {
+    } elseif ($insert_mode === 'insert_sibling_before') {
+      $sibling_info = self::find_node_with_parent($tree, $insert_before_uuid);
+
+      if (!$sibling_info || empty($sibling_info['node']) || !is_array($sibling_info['node']) || self::node_kind($sibling_info['node']) !== 'term') {
+        $errors[] = 'One draft sibling no longer has a valid insertion point.';
+      } else {
+        $parent_uuid = '';
+
+        if (!empty($sibling_info['parent']) && is_array($sibling_info['parent'])) {
+          $parent_uuid = (string) ($sibling_info['parent']['uuid'] ?? '');
+        }
+      }
+    } elseif ($insert_mode === 'add_child' || $insert_mode === 'add_child_append' || $insert_mode === 'add_child_prepend') {
       $parent_info = self::find_node_with_parent($tree, $parent_uuid);
 
       if (!$parent_info || empty($parent_info['node']) || !is_array($parent_info['node']) || self::node_kind($parent_info['node']) !== 'term') {
@@ -1738,6 +1760,7 @@ class CFM_Admin
       }
 
       $insert_after_uuid = '';
+      $insert_before_uuid = '';
     } else {
       $errors[] = 'One draft row has an unsupported insertion mode.';
     }
@@ -1768,6 +1791,8 @@ class CFM_Admin
         'draft_uuid' => sanitize_text_field((string) ($raw_change['uuid'] ?? '')),
         'parent_uuid' => $parent_uuid,
         'insert_after_uuid' => $insert_after_uuid,
+        'insert_before_uuid' => $insert_before_uuid,
+        'insert_mode' => $insert_mode,
         'label' => $label,
         'slug' => $slug,
         'short_label' => $short_label,
@@ -2291,6 +2316,48 @@ class CFM_Admin
       }
 
       if (self::insert_child_after_uuid($candidate, $parent_uuid, $after_uuid, $child)) {
+        unset($candidate);
+        return true;
+      }
+    }
+
+    unset($candidate);
+    return false;
+  }
+
+  private static function insert_child_before_uuid(array &$node, string $parent_uuid, string $before_uuid, array $child): bool
+  {
+    $node_uuid = (string) ($node['uuid'] ?? '');
+
+    if ($node_uuid === $parent_uuid || ($parent_uuid === '' && $node_uuid === '')) {
+      if (!isset($node['children']) || !is_array($node['children'])) {
+        $node['children'] = [];
+      }
+
+      foreach ($node['children'] as $index => $candidate) {
+        if (!is_array($candidate)) {
+          continue;
+        }
+
+        if ((string) ($candidate['uuid'] ?? '') === $before_uuid) {
+          array_splice($node['children'], $index, 0, [$child]);
+          return true;
+        }
+      }
+
+      return false;
+    }
+
+    if (empty($node['children']) || !is_array($node['children'])) {
+      return false;
+    }
+
+    foreach ($node['children'] as &$candidate) {
+      if (!is_array($candidate)) {
+        continue;
+      }
+
+      if (self::insert_child_before_uuid($candidate, $parent_uuid, $before_uuid, $child)) {
         unset($candidate);
         return true;
       }
@@ -6672,7 +6739,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           align-items: center;
           display: grid;
           gap: 12px;
-          grid-template-columns: 64px minmax(120px, calc(var(--cfm-core-terms-label-width) - var(--cfm-core-terms-depth-offset))) minmax(260px, 1fr) 190px;
+          grid-template-columns: 64px minmax(120px, calc(var(--cfm-core-terms-label-width) - var(--cfm-core-terms-depth-offset))) max-content 92px 1fr;
         }
 
         .cfm-core-terms-editor-reference {
@@ -6693,7 +6760,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           align-items: center;
           display: grid;
           gap: 12px;
-          grid-template-columns: 64px var(--cfm-core-terms-label-width) minmax(260px, 1fr) 190px;
+          grid-template-columns: 64px var(--cfm-core-terms-label-width) max-content 92px 1fr;
         }
 
         .cfm-core-terms-editor-reference-metadata {
@@ -6796,8 +6863,11 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         .cfm-core-terms-editor-actions {
           align-items: center;
           display: flex;
-          flex-wrap: wrap;
+          flex-wrap: nowrap;
           gap: 4px;
+          justify-content: flex-start;
+          overflow: visible;
+          position: relative;
         }
 
         .cfm-core-terms-editor-display {
@@ -6969,7 +7039,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         }
 
         .cfm-core-terms-editor-row-save,
-        .cfm-core-terms-editor-row-action {
+        .cfm-core-terms-editor-cancel-draft {
           display: none !important;
           min-height: 26px;
           padding: 0 8px;
@@ -6980,15 +7050,123 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           align-items: center;
         }
 
-        .cfm-core-terms-editor-row.is-selected:not(.is-draft) .cfm-core-terms-editor-insert-sibling,
-        .cfm-core-terms-editor-row.is-selected:not(.is-draft) .cfm-core-terms-editor-add-child,
-        .cfm-core-terms-editor-row.is-selected:not(.is-draft) .cfm-core-terms-editor-archive-branch,
         .cfm-core-terms-editor-row.is-selected.is-draft .cfm-core-terms-editor-cancel-draft {
           align-items: center;
           display: inline-flex !important;
         }
 
-        .cfm-core-terms-editor-archive-branch {
+        .cfm-core-terms-editor-row-action {
+          align-items: center;
+          background: transparent;
+          border: 0;
+          border-radius: 4px;
+          box-shadow: none;
+          color: #50575e;
+          cursor: pointer;
+          display: inline-flex;
+          height: 28px;
+          justify-content: center;
+          line-height: 1;
+          margin: 0;
+          opacity: 0;
+          padding: 0;
+          pointer-events: none;
+          transition: background-color 120ms ease, color 120ms ease;
+          visibility: hidden;
+          width: 28px;
+        }
+
+        .cfm-core-terms-editor-row-action svg {
+          display: block;
+          height: 16px;
+          fill: none;
+          stroke: currentColor;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+          stroke-width: 1.8;
+          width: 16px;
+        }
+
+        .cfm-core-terms-editor-action-menu {
+          background: #fff;
+          border: 1px solid #c3c4c7;
+          border-radius: 6px;
+          box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+          display: grid;
+          gap: 2px;
+          left: 0;
+          min-width: 160px;
+          padding: 5px;
+          position: absolute;
+          top: calc(100% + 2px);
+          z-index: 20;
+        }
+
+        .cfm-core-terms-editor-action-menu[hidden] {
+          display: none;
+        }
+
+        .cfm-core-terms-editor-action-menu button {
+          align-items: center;
+          background: transparent;
+          border: 0;
+          border-radius: 4px;
+          color: #1d2327;
+          cursor: pointer;
+          display: flex;
+          font-size: 12px;
+          gap: 8px;
+          line-height: 1.3;
+          padding: 6px 8px;
+          text-align: left;
+          width: 100%;
+        }
+
+        .cfm-core-terms-editor-action-menu button[hidden] {
+          display: none;
+        }
+
+        .cfm-core-terms-editor-action-menu-label {
+          color: #1d2327;
+          display: block;
+          font-size: 12px;
+          line-height: 1.3;
+          padding: 6px 8px;
+          white-space: nowrap;
+        }
+
+        .cfm-core-terms-editor-action-menu button:hover,
+        .cfm-core-terms-editor-action-menu button:focus-visible {
+          background: #f0f6fc;
+          color: #135e96;
+          outline: none;
+        }
+
+        .cfm-core-terms-editor-action-menu button:focus-visible {
+          box-shadow: 0 0 0 2px #2271b1;
+        }
+
+        .cfm-core-terms-editor-row:not(.is-draft):hover .cfm-core-terms-editor-row-action,
+        .cfm-core-terms-editor-row:not(.is-draft):focus-within .cfm-core-terms-editor-row-action,
+        .cfm-core-terms-editor-row.is-selected:not(.is-draft) .cfm-core-terms-editor-row-action {
+          opacity: 1;
+          pointer-events: auto;
+          visibility: visible;
+        }
+
+        .cfm-core-terms-editor-row-action:hover,
+        .cfm-core-terms-editor-row-action:focus-visible {
+          background: #f0f6fc;
+          color: #135e96;
+        }
+
+        .cfm-core-terms-editor-row-action:focus-visible {
+          box-shadow: 0 0 0 2px #2271b1;
+          outline: 2px solid transparent;
+        }
+
+        .cfm-core-terms-editor-archive-branch:hover,
+        .cfm-core-terms-editor-archive-branch:focus-visible {
           color: #b32d2e;
         }
 
@@ -7110,6 +7288,8 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           var restoringDrafts = false;
           var draftCounter = 0;
           var autofillingDraft = false;
+          var activeActionState = null;
+          var actionMenuCloseTimer = null;
 
           function normalizeSlug(value) {
             return String(value || '')
@@ -7134,6 +7314,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
               values.is_new = true;
               values.parent_uuid = row.getAttribute('data-draft-parent-uuid') || '';
               values.insert_after_uuid = row.getAttribute('data-draft-insert-after-uuid') || '';
+              values.insert_before_uuid = row.getAttribute('data-draft-insert-before-uuid') || '';
               values.insert_mode = row.getAttribute('data-draft-mode') || '';
             }
 
@@ -7441,6 +7622,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             row.setAttribute('data-draft-mode', options.mode || '');
             row.setAttribute('data-draft-parent-uuid', options.parentUuid || '');
             row.setAttribute('data-draft-insert-after-uuid', options.insertAfterUuid || '');
+            row.setAttribute('data-draft-insert-before-uuid', options.insertBeforeUuid || '');
             row.setAttribute('data-original-label', '');
             row.setAttribute('data-original-slug', '');
             row.setAttribute('data-original-short-label', '');
@@ -7473,10 +7655,22 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
               '</span>' +
               '<span class="cfm-core-terms-editor-actions">' +
                 '<button type="button" class="button button-small cfm-core-terms-editor-row-save" hidden>Save Row</button>' +
-                '<button type="button" class="button button-small cfm-core-terms-editor-row-action cfm-core-terms-editor-insert-sibling">Insert Sibling</button>' +
-                '<button type="button" class="button button-small cfm-core-terms-editor-row-action cfm-core-terms-editor-add-child">Add Child</button>' +
-                '<button type="button" class="button button-small cfm-core-terms-editor-row-action cfm-core-terms-editor-archive-branch">Archive Branch</button>' +
-                '<button type="button" class="button button-small cfm-core-terms-editor-row-action cfm-core-terms-editor-cancel-draft">Cancel</button>' +
+                '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-insert-sibling" aria-label="Insert sibling" aria-haspopup="menu" aria-expanded="false" data-cfm-action-menu-trigger="sibling"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M5 6h7"></path><path d="M5 14h7"></path><path d="M15 10v6"></path><path d="M12 13h6"></path></svg></button>' +
+                '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-add-child" aria-label="Add child" aria-haspopup="menu" aria-expanded="false" data-cfm-action-menu-trigger="child"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M5 4v10h6"></path><path d="M8 14h6"></path><path d="M15 11v6"></path><path d="M12 14h6"></path></svg></button>' +
+                '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-archive-branch" aria-label="Archive branch" aria-haspopup="true" aria-expanded="false" data-cfm-action-menu-trigger="archive"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M4 6h12"></path><path d="M6 6v10h8V6"></path><path d="M8 4h4l1 2H7l1-2z"></path><path d="M8 10h4"></path></svg></button>' +
+                '<span class="cfm-core-terms-editor-action-menu cfm-core-terms-editor-sibling-menu" role="menu" data-cfm-action-menu="sibling" hidden>' +
+                  '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-insert-sibling-before" role="menuitem">Insert sibling before</button>' +
+                  '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-insert-sibling-after" role="menuitem">Insert sibling after</button>' +
+                '</span>' +
+                '<span class="cfm-core-terms-editor-action-menu cfm-core-terms-editor-child-menu" role="menu" data-cfm-action-menu="child" hidden>' +
+                  '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-add-child-leaf" role="menuitem">Add child</button>' +
+                  '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-prepend-child" role="menuitem">Prepend child</button>' +
+                  '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-append-child" role="menuitem">Append child</button>' +
+                '</span>' +
+                '<span class="cfm-core-terms-editor-action-menu cfm-core-terms-editor-archive-menu" role="tooltip" data-cfm-action-menu="archive" hidden>' +
+                  '<span class="cfm-core-terms-editor-action-menu-label">Archive branch</span>' +
+                '</span>' +
+                '<button type="button" class="button button-small cfm-core-terms-editor-cancel-draft">Cancel</button>' +
                 '<span class="cfm-core-terms-editor-status" aria-live="polite">Unsaved</span>' +
               '</span>';
 
@@ -7526,7 +7720,205 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             return details;
           }
 
-          function addDraftSibling(baseRow) {
+          function rowHasChildren(row) {
+            var term = row ? row.closest('.cfm-core-terms-editor-term') : null;
+            var children = term ? term.querySelector(':scope > details > .cfm-core-terms-editor-children') : null;
+
+            return Boolean(
+              term &&
+              (
+                term.classList.contains('cfm-core-terms-editor-has-children') ||
+                (children && children.querySelector(':scope > .cfm-core-terms-editor-term'))
+              )
+            );
+          }
+
+          function closeActionMenus(exceptState) {
+            if (actionMenuCloseTimer) {
+              window.clearTimeout(actionMenuCloseTimer);
+              actionMenuCloseTimer = null;
+            }
+
+            var exceptMenu = exceptState ? exceptState.menu : null;
+            var exceptTrigger = exceptState ? exceptState.trigger : null;
+
+            document
+              .querySelectorAll('.cfm-core-terms-editor-action-menu')
+              .forEach(function(menu) {
+                if (menu === exceptMenu) {
+                  return;
+                }
+
+                menu.hidden = true;
+              });
+
+            document
+              .querySelectorAll('.cfm-core-terms-editor-row-action[aria-expanded]')
+              .forEach(function(button) {
+                button.setAttribute('aria-expanded', button === exceptTrigger ? 'true' : 'false');
+              });
+
+            if (!exceptState) {
+              activeActionState = null;
+            }
+          }
+
+          function actionMenuParts(row, actionType) {
+            var actions = row ? row.querySelector('.cfm-core-terms-editor-actions') : null;
+            var trigger = actions ? actions.querySelector('[data-cfm-action-menu-trigger="' + actionType + '"]') : null;
+            var menu = actions ? actions.querySelector('[data-cfm-action-menu="' + actionType + '"]') : null;
+
+            return {
+              actions: actions,
+              trigger: trigger,
+              menu: menu
+            };
+          }
+
+          function positionActionMenu(actions, trigger, menu) {
+            if (!actions || !trigger || !menu) {
+              return;
+            }
+
+            var actionsBox = actions.getBoundingClientRect();
+            var triggerBox = trigger.getBoundingClientRect();
+
+            menu.style.left = Math.max(0, Math.round(triggerBox.left - actionsBox.left)) + 'px';
+            menu.style.top = Math.round(triggerBox.bottom - actionsBox.top + 2) + 'px';
+          }
+
+          function openActionMenu(row, actionType, focusFirstItem) {
+            var uuid = row ? (row.getAttribute('data-term-uuid') || '') : '';
+            var parts = actionMenuParts(row, actionType);
+            var actions = parts.actions;
+            var trigger = parts.trigger;
+            var menu = parts.menu;
+
+            if (!uuid || !trigger || !menu) {
+              return;
+            }
+
+            if (actionType === 'child') {
+              configureChildActionMenu(row, menu);
+            }
+
+            if (actionMenuCloseTimer) {
+              window.clearTimeout(actionMenuCloseTimer);
+              actionMenuCloseTimer = null;
+            }
+
+            if (
+              activeActionState &&
+              activeActionState.uuid === uuid &&
+              activeActionState.actionType === actionType &&
+              activeActionState.trigger === trigger &&
+              activeActionState.menu === menu &&
+              !menu.hidden
+            ) {
+              positionActionMenu(actions, trigger, menu);
+            } else {
+              activeActionState = {
+                uuid: uuid,
+                actionType: actionType,
+                trigger: trigger,
+                menu: menu
+              };
+              closeActionMenus(activeActionState);
+              menu.hidden = false;
+              trigger.setAttribute('aria-expanded', 'true');
+            }
+
+            positionActionMenu(actions, trigger, menu);
+
+            if (focusFirstItem) {
+              var firstItem = menu.querySelector('button');
+
+              if (firstItem) {
+                firstItem.focus();
+              }
+            }
+          }
+
+          function scheduleActionMenuClose() {
+            if (actionMenuCloseTimer) {
+              window.clearTimeout(actionMenuCloseTimer);
+            }
+
+            actionMenuCloseTimer = window.setTimeout(function() {
+              closeActionMenus();
+            }, 180);
+          }
+
+          function cancelActionMenuClose() {
+            if (actionMenuCloseTimer) {
+              window.clearTimeout(actionMenuCloseTimer);
+              actionMenuCloseTimer = null;
+            }
+          }
+
+          function isInsideActiveActionRegion(target) {
+            return Boolean(
+              activeActionState &&
+              (
+                activeActionState.trigger.contains(target) ||
+                activeActionState.menu.contains(target)
+              )
+            );
+          }
+
+          function actionTriggerType(trigger) {
+            return trigger ? (trigger.getAttribute('data-cfm-action-menu-trigger') || '') : '';
+          }
+
+          function configureChildActionMenu(row, menu) {
+            var hasChildren = rowHasChildren(row);
+            var leafItem = menu.querySelector('.cfm-core-terms-editor-add-child-leaf');
+            var prependItem = menu.querySelector('.cfm-core-terms-editor-prepend-child');
+            var appendItem = menu.querySelector('.cfm-core-terms-editor-append-child');
+
+            if (leafItem) {
+              leafItem.hidden = hasChildren;
+            }
+
+            if (prependItem) {
+              prependItem.hidden = !hasChildren;
+            }
+
+            if (appendItem) {
+              appendItem.hidden = !hasChildren;
+            }
+          }
+
+          function handleActionHover(target) {
+            var trigger = target.closest('[data-cfm-action-menu-trigger]');
+
+            if (!trigger) {
+              if (target.closest('.cfm-core-terms-editor-archive-branch')) {
+                closeActionMenus();
+              } else if (isInsideActiveActionRegion(target)) {
+                cancelActionMenuClose();
+              }
+
+              return;
+            }
+
+            var row = trigger.closest('.cfm-core-terms-editor-row[data-term-uuid]');
+            var actionType = actionTriggerType(trigger);
+
+            if (!row || isDraftRow(row)) {
+              return;
+            }
+
+            if (actionType === 'sibling') {
+              openActionMenu(row, 'sibling', false);
+            } else if (actionType === 'child') {
+              openActionMenu(row, 'child', false);
+            } else if (actionType === 'archive') {
+              openActionMenu(row, 'archive', false);
+            }
+          }
+
+          function addDraftSibling(baseRow, placement) {
             var baseTerm = baseRow ? baseRow.closest('.cfm-core-terms-editor-term') : null;
 
             if (!baseTerm) {
@@ -7535,13 +7927,15 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
             var parentTerm = baseTerm.parentElement.closest('.cfm-core-terms-editor-term');
             var parentRow = parentTerm ? directRow(parentTerm) : null;
+            placement = placement === 'before' ? 'before' : 'after';
             var draftTerm = createDraftTerm(depthForTerm(baseTerm), {
-              mode: 'insert_sibling',
+              mode: placement === 'before' ? 'insert_sibling_before' : 'insert_sibling_after',
               parentUuid: parentRow ? (parentRow.getAttribute('data-term-uuid') || '') : '',
-              insertAfterUuid: baseRow.getAttribute('data-term-uuid') || ''
+              insertAfterUuid: placement === 'after' ? (baseRow.getAttribute('data-term-uuid') || '') : '',
+              insertBeforeUuid: placement === 'before' ? (baseRow.getAttribute('data-term-uuid') || '') : ''
             });
 
-            baseTerm.insertAdjacentElement('afterend', draftTerm);
+            baseTerm.insertAdjacentElement(placement === 'before' ? 'beforebegin' : 'afterend', draftTerm);
             bindRow(directRow(draftTerm));
             if (!restoringDrafts) {
               selectRow(directRow(draftTerm));
@@ -7550,7 +7944,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             return directRow(draftTerm);
           }
 
-          function addDraftChild(baseRow) {
+          function addDraftChild(baseRow, placement) {
             var baseTerm = baseRow ? baseRow.closest('.cfm-core-terms-editor-term') : null;
             var details = ensureTermCanHaveChildren(baseTerm);
             var children = details ? details.querySelector(':scope > .cfm-core-terms-editor-children') : null;
@@ -7559,13 +7953,19 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
               return null;
             }
 
+            placement = placement === 'prepend' ? 'prepend' : 'append';
             var draftTerm = createDraftTerm(depthForTerm(baseTerm) + 1, {
-              mode: 'add_child',
+              mode: placement === 'prepend' ? 'add_child_prepend' : 'add_child_append',
               parentUuid: baseRow.getAttribute('data-term-uuid') || '',
               insertAfterUuid: ''
             });
 
-            children.appendChild(draftTerm);
+            if (placement === 'prepend') {
+              children.insertBefore(draftTerm, children.firstElementChild);
+            } else {
+              children.appendChild(draftTerm);
+            }
+
             bindRow(directRow(draftTerm));
             if (!restoringDrafts) {
               selectRow(directRow(draftTerm));
@@ -7606,7 +8006,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
               return;
             }
 
-            if (!window.confirm('Archive the branch "' + (label || 'this Core Term') + '" from the active tree? You can undo immediately after archiving.')) {
+            if (!window.confirm('Archive "' + (label || 'this Core Term') + '" and its child terms?\n\nThis removes the branch from the active Core Terms tree. Jobs, themes, or other plugins that rely on this term may stop showing it as an available option.\n\nYou can restore it immediately using Undo Archive.')) {
               return;
             }
 
@@ -7682,22 +8082,38 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             var mode = values.insert_mode || '';
             var baseRow = null;
 
-            if (mode === 'insert_sibling') {
+            if (mode === 'insert_sibling' || mode === 'insert_sibling_after') {
               baseRow = rowByUuid(values.insert_after_uuid || '');
 
               if (!baseRow) {
                 return null;
               }
 
-              return addDraftSibling(baseRow);
-            } else if (mode === 'add_child') {
+              return addDraftSibling(baseRow, 'after');
+            } else if (mode === 'insert_sibling_before') {
+              baseRow = rowByUuid(values.insert_before_uuid || '');
+
+              if (!baseRow) {
+                return null;
+              }
+
+              return addDraftSibling(baseRow, 'before');
+            } else if (mode === 'add_child' || mode === 'add_child_append') {
               baseRow = rowByUuid(values.parent_uuid || '');
 
               if (!baseRow) {
                 return null;
               }
 
-              return addDraftChild(baseRow);
+              return addDraftChild(baseRow, 'append');
+            } else if (mode === 'add_child_prepend') {
+              baseRow = rowByUuid(values.parent_uuid || '');
+
+              if (!baseRow) {
+                return null;
+              }
+
+              return addDraftChild(baseRow, 'prepend');
             } else {
               return null;
             }
@@ -7924,22 +8340,78 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
                 rowSaveRequested = row;
                 submitForm();
+              } else if (event.target.closest('.cfm-core-terms-editor-insert-sibling-before')) {
+                event.preventDefault();
+                event.stopPropagation();
+                closeActionMenus();
+                addDraftSibling(row, 'before');
+              } else if (event.target.closest('.cfm-core-terms-editor-insert-sibling-after')) {
+                event.preventDefault();
+                event.stopPropagation();
+                closeActionMenus();
+                addDraftSibling(row, 'after');
+              } else if (event.target.closest('.cfm-core-terms-editor-prepend-child')) {
+                event.preventDefault();
+                event.stopPropagation();
+                closeActionMenus();
+                addDraftChild(row, 'prepend');
+              } else if (event.target.closest('.cfm-core-terms-editor-append-child')) {
+                event.preventDefault();
+                event.stopPropagation();
+                closeActionMenus();
+                addDraftChild(row, 'append');
+              } else if (event.target.closest('.cfm-core-terms-editor-add-child-leaf')) {
+                event.preventDefault();
+                event.stopPropagation();
+                closeActionMenus();
+                addDraftChild(row, 'append');
               } else if (event.target.closest('.cfm-core-terms-editor-insert-sibling')) {
                 event.preventDefault();
                 event.stopPropagation();
-                addDraftSibling(row);
+                openActionMenu(row, 'sibling', true);
               } else if (event.target.closest('.cfm-core-terms-editor-add-child')) {
                 event.preventDefault();
                 event.stopPropagation();
-                addDraftChild(row);
+                openActionMenu(row, 'child', true);
               } else if (event.target.closest('.cfm-core-terms-editor-archive-branch')) {
                 event.preventDefault();
                 event.stopPropagation();
+                closeActionMenus();
                 archiveBranch(row);
               } else if (event.target.closest('.cfm-core-terms-editor-cancel-draft')) {
                 event.preventDefault();
                 event.stopPropagation();
+                closeActionMenus();
                 removeDraftRow(row);
+              }
+            });
+
+            form.addEventListener('pointerover', function(event) {
+              handleActionHover(event.target);
+            });
+
+            form.addEventListener('pointerout', function(event) {
+              if (!activeActionState || !isInsideActiveActionRegion(event.target)) {
+                return;
+              }
+
+              if (event.relatedTarget && isInsideActiveActionRegion(event.relatedTarget)) {
+                cancelActionMenuClose();
+                return;
+              }
+
+              scheduleActionMenuClose();
+            });
+
+            document.addEventListener('click', function(event) {
+              if (!event.target.closest('.cfm-core-terms-editor-actions')) {
+                closeActionMenus();
+              }
+            });
+
+            document.addEventListener('keydown', function(event) {
+              if (event.key === 'Escape') {
+                closeActionMenus();
               }
             });
           }
@@ -8033,6 +8505,10 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             row.setAttribute('data-cfm-bound', '1');
             row.addEventListener('click', function(event) {
               if (isCaretClick(event.target)) {
+                return;
+              }
+
+              if (event.target.closest('.cfm-core-terms-editor-actions')) {
                 return;
               }
 
@@ -8241,10 +8717,22 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
     echo '<span class="cfm-core-terms-editor-actions">';
     echo '<button type="button" class="button button-small cfm-core-terms-editor-row-save" hidden>Save Row</button>';
-    echo '<button type="button" class="button button-small cfm-core-terms-editor-row-action cfm-core-terms-editor-insert-sibling">Insert Sibling</button>';
-    echo '<button type="button" class="button button-small cfm-core-terms-editor-row-action cfm-core-terms-editor-add-child">Add Child</button>';
-    echo '<button type="button" class="button button-small cfm-core-terms-editor-row-action cfm-core-terms-editor-archive-branch">Archive Branch</button>';
-    echo '<button type="button" class="button button-small cfm-core-terms-editor-row-action cfm-core-terms-editor-cancel-draft">Cancel</button>';
+    echo '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-insert-sibling" aria-label="Insert sibling" aria-haspopup="menu" aria-expanded="false" data-cfm-action-menu-trigger="sibling"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M5 6h7"></path><path d="M5 14h7"></path><path d="M15 10v6"></path><path d="M12 13h6"></path></svg></button>';
+    echo '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-add-child" aria-label="Add child" aria-haspopup="menu" aria-expanded="false" data-cfm-action-menu-trigger="child"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M5 4v10h6"></path><path d="M8 14h6"></path><path d="M15 11v6"></path><path d="M12 14h6"></path></svg></button>';
+    echo '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-archive-branch" aria-label="Archive branch" aria-haspopup="true" aria-expanded="false" data-cfm-action-menu-trigger="archive"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M4 6h12"></path><path d="M6 6v10h8V6"></path><path d="M8 4h4l1 2H7l1-2z"></path><path d="M8 10h4"></path></svg></button>';
+    echo '<span class="cfm-core-terms-editor-action-menu cfm-core-terms-editor-sibling-menu" role="menu" data-cfm-action-menu="sibling" hidden>';
+    echo '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-insert-sibling-before" role="menuitem">Insert sibling before</button>';
+    echo '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-insert-sibling-after" role="menuitem">Insert sibling after</button>';
+    echo '</span>';
+    echo '<span class="cfm-core-terms-editor-action-menu cfm-core-terms-editor-child-menu" role="menu" data-cfm-action-menu="child" hidden>';
+    echo '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-add-child-leaf" role="menuitem">Add child</button>';
+    echo '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-prepend-child" role="menuitem">Prepend child</button>';
+    echo '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-append-child" role="menuitem">Append child</button>';
+    echo '</span>';
+    echo '<span class="cfm-core-terms-editor-action-menu cfm-core-terms-editor-archive-menu" role="tooltip" data-cfm-action-menu="archive" hidden>';
+    echo '<span class="cfm-core-terms-editor-action-menu-label">Archive branch</span>';
+    echo '</span>';
+    echo '<button type="button" class="button button-small cfm-core-terms-editor-cancel-draft">Cancel</button>';
     echo '<span class="cfm-core-terms-editor-status" aria-live="polite">Unsaved</span>';
     echo '</span>';
     echo '</' . esc_attr($container_tag) . '>';
