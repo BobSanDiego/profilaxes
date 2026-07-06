@@ -772,7 +772,7 @@ class CFM_Admin
           'uuid' => wp_generate_uuid4(),
           'label' => $label,
           'slug' => $slug,
-          'short_label' => $label,
+          'short_label' => self::normalize_short_label($label),
           'kind' => 'term',
           'description' => self::default_community_for_label($label),
           'children' => [],
@@ -1796,7 +1796,7 @@ class CFM_Admin
 
       $label = sanitize_text_field((string) ($raw_change['label'] ?? ''));
       $slug = self::normalize_slug((string) ($raw_change['slug'] ?? ''));
-      $short_label = sanitize_text_field((string) ($raw_change['short_label'] ?? ''));
+      $short_label = self::normalize_short_label(sanitize_text_field((string) ($raw_change['short_label'] ?? '')));
       $description = sanitize_text_field((string) ($raw_change['description'] ?? ''));
 
       if ($label === '') {
@@ -1862,7 +1862,7 @@ class CFM_Admin
   {
     $label = sanitize_text_field((string) ($raw_change['label'] ?? ''));
     $slug = self::normalize_slug((string) ($raw_change['slug'] ?? ''));
-    $short_label = sanitize_text_field((string) ($raw_change['short_label'] ?? ''));
+    $short_label = self::normalize_short_label(sanitize_text_field((string) ($raw_change['short_label'] ?? '')));
     $description = sanitize_text_field((string) ($raw_change['description'] ?? ''));
 
     if ($label === '' && $slug === '' && $short_label === '' && $description === '') {
@@ -2700,6 +2700,14 @@ class CFM_Admin
     $value = trim((string) $value, '-');
 
     return $value;
+  }
+
+  private static function normalize_short_label(string $value): string
+  {
+    $value = sanitize_text_field($value);
+    $value = preg_replace('/\s*\/\s*/', '/', $value);
+
+    return trim((string) $value);
   }
 
   private static function default_community_for_label(string $label): string
@@ -6507,6 +6515,10 @@ class CFM_Admin
           return value + ' Teachers';
         };
 
+        var normalizeShortLabel = function(value) {
+          return String(value || '').replace(/\s*\/\s*/g, '/').trim();
+        };
+
         var fillTarget = function(labelInput, target, detached) {
           if (detached[target.name]) {
             return;
@@ -6517,7 +6529,7 @@ class CFM_Admin
             ? normalizeSlug(labelInput.value)
             : (target.name === 'term_description' || target.name === 'meta_group_description')
               ? defaultCommunity(labelInput.value)
-              : labelInput.value;
+              : normalizeShortLabel(labelInput.value);
         };
 
         var wireGroup = function(groupName) {
@@ -8579,6 +8591,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           var rootParentUuid = '';
           var frameworkId = '';
           var orderRevisions = {};
+          var pendingScrollRestore = null;
           var dragState = null;
           var branchDragState = null;
           var branchAutoExpandTimer = null;
@@ -8614,12 +8627,16 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
               .replace(/^-|-$/g, '');
           }
 
+          function normalizeShortLabel(value) {
+            return String(value || '').replace(/\s*\/\s*/g, '/').trim();
+          }
+
           function rowValues(row) {
             var values = {
               uuid: row.getAttribute('data-term-uuid') || '',
               label: inputValue(row, '.cfm-core-terms-editor-input-label'),
               slug: normalizeSlug(inputValue(row, '.cfm-core-terms-editor-input-slug')),
-              short_label: inputValue(row, '.cfm-core-terms-editor-input-short-label'),
+              short_label: normalizeShortLabel(inputValue(row, '.cfm-core-terms-editor-input-short-label')),
               description: inputValue(row, '.cfm-core-terms-editor-input-community')
             };
 
@@ -9713,7 +9730,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           function applyRowValues(row, values) {
             setInputValue(row, '.cfm-core-terms-editor-input-label', values.label || '');
             setInputValue(row, '.cfm-core-terms-editor-input-slug', normalizeSlug(values.slug || ''));
-            setInputValue(row, '.cfm-core-terms-editor-input-short-label', values.short_label || '');
+            setInputValue(row, '.cfm-core-terms-editor-input-short-label', normalizeShortLabel(values.short_label || ''));
             setInputValue(row, '.cfm-core-terms-editor-input-community', values.description || '');
             syncRowDisplay(row);
           }
@@ -9768,11 +9785,11 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
               '</span>' +
               '<span class="cfm-core-terms-editor-actions">' +
                 '<button type="button" class="button button-small cfm-core-terms-editor-row-save" hidden>Save Row</button>' +
-                '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-move-up" aria-label="Move up"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M10 5l-5 5"></path><path d="M10 5l5 5"></path><path d="M10 5v10"></path></svg></button>' +
-                '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-move-down" aria-label="Move down"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M10 15l-5-5"></path><path d="M10 15l5-5"></path><path d="M10 5v10"></path></svg></button>' +
+                '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-move-up" aria-label="Move up" aria-haspopup="menu" aria-expanded="false" data-cfm-action-menu-trigger="move-up"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M10 5l-5 5"></path><path d="M10 5l5 5"></path><path d="M10 5v10"></path></svg></button>' +
+                '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-move-down" aria-label="Move down" aria-haspopup="menu" aria-expanded="false" data-cfm-action-menu-trigger="move-down"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M10 15l-5-5"></path><path d="M10 15l5-5"></path><path d="M10 5v10"></path></svg></button>' +
                 '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-insert-sibling" aria-label="Insert sibling" aria-haspopup="menu" aria-expanded="false" data-cfm-action-menu-trigger="sibling"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M5 6h7"></path><path d="M5 14h7"></path><path d="M15 10v6"></path><path d="M12 13h6"></path></svg></button>' +
                 '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-add-child" aria-label="Add child" aria-haspopup="menu" aria-expanded="false" data-cfm-action-menu-trigger="child"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M5 4v10h6"></path><path d="M8 14h6"></path><path d="M15 11v6"></path><path d="M12 14h6"></path></svg></button>' +
-                '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-move-branch" aria-label="Move branch"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M5 10h10"></path><path d="M11 6l4 4-4 4"></path><path d="M5 5v10"></path></svg></button>' +
+                '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-move-branch" aria-label="Move branch" aria-haspopup="menu" aria-expanded="false" data-cfm-action-menu-trigger="move-branch"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M5 10h10"></path><path d="M11 6l4 4-4 4"></path><path d="M5 5v10"></path></svg></button>' +
                 '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-archive-branch" aria-label="Archive branch" aria-haspopup="true" aria-expanded="false" data-cfm-action-menu-trigger="archive"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M4 6h12"></path><path d="M6 6v10h8V6"></path><path d="M8 4h4l1 2H7l1-2z"></path><path d="M8 10h4"></path></svg></button>' +
                 '<span class="cfm-core-terms-editor-action-menu cfm-core-terms-editor-sibling-menu" role="menu" data-cfm-action-menu="sibling" hidden>' +
                   '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-insert-sibling-before" role="menuitem">Insert sibling before</button>' +
@@ -9782,6 +9799,15 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
                   '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-add-child-leaf" role="menuitem">Add child</button>' +
                   '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-prepend-child" role="menuitem">Prepend child</button>' +
                   '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-append-child" role="menuitem">Append child</button>' +
+                '</span>' +
+                '<span class="cfm-core-terms-editor-action-menu cfm-core-terms-editor-move-up-menu" role="menu" data-cfm-action-menu="move-up" hidden>' +
+                  '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-move-up-menu-action" role="menuitem">Move up</button>' +
+                '</span>' +
+                '<span class="cfm-core-terms-editor-action-menu cfm-core-terms-editor-move-down-menu" role="menu" data-cfm-action-menu="move-down" hidden>' +
+                  '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-move-down-menu-action" role="menuitem">Move down</button>' +
+                '</span>' +
+                '<span class="cfm-core-terms-editor-action-menu cfm-core-terms-editor-move-branch-menu" role="menu" data-cfm-action-menu="move-branch" hidden>' +
+                  '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-move-branch-menu-action" role="menuitem">Move branch</button>' +
                 '</span>' +
                 '<span class="cfm-core-terms-editor-action-menu cfm-core-terms-editor-archive-menu" role="menu" data-cfm-action-menu="archive" hidden>' +
                   '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-archive-menu-action" role="menuitem">Archive branch</button>' +
@@ -10079,6 +10105,8 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
             if (actionType === 'child') {
               configureChildActionMenu(row, menu);
+            } else {
+              configureSingleActionMenu(row, actionType, menu, trigger);
             }
 
             if (actionMenuCloseTimer) {
@@ -10168,6 +10196,17 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             }
           }
 
+          function configureSingleActionMenu(row, actionType, menu, trigger) {
+            var action = menu ? menu.querySelector('button') : null;
+
+            if (!action) {
+              return;
+            }
+
+            action.disabled = Boolean(trigger && trigger.disabled);
+            action.hidden = false;
+          }
+
           function handleActionHover(target) {
             if (isEditInteractionLocked()) {
               closeActionMenus();
@@ -10193,12 +10232,8 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
               return;
             }
 
-            if (actionType === 'sibling') {
-              openActionMenu(row, 'sibling', false);
-            } else if (actionType === 'child') {
-              openActionMenu(row, 'child', false);
-            } else if (actionType === 'archive') {
-              openActionMenu(row, 'archive', false);
+            if (actionType) {
+              openActionMenu(row, actionType, false);
             }
           }
 
@@ -10315,6 +10350,8 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             }
 
             if (saved) {
+              pendingScrollRestore = pending;
+
               if (pending.mode === 'all') {
                 drafts = {};
               } else if (Array.isArray(pending.uuids)) {
@@ -10334,6 +10371,33 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             }
 
             return drafts;
+          }
+
+          function restorePendingSavePosition() {
+            var pending = pendingScrollRestore;
+            pendingScrollRestore = null;
+
+            if (!pending) {
+              return;
+            }
+
+            var targetRow = null;
+
+            if (Array.isArray(pending.uuids)) {
+              pending.uuids.some(function(uuid) {
+                targetRow = rowByUuid(uuid);
+                return Boolean(targetRow);
+              });
+            }
+
+            if (targetRow && targetRow.scrollIntoView) {
+              targetRow.scrollIntoView({ block: 'center', inline: 'nearest' });
+              return;
+            }
+
+            if (typeof pending.scrollY === 'number') {
+              window.scrollTo(0, Math.max(0, pending.scrollY));
+            }
           }
 
           function restoreDraftState() {
@@ -10556,6 +10620,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             saveDraftState();
             writeStoredJson('pendingSave', {
               mode: mode,
+              scrollY: window.scrollY || window.pageYOffset || 0,
               uuids: rows.map(function(row) {
                 return row.getAttribute('data-term-uuid') || '';
               }).filter(Boolean)
@@ -10673,6 +10738,32 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
                 rowSaveRequested = row;
                 submitForm();
+              } else if (event.target.closest('.cfm-core-terms-editor-move-up-menu-action')) {
+                event.preventDefault();
+                event.stopPropagation();
+
+                if (event.target.closest('.cfm-core-terms-editor-move-up-menu-action').disabled) {
+                  return;
+                }
+
+                closeActionMenus();
+                moveRowWithinGroup(row, 'up');
+              } else if (event.target.closest('.cfm-core-terms-editor-move-down-menu-action')) {
+                event.preventDefault();
+                event.stopPropagation();
+
+                if (event.target.closest('.cfm-core-terms-editor-move-down-menu-action').disabled) {
+                  return;
+                }
+
+                closeActionMenus();
+                moveRowWithinGroup(row, 'down');
+              } else if (event.target.closest('.cfm-core-terms-editor-move-branch-menu-action')) {
+                event.preventDefault();
+                event.stopPropagation();
+                closeActionMenus();
+                invalidateUndoMove();
+                openMoveModal(row);
               } else if (event.target.closest('.cfm-core-terms-editor-move-up')) {
                 event.preventDefault();
                 event.stopPropagation();
@@ -10814,7 +10905,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             }
 
             if (row.getAttribute('data-draft-short-label-manual') !== '1') {
-              setInputValue(row, '.cfm-core-terms-editor-input-short-label', label);
+              setInputValue(row, '.cfm-core-terms-editor-input-short-label', normalizeShortLabel(label));
             }
 
             if (row.getAttribute('data-draft-community-manual') !== '1') {
@@ -11017,6 +11108,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             bindInteractions();
             bindForm();
             restoreDraftState();
+            restorePendingSavePosition();
             updateAllRowSaveVisibility();
             updateToolbar();
             updateReorderControls();
@@ -11165,11 +11257,11 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
     echo '<span class="cfm-core-terms-editor-actions">';
     echo '<button type="button" class="button button-small cfm-core-terms-editor-row-save" hidden>Save Row</button>';
-    echo '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-move-up" aria-label="Move up"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M10 5l-5 5"></path><path d="M10 5l5 5"></path><path d="M10 5v10"></path></svg></button>';
-    echo '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-move-down" aria-label="Move down"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M10 15l-5-5"></path><path d="M10 15l5-5"></path><path d="M10 5v10"></path></svg></button>';
+    echo '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-move-up" aria-label="Move up" aria-haspopup="menu" aria-expanded="false" data-cfm-action-menu-trigger="move-up"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M10 5l-5 5"></path><path d="M10 5l5 5"></path><path d="M10 5v10"></path></svg></button>';
+    echo '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-move-down" aria-label="Move down" aria-haspopup="menu" aria-expanded="false" data-cfm-action-menu-trigger="move-down"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M10 15l-5-5"></path><path d="M10 15l5-5"></path><path d="M10 5v10"></path></svg></button>';
     echo '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-insert-sibling" aria-label="Insert sibling" aria-haspopup="menu" aria-expanded="false" data-cfm-action-menu-trigger="sibling"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M5 6h7"></path><path d="M5 14h7"></path><path d="M15 10v6"></path><path d="M12 13h6"></path></svg></button>';
     echo '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-add-child" aria-label="Add child" aria-haspopup="menu" aria-expanded="false" data-cfm-action-menu-trigger="child"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M5 4v10h6"></path><path d="M8 14h6"></path><path d="M15 11v6"></path><path d="M12 14h6"></path></svg></button>';
-    echo '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-move-branch" aria-label="Move branch"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M5 10h10"></path><path d="M11 6l4 4-4 4"></path><path d="M5 5v10"></path></svg></button>';
+    echo '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-move-branch" aria-label="Move branch" aria-haspopup="menu" aria-expanded="false" data-cfm-action-menu-trigger="move-branch"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M5 10h10"></path><path d="M11 6l4 4-4 4"></path><path d="M5 5v10"></path></svg></button>';
     echo '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-archive-branch" aria-label="Archive branch" aria-haspopup="true" aria-expanded="false" data-cfm-action-menu-trigger="archive"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M4 6h12"></path><path d="M6 6v10h8V6"></path><path d="M8 4h4l1 2H7l1-2z"></path><path d="M8 10h4"></path></svg></button>';
     echo '<span class="cfm-core-terms-editor-action-menu cfm-core-terms-editor-sibling-menu" role="menu" data-cfm-action-menu="sibling" hidden>';
     echo '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-insert-sibling-before" role="menuitem">Insert sibling before</button>';
@@ -11179,6 +11271,15 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
     echo '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-add-child-leaf" role="menuitem">Add child</button>';
     echo '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-prepend-child" role="menuitem">Prepend child</button>';
     echo '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-append-child" role="menuitem">Append child</button>';
+    echo '</span>';
+    echo '<span class="cfm-core-terms-editor-action-menu cfm-core-terms-editor-move-up-menu" role="menu" data-cfm-action-menu="move-up" hidden>';
+    echo '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-move-up-menu-action" role="menuitem">Move up</button>';
+    echo '</span>';
+    echo '<span class="cfm-core-terms-editor-action-menu cfm-core-terms-editor-move-down-menu" role="menu" data-cfm-action-menu="move-down" hidden>';
+    echo '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-move-down-menu-action" role="menuitem">Move down</button>';
+    echo '</span>';
+    echo '<span class="cfm-core-terms-editor-action-menu cfm-core-terms-editor-move-branch-menu" role="menu" data-cfm-action-menu="move-branch" hidden>';
+    echo '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-move-branch-menu-action" role="menuitem">Move branch</button>';
     echo '</span>';
     echo '<span class="cfm-core-terms-editor-action-menu cfm-core-terms-editor-archive-menu" role="menu" data-cfm-action-menu="archive" hidden>';
     echo '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-archive-menu-action" role="menuitem">Archive branch</button>';
