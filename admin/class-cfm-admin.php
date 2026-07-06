@@ -8370,12 +8370,6 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           display: none;
         }
 
-        .cfm-core-terms-editor-status-rail .button-link {
-          line-height: 1.4;
-          min-height: 0;
-          padding: 0;
-        }
-
         .cfm-core-terms-editor-status-separator {
           color: #8c8f94;
         }
@@ -8489,7 +8483,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             <span class="cfm-core-terms-editor-move-notice" role="status" aria-live="polite" hidden>
               <span>Branch moved</span>
               <span aria-hidden="true">·</span>
-              <button type="button" class="button button-link cfm-core-terms-editor-undo-move">Undo</button>
+              <a href="#" class="cfm-core-terms-editor-undo-move">Undo</a>
             </span>
           </div>
           <p class="cfm-core-terms-editor-reorder-status description" aria-live="polite"></p>
