@@ -9078,9 +9078,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           box-shadow: 0 0 0 2px #2271b1;
         }
 
-        .cfm-core-terms-editor-row:not(.is-draft):hover .cfm-core-terms-editor-row-action,
-        .cfm-core-terms-editor-row:not(.is-draft):focus-within .cfm-core-terms-editor-row-action,
-        .cfm-core-terms-editor-row.is-selected:not(.is-draft) .cfm-core-terms-editor-row-action {
+        .cfm-core-terms-editor-row:not(.is-draft):hover .cfm-core-terms-editor-row-action {
           opacity: 1;
           pointer-events: auto;
           visibility: visible;
@@ -10965,6 +10963,8 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
               activeActionState = {
                 uuid: uuid,
                 actionType: actionType,
+                row: row,
+                actions: actions,
                 trigger: trigger,
                 menu: menu
               };
@@ -11005,6 +11005,8 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             return Boolean(
               activeActionState &&
               (
+                activeActionState.row.contains(target) ||
+                activeActionState.actions.contains(target) ||
                 activeActionState.trigger.contains(target) ||
                 activeActionState.menu.contains(target)
               )
