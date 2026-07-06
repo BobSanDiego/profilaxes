@@ -360,7 +360,7 @@ class CFM_Admin
     }
 
     if (empty($_FILES['taxonomy_import_file']) || !is_array($_FILES['taxonomy_import_file'])) {
-      wp_safe_redirect(self::edit_url($framework_id) . '&cfm_error=missing_import_file#cfm-import');
+      wp_safe_redirect(self::data_url($framework_id) . '&cfm_error=missing_import_file#cfm-import');
       exit;
     }
 
@@ -368,7 +368,7 @@ class CFM_Admin
     $upload_error = isset($file['error']) ? (int) $file['error'] : UPLOAD_ERR_NO_FILE;
 
     if ($upload_error !== UPLOAD_ERR_OK) {
-      wp_safe_redirect(self::edit_url($framework_id) . '&cfm_error=import_upload_failed#cfm-import');
+      wp_safe_redirect(self::data_url($framework_id) . '&cfm_error=import_upload_failed#cfm-import');
       exit;
     }
 
@@ -376,26 +376,26 @@ class CFM_Admin
     $size = isset($file['size']) ? (int) $file['size'] : 0;
 
     if ($tmp_name === '' || !is_uploaded_file($tmp_name) || $size <= 0) {
-      wp_safe_redirect(self::edit_url($framework_id) . '&cfm_error=missing_import_file#cfm-import');
+      wp_safe_redirect(self::data_url($framework_id) . '&cfm_error=missing_import_file#cfm-import');
       exit;
     }
 
     if ($size > 2 * 1024 * 1024) {
-      wp_safe_redirect(self::edit_url($framework_id) . '&cfm_error=import_file_too_large#cfm-import');
+      wp_safe_redirect(self::data_url($framework_id) . '&cfm_error=import_file_too_large#cfm-import');
       exit;
     }
 
     $raw_json = file_get_contents($tmp_name);
 
     if (!is_string($raw_json) || trim($raw_json) === '') {
-      wp_safe_redirect(self::edit_url($framework_id) . '&cfm_error=import_file_empty#cfm-import');
+      wp_safe_redirect(self::data_url($framework_id) . '&cfm_error=import_file_empty#cfm-import');
       exit;
     }
 
     $decoded = json_decode($raw_json, true);
 
     if (!is_array($decoded)) {
-      wp_safe_redirect(self::edit_url($framework_id) . '&cfm_error=import_invalid_json#cfm-import');
+      wp_safe_redirect(self::data_url($framework_id) . '&cfm_error=import_invalid_json#cfm-import');
       exit;
     }
 
@@ -405,7 +405,7 @@ class CFM_Admin
     $preview = self::build_taxonomy_import_preview($decoded, $current_tree);
     set_transient(self::import_preview_transient_key($framework_id), $preview, 10 * MINUTE_IN_SECONDS);
 
-    wp_safe_redirect(self::edit_url($framework_id) . '&cfm_import_preview=1#cfm-import-preview');
+    wp_safe_redirect(self::data_url($framework_id) . '&cfm_import_preview=1#cfm-import-preview');
     exit;
   }
 
@@ -434,14 +434,14 @@ class CFM_Admin
     $confirmed = !empty($_POST['confirm_replace_taxonomy']) && (string) $_POST['confirm_replace_taxonomy'] === '1';
 
     if (!$confirmed) {
-      wp_safe_redirect(self::edit_url($framework_id) . '&cfm_error=import_replace_not_confirmed#cfm-import');
+      wp_safe_redirect(self::data_url($framework_id) . '&cfm_error=import_replace_not_confirmed#cfm-import');
       exit;
     }
 
     $preview = get_transient(self::import_preview_transient_key($framework_id));
 
     if (!is_array($preview) || empty($preview['is_valid']) || empty($preview['tree']) || !is_array($preview['tree'])) {
-      wp_safe_redirect(self::edit_url($framework_id) . '&cfm_error=import_preview_expired#cfm-import');
+      wp_safe_redirect(self::data_url($framework_id) . '&cfm_error=import_preview_expired#cfm-import');
       exit;
     }
 
@@ -454,7 +454,7 @@ class CFM_Admin
     $current_snapshot_id = CFM_Framework_Repository::create_version($framework_id, $current_tree, 'pre_import_snapshot');
 
     if ($current_snapshot_id <= 0) {
-      wp_safe_redirect(self::edit_url($framework_id) . '&cfm_error=import_snapshot_failed#cfm-import');
+      wp_safe_redirect(self::data_url($framework_id) . '&cfm_error=import_snapshot_failed#cfm-import');
       exit;
     }
 
@@ -463,12 +463,12 @@ class CFM_Admin
     delete_transient(self::import_preview_transient_key($framework_id));
 
     if (empty($compile_result['success'])) {
-      wp_safe_redirect(self::edit_url($framework_id) . '&cfm_error=import_compile_failed' . $compile_result['query_arg'] . '#cfm-import');
+      wp_safe_redirect(self::data_url($framework_id) . '&cfm_error=import_compile_failed' . $compile_result['query_arg'] . '#cfm-import');
       exit;
     }
 
     wp_safe_redirect(
-      self::edit_url($framework_id)
+      self::data_url($framework_id)
         . '&cfm_import_replaced=1'
         . '&cfm_import_snapshot_id=' . (int) $current_snapshot_id
         . $compile_result['query_arg']
@@ -553,13 +553,9 @@ class CFM_Admin
 
     if ($framework_id <= 0 || !class_exists('CFM_Seeder') || !CFM_Seeder::is_valid_pack($pack)) {
       wp_safe_redirect(
-        admin_url(
-          'admin.php?page=cfm-frameworks'
-            . '&action=edit'
-            . '&framework_id=' . $framework_id
+        self::data_url($framework_id)
             . '&cfm_error=invalid_example_pack'
             . '#cfm-example-packs'
-        )
       );
       exit;
     }
@@ -585,16 +581,12 @@ class CFM_Admin
     }
 
     wp_safe_redirect(
-      admin_url(
-        'admin.php?page=cfm-frameworks'
-          . '&action=edit'
-          . '&framework_id=' . $framework_id
+      self::data_url($framework_id)
           . '&cfm_example_pack_installed=' . rawurlencode($pack)
           . '&cfm_example_created=' . $created
           . '&cfm_example_skipped=' . $skipped
           . ($compile_result['query_arg'] ?? '')
           . '#cfm-example-packs'
-      )
     );
     exit;
   }
@@ -917,15 +909,11 @@ class CFM_Admin
     ], 5 * MINUTE_IN_SECONDS);
 
     wp_safe_redirect(
-      admin_url(
-        'admin.php?page=cfm-frameworks'
-          . '&action=edit'
-          . '&framework_id=' . $framework_id
+      self::data_url($framework_id)
           . '&cfm_terms_batch_added=1'
           . '&cfm_parent_uuid=' . rawurlencode($is_top_level ? '__top_level__' : $parent_uuid)
           . $compile_result['query_arg']
           . '#cfm-batch-added'
-      )
     );
     exit;
   }
@@ -3920,14 +3908,10 @@ class CFM_Admin
     $compile_result = self::save_active_tree_and_compile((int) $framework->id, $tree);
 
     wp_safe_redirect(
-      admin_url(
-        'admin.php?page=cfm-frameworks'
-          . '&action=edit'
-          . '&framework_id=' . (int) $framework->id
+      self::data_url((int) $framework->id)
           . '&cfm_recovery_snapshot_restored=1'
           . '&cfm_pre_restore_snapshot_id=' . (int) $pre_restore_snapshot_id
           . $compile_result['query_arg']
-      )
     );
     exit;
   }
@@ -4503,7 +4487,7 @@ class CFM_Admin
     }
 
     if ($action === 'data') {
-      self::render_data_placeholder_page();
+      self::render_data_page();
       return;
     }
 
@@ -4719,14 +4703,10 @@ class CFM_Admin
     }
 
     wp_safe_redirect(
-      admin_url(
-        'admin.php?page=cfm-frameworks'
-          . '&action=edit'
-          . '&framework_id=' . $framework_id
+      self::data_url($framework_id)
           . '&cfm_batch_error=1'
           . '&cfm_parent_uuid=' . rawurlencode($parent_uuid)
-          . '#cfm-add-term'
-      )
+          . '#cfm-quick-add'
     );
     exit;
   }
@@ -5424,6 +5404,17 @@ class CFM_Admin
     return $url;
   }
 
+  private static function data_url(int $framework_id = 0): string
+  {
+    $url = admin_url('admin.php?page=cfm-frameworks&action=data');
+
+    if ($framework_id > 0) {
+      $url = add_query_arg('framework_id', $framework_id, $url);
+    }
+
+    return $url;
+  }
+
   private static function versions_url(int $framework_id, int $paged = 1): string
   {
     $url = admin_url(
@@ -5559,28 +5550,451 @@ class CFM_Admin
   <?php
   }
 
-  public static function render_data_placeholder_page(): void
+  public static function render_data_page(): void
   {
-    $framework = self::primary_framework_for_admin();
-    $links = [];
-
-    if ($framework) {
-      $legacy_url = self::edit_url((int) $framework->id);
-      $links[] = [
-        'label' => 'Open Legacy Data Sections',
-        'url' => $legacy_url . '#cfm-import',
-      ];
-      $links[] = [
-        'label' => 'Version History',
-        'url' => self::versions_url((int) $framework->id),
-      ];
+    if (!current_user_can('manage_options')) {
+      wp_die('You do not have permission to access this page.');
     }
 
-    self::render_admin_placeholder_page(
-      'Core Terms Data',
-      'Import, export, quick add, version history, snapshots, restore, and example packs will move here in a later ticket. Existing data tools remain available on the legacy Core Terms page.',
-      $links
-    );
+    $framework_id = isset($_GET['framework_id'])
+      ? absint($_GET['framework_id'])
+      : 0;
+
+    $framework = $framework_id > 0
+      ? CFM_Framework_Repository::get_framework($framework_id)
+      : self::primary_framework_for_admin();
+
+    if (!$framework) {
+      self::render_admin_placeholder_page(
+        'Core Terms Data',
+        'Create the primary Core Terms definition before using import, export, quick add, examples, or version history tools.',
+        [
+          [
+            'label' => 'Open Dashboard',
+            'url' => admin_url('admin.php?page=cfm-frameworks'),
+          ],
+        ]
+      );
+      return;
+    }
+
+    $framework_id = (int) $framework->id;
+    $tree = self::get_framework_tree($framework);
+    $axes = self::root_terms($tree);
+
+    $import_preview = null;
+
+    if (isset($_GET['cfm_import_preview'])) {
+      $maybe_preview = get_transient(self::import_preview_transient_key($framework_id));
+
+      if (is_array($maybe_preview)) {
+        $import_preview = $maybe_preview;
+      }
+    }
+
+    $batch_added_terms = null;
+
+    if (isset($_GET['cfm_terms_batch_added'])) {
+      $maybe_batch_added_terms = get_transient(self::batch_added_terms_transient_key($framework_id));
+
+      if (is_array($maybe_batch_added_terms)) {
+        $batch_added_terms = $maybe_batch_added_terms;
+        delete_transient(self::batch_added_terms_transient_key($framework_id));
+      }
+    }
+
+    $batch_error = null;
+
+    if (isset($_GET['cfm_batch_error'])) {
+      $maybe_batch_error = get_transient(self::batch_error_transient_key($framework_id));
+
+      if (is_array($maybe_batch_error)) {
+        $batch_error = $maybe_batch_error;
+        delete_transient(self::batch_error_transient_key($framework_id));
+      }
+    }
+
+    $version_count = CFM_Framework_Repository::count_versions($framework_id);
+    $recent_versions = CFM_Framework_Repository::get_versions($framework_id, 3, 0);
+    $selected_parent_uuid = sanitize_text_field(wp_unslash($_GET['cfm_parent_uuid'] ?? '__top_level__'));
+
+  ?>
+    <div class="wrap">
+      <h1>Core Terms Data</h1>
+
+      <p>
+        <a class="button button-secondary" href="<?php echo esc_url(self::editor_url($framework_id)); ?>">Core Terms Editor</a>
+        <a class="button button-secondary" href="<?php echo esc_url(self::edit_url($framework_id)); ?>">Legacy Maintenance View</a>
+      </p>
+
+      <?php if (is_array($batch_error)) : ?>
+        <style>
+          .cfm-modal-overlay {
+            align-items: center;
+            background: rgba(0, 0, 0, 0.45);
+            bottom: 0;
+            display: flex;
+            justify-content: center;
+            left: 0;
+            position: fixed;
+            right: 0;
+            top: 0;
+            z-index: 100000;
+          }
+
+          .cfm-modal-card {
+            background: #fff;
+            border-radius: 4px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+            max-width: 520px;
+            padding: 24px;
+            width: calc(100% - 48px);
+          }
+
+          .cfm-modal-card h2 {
+            margin-top: 0;
+          }
+        </style>
+        <div id="cfm-batch-error-modal" class="cfm-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="cfm-batch-error-title">
+          <div class="cfm-modal-card">
+            <h2 id="cfm-batch-error-title">Unable to add terms</h2>
+            <p><?php echo esc_html((string) ($batch_error['message'] ?? 'No terms were added.')); ?></p>
+            <p><strong>No terms were added.</strong></p>
+            <p>Review the batch and submit again.</p>
+            <p>
+              <button type="button" class="button button-primary" id="cfm-batch-error-review">Review Batch</button>
+            </p>
+          </div>
+        </div>
+      <?php endif; ?>
+
+      <?php if (is_array($batch_added_terms)) : ?>
+        <?php
+        $batch_created_count = isset($batch_added_terms['created_count'])
+          ? absint($batch_added_terms['created_count'])
+          : count((array) ($batch_added_terms['terms'] ?? []));
+        $batch_skipped_existing_count = absint($batch_added_terms['skipped_existing_count'] ?? 0);
+        $batch_errors_count = absint($batch_added_terms['errors_count'] ?? 0);
+        $batch_skipped_existing = isset($batch_added_terms['skipped_existing']) && is_array($batch_added_terms['skipped_existing'])
+          ? $batch_added_terms['skipped_existing']
+          : [];
+        ?>
+        <div id="cfm-batch-added" class="notice notice-success is-dismissible">
+          <p>
+            <strong>Batch processed.</strong>
+            Created: <?php echo esc_html((string) $batch_created_count); ?>.
+            Skipped existing: <?php echo esc_html((string) $batch_skipped_existing_count); ?>.
+            Errors: <?php echo esc_html((string) $batch_errors_count); ?>.
+          </p>
+          <?php if (!empty($batch_skipped_existing)) : ?>
+            <p>
+              <strong>Skipped labels:</strong>
+              <?php
+              $skipped_labels = array_map(
+                static function ($term) {
+                  return is_array($term) ? (string) ($term['label'] ?? '') : '';
+                },
+                $batch_skipped_existing
+              );
+              echo esc_html(implode(', ', array_filter($skipped_labels)));
+              ?>
+            </p>
+          <?php endif; ?>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_example_pack_installed'])) : ?>
+        <?php
+        $example_pack = sanitize_key(wp_unslash($_GET['cfm_example_pack_installed']));
+        $example_pack_label = class_exists('CFM_Seeder') ? CFM_Seeder::get_pack_label($example_pack) : 'Example Terms';
+        $example_created = absint($_GET['cfm_example_created'] ?? 0);
+        $example_skipped = absint($_GET['cfm_example_skipped'] ?? 0);
+        ?>
+        <div class="notice notice-success is-dismissible">
+          <p>
+            <?php echo esc_html($example_pack_label); ?> checked.
+            Created: <strong><?php echo esc_html((string) $example_created); ?></strong>.
+            Skipped existing: <strong><?php echo esc_html((string) $example_skipped); ?></strong>.
+          </p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_import_replaced'])) : ?>
+        <div class="notice notice-success is-dismissible">
+          <p>
+            Terms imported as a replacement and runtime tables rebuilt.
+            A recovery snapshot was saved automatically before the import.
+            <?php if (!empty($_GET['cfm_import_snapshot_id'])) : ?>
+              <a href="<?php echo esc_url(self::version_snapshot_url($framework_id, absint($_GET['cfm_import_snapshot_id']))); ?>">View recovery snapshot</a>.
+            <?php endif; ?>
+          </p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_recovery_snapshot_restored'])) : ?>
+        <div class="notice notice-success is-dismissible">
+          <p>
+            Recovery snapshot restored and runtime tables rebuilt.
+            A pre-restore snapshot was saved automatically before the restore.
+            <?php if (!empty($_GET['cfm_pre_restore_snapshot_id'])) : ?>
+              <a href="<?php echo esc_url(self::version_snapshot_url($framework_id, absint($_GET['cfm_pre_restore_snapshot_id']))); ?>">View pre-restore snapshot</a>.
+            <?php endif; ?>
+          </p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'invalid_example_pack') : ?>
+        <div class="notice notice-error is-dismissible">
+          <p>Example term pack could not be installed. Choose a valid pack and try again.</p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_error']) && in_array($_GET['cfm_error'], ['missing_import_framework', 'missing_import_file', 'import_upload_failed', 'import_file_too_large', 'import_file_empty', 'import_invalid_json'], true)) : ?>
+        <div class="notice notice-error is-dismissible">
+          <p>Import preview could not be generated. Confirm you selected a valid Core Terms JSON export and try again.</p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_error']) && in_array($_GET['cfm_error'], ['import_replace_not_confirmed', 'import_preview_expired', 'import_snapshot_failed', 'import_compile_failed'], true)) : ?>
+        <div class="notice notice-error is-dismissible">
+          <p>Import replacement could not be completed. Preview the export again, confirm replacement, and retry. No replacement was completed if snapshot creation failed.</p>
+        </div>
+      <?php endif; ?>
+
+      <h2>History</h2>
+      <p class="description">
+        History records active taxonomy versions and automatic recovery snapshots, including snapshots created before replacement imports.
+      </p>
+
+      <p>
+        Current active version ID:
+        <strong><?php echo esc_html($framework->active_version_id ?: 'None'); ?></strong>
+        · Saved versions:
+        <strong><?php echo esc_html((string) $version_count); ?></strong>
+      </p>
+
+      <?php if (empty($recent_versions)) : ?>
+        <p>No versions saved yet.</p>
+      <?php else : ?>
+        <table class="widefat striped" style="max-width: 760px;">
+          <thead>
+            <tr>
+              <th>Recent Item</th>
+              <th>Status</th>
+              <th>Created</th>
+              <th>JSON Size</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php foreach ($recent_versions as $version_row) : ?>
+              <?php $is_active_version = ((int) $framework->active_version_id === (int) $version_row->id); ?>
+              <tr>
+                <td>
+                  <strong>v<?php echo esc_html((string) $version_row->version_number); ?></strong>
+                  <?php if ($is_active_version) : ?>
+                    <span style="color: #008a20; margin-left: 6px;">Current</span>
+                  <?php endif; ?>
+                </td>
+                <td>
+                  <?php if ((string) $version_row->status === 'pre_import_snapshot') : ?>
+                    Recovery snapshot
+                  <?php else : ?>
+                    <?php echo esc_html(ucwords(str_replace('_', ' ', (string) $version_row->status))); ?>
+                  <?php endif; ?>
+                </td>
+                <td><?php echo esc_html($version_row->created_at); ?></td>
+                <td><?php echo esc_html((string) strlen((string) $version_row->tree_json)); ?> bytes</td>
+                <td>
+                  <a href="<?php echo esc_url(self::version_snapshot_url($framework_id, (int) $version_row->id)); ?>">View</a>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      <?php endif; ?>
+
+      <p>
+        <a class="button" href="<?php echo esc_url(self::versions_url($framework_id)); ?>">
+          View Full History
+        </a>
+      </p>
+
+      <hr>
+
+      <h2>Export</h2>
+      <p class="description">
+        Download the canonical editable Core Terms definition tree as JSON. This export preserves UUIDs, hierarchy, order, archive state when present, and active version metadata. Runtime compiler tables are intentionally not exported because they can be rebuilt.
+      </p>
+      <p>
+        <a class="button" href="<?php echo esc_url(self::export_taxonomy_url($framework_id)); ?>">
+          Export Terms JSON
+        </a>
+      </p>
+
+      <hr>
+
+      <h2 id="cfm-import">Import</h2>
+      <p class="description">
+        Upload a Core Terms JSON export to validate it and preview what it contains. After a valid preview, you may import it as a full replacement. Replacement automatically saves the current tree as a recovery snapshot and rebuilds runtime tables.
+      </p>
+
+      <form method="post" enctype="multipart/form-data">
+        <?php wp_nonce_field('cfm_import_taxonomy_preview', 'cfm_nonce'); ?>
+        <input type="hidden" name="cfm_action" value="import_taxonomy_preview">
+        <input type="hidden" name="framework_id" value="<?php echo esc_attr((string) $framework_id); ?>">
+
+        <table class="form-table" role="presentation">
+          <tr>
+            <th scope="row">
+              <label for="taxonomy_import_file">Import Terms JSON</label>
+            </th>
+            <td>
+              <input name="taxonomy_import_file" id="taxonomy_import_file" type="file" accept="application/json,.json" required>
+              <p class="description">Preview only. No taxonomy rows, compiled rows, or user assignments are changed.</p>
+            </td>
+          </tr>
+        </table>
+
+        <?php submit_button('Preview Import', 'secondary', 'submit', false, ['id' => 'cfm-preview-import-button', 'disabled' => 'disabled']); ?>
+      </form>
+
+      <script>
+        (function() {
+          var fileInput = document.getElementById('taxonomy_import_file');
+          var previewButton = document.getElementById('cfm-preview-import-button');
+
+          if (!fileInput || !previewButton) {
+            return;
+          }
+
+          var refreshPreviewButton = function() {
+            previewButton.disabled = !fileInput.files || fileInput.files.length === 0;
+          };
+
+          fileInput.addEventListener('change', refreshPreviewButton);
+          refreshPreviewButton();
+        }());
+      </script>
+
+      <?php if (is_array($import_preview)) : ?>
+        <?php self::render_taxonomy_import_preview($import_preview); ?>
+      <?php endif; ?>
+
+      <hr>
+
+      <h2 id="cfm-example-packs">Example Term Packs</h2>
+      <p class="description">
+        Install optional starter location terms. Packs are additive and safe to rerun: existing sibling slugs are skipped, and existing UUIDs and assignments are preserved.
+      </p>
+
+      <?php if (class_exists('CFM_Seeder')) : ?>
+        <div style="display:flex; gap:12px; flex-wrap:wrap; max-width: 1000px;">
+          <div class="card" style="max-width: 420px;">
+            <h3>Geography - US States</h3>
+            <form method="post">
+              <?php wp_nonce_field('cfm_install_example_pack', 'cfm_nonce'); ?>
+              <input type="hidden" name="cfm_action" value="install_example_pack">
+              <input type="hidden" name="framework_id" value="<?php echo esc_attr((string) $framework_id); ?>">
+              <input type="hidden" name="example_pack" value="<?php echo esc_attr(CFM_Seeder::PACK_GEOGRAPHY_US_STATES); ?>">
+              <?php submit_button('Install US States', 'secondary', 'submit', false); ?>
+            </form>
+            <p>Creates <strong>Region -> United States</strong>, then adds the 50 states and District of Columbia beneath United States.</p>
+          </div>
+
+          <div class="card" style="max-width: 420px;">
+            <h3>Geography - Countries Lite</h3>
+            <form method="post">
+              <?php wp_nonce_field('cfm_install_example_pack', 'cfm_nonce'); ?>
+              <input type="hidden" name="cfm_action" value="install_example_pack">
+              <input type="hidden" name="framework_id" value="<?php echo esc_attr((string) $framework_id); ?>">
+              <input type="hidden" name="example_pack" value="<?php echo esc_attr(CFM_Seeder::PACK_GEOGRAPHY_COUNTRIES_LITE); ?>">
+              <?php submit_button('Install Countries Lite', 'secondary', 'submit', false); ?>
+            </form>
+            <p>Adds a small set of broadly useful country/global terms under <strong>Region</strong>. It does not replace or move United States or state terms.</p>
+          </div>
+        </div>
+      <?php else : ?>
+        <p>Example term packs are unavailable because the seeder class is not loaded.</p>
+      <?php endif; ?>
+
+      <hr>
+
+      <h2 id="cfm-quick-add">Quick Add / Bulk Add</h2>
+      <p class="description">Create multiple sibling terms at once. One term per line.</p>
+      <form method="post">
+        <?php wp_nonce_field('cfm_add_terms_batch', 'cfm_nonce'); ?>
+
+        <input type="hidden" name="cfm_action" value="add_terms_batch">
+        <input type="hidden" name="framework_id" value="<?php echo esc_attr((string) $framework_id); ?>">
+
+        <table class="form-table" role="presentation">
+          <tr>
+            <th scope="row">
+              <label for="batch_parent_uuid">Parent Term</label>
+            </th>
+            <td>
+              <select name="parent_uuid" id="batch_parent_uuid">
+                <option value="" <?php selected($selected_parent_uuid, '__top_level__'); ?>>Add as Top-Level Terms</option>
+                <?php self::render_parent_options($axes, $selected_parent_uuid); ?>
+              </select>
+              <p class="description">Leave unchanged to create top-level sibling terms, or select a parent to create child sibling terms under it.</p>
+            </td>
+          </tr>
+
+          <tr>
+            <th scope="row">
+              <label for="batch_term_labels">Term Labels</label>
+            </th>
+            <td>
+              <textarea name="batch_term_labels" id="batch_term_labels" class="large-text" rows="6" placeholder="Grade 4&#10;Grade 5&#10;Grade 6"><?php echo esc_textarea(is_array($batch_error) ? (string) ($batch_error['batch_input'] ?? '') : ''); ?></textarea>
+              <p class="description">One term label per line. Slug, short label, and Community are generated from each label. Existing sibling terms are skipped and reported.</p>
+            </td>
+          </tr>
+        </table>
+
+        <?php submit_button('Create Terms'); ?>
+      </form>
+
+      <?php if (is_array($batch_error)) : ?>
+        <script>
+          (function() {
+            var review = document.getElementById('cfm-batch-error-review');
+            var modal = document.getElementById('cfm-batch-error-modal');
+            var textarea = document.getElementById('batch_term_labels');
+
+            function returnToBatch() {
+              if (modal) {
+                modal.style.display = 'none';
+              }
+              if (textarea) {
+                textarea.focus();
+              }
+            }
+
+            if (review) {
+              review.addEventListener('click', returnToBatch);
+              review.focus();
+            }
+
+            if (modal) {
+              modal.addEventListener('click', function(event) {
+                if (event.target === modal) {
+                  returnToBatch();
+                }
+              });
+            }
+
+            document.addEventListener('keydown', function(event) {
+              if (event.key === 'Escape' && modal && modal.style.display !== 'none') {
+                returnToBatch();
+              }
+            });
+          })();
+        </script>
+      <?php endif; ?>
+    </div>
+  <?php
   }
 
   public static function render_meta_groups_placeholder_page(): void
@@ -5858,14 +6272,8 @@ class CFM_Admin
       <h1>Version History: <?php echo esc_html($framework->name); ?></h1>
 
       <p>
-        <a href="<?php echo esc_url(
-                    admin_url(
-                      'admin.php?page=cfm-frameworks'
-                        . '&action=edit'
-                        . '&framework_id=' . (int) $framework->id
-                    )
-                  ); ?>">
-          ← Back to Core Terms
+        <a href="<?php echo esc_url(self::data_url((int) $framework->id)); ?>">
+          ← Back to Core Terms Data
         </a>
       </p>
 
@@ -6339,13 +6747,7 @@ class CFM_Admin
       <p>
         <a href="<?php echo esc_url(self::versions_url((int) $framework->id)); ?>">← Back to Version History</a>
         ·
-        <a href="<?php echo esc_url(
-                    admin_url(
-                      'admin.php?page=cfm-frameworks'
-                        . '&action=edit'
-                        . '&framework_id=' . (int) $framework->id
-                    )
-                  ); ?>">Back to Core Terms</a>
+        <a href="<?php echo esc_url(self::data_url((int) $framework->id)); ?>">Back to Core Terms Data</a>
       </p>
 
       <table class="widefat striped" style="max-width: 900px;">
@@ -11501,86 +11903,14 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         . '#cfm-ordering'
     );
 
-    $import_preview = null;
-
-    if (isset($_GET['cfm_import_preview'])) {
-      $maybe_preview = get_transient(self::import_preview_transient_key($framework_id));
-
-      if (is_array($maybe_preview)) {
-        $import_preview = $maybe_preview;
-      }
-    }
-
-    $batch_added_terms = null;
-
-    if (isset($_GET['cfm_terms_batch_added'])) {
-      $maybe_batch_added_terms = get_transient(self::batch_added_terms_transient_key($framework_id));
-
-      if (is_array($maybe_batch_added_terms)) {
-        $batch_added_terms = $maybe_batch_added_terms;
-        delete_transient(self::batch_added_terms_transient_key($framework_id));
-      }
-    }
-
-    $batch_error = null;
-
-    if (isset($_GET['cfm_batch_error'])) {
-      $maybe_batch_error = get_transient(self::batch_error_transient_key($framework_id));
-
-      if (is_array($maybe_batch_error)) {
-        $batch_error = $maybe_batch_error;
-        delete_transient(self::batch_error_transient_key($framework_id));
-      }
-    }
-
   ?>
     <div class="wrap">
       <h1>Core Terms</h1>
       <p>
         <a class="button button-secondary" href="<?php echo esc_url(self::editor_url((int) $framework->id)); ?>">Core Terms Editor</a>
         <a class="button button-secondary" href="<?php echo esc_url(self::archived_terms_url((int) $framework->id)); ?>">Archived Terms</a>
+        <a class="button button-secondary" href="<?php echo esc_url(self::data_url((int) $framework->id)); ?>">Data</a>
       </p>
-
-      <?php if (is_array($batch_error)) : ?>
-        <style>
-          .cfm-modal-overlay {
-            align-items: center;
-            background: rgba(0, 0, 0, 0.45);
-            bottom: 0;
-            display: flex;
-            justify-content: center;
-            left: 0;
-            position: fixed;
-            right: 0;
-            top: 0;
-            z-index: 100000;
-          }
-
-          .cfm-modal-card {
-            background: #fff;
-            border-radius: 4px;
-            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
-            max-width: 520px;
-            padding: 24px;
-            width: calc(100% - 48px);
-          }
-
-          .cfm-modal-card h2 {
-            margin-top: 0;
-          }
-        </style>
-        <div id="cfm-batch-error-modal" class="cfm-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="cfm-batch-error-title">
-          <div class="cfm-modal-card">
-            <h2 id="cfm-batch-error-title">Unable to add terms</h2>
-            <p><?php echo esc_html((string) ($batch_error['message'] ?? 'No terms were added.')); ?></p>
-            <p><strong>No terms were added.</strong></p>
-            <p>Review the batch and submit again.</p>
-            <p>
-              <button type="button" class="button button-primary" id="cfm-batch-error-review">Review Batch</button>
-            </p>
-          </div>
-        </div>
-      <?php endif; ?>
 
       <?php if (isset($_GET['cfm_axis_added'])) : ?>
         <div class="notice notice-success is-dismissible">
@@ -11594,40 +11924,6 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         </div>
       <?php endif; ?>
 
-      <?php if (is_array($batch_added_terms)) : ?>
-        <?php
-        $batch_created_count = isset($batch_added_terms['created_count'])
-          ? absint($batch_added_terms['created_count'])
-          : count((array) ($batch_added_terms['terms'] ?? []));
-        $batch_skipped_existing_count = absint($batch_added_terms['skipped_existing_count'] ?? 0);
-        $batch_errors_count = absint($batch_added_terms['errors_count'] ?? 0);
-        $batch_skipped_existing = isset($batch_added_terms['skipped_existing']) && is_array($batch_added_terms['skipped_existing'])
-          ? $batch_added_terms['skipped_existing']
-          : [];
-        ?>
-        <div id="cfm-batch-added" class="notice notice-success is-dismissible">
-          <p>
-            <strong>Batch processed.</strong>
-            Created: <?php echo esc_html((string) $batch_created_count); ?>.
-            Skipped existing: <?php echo esc_html((string) $batch_skipped_existing_count); ?>.
-            Errors: <?php echo esc_html((string) $batch_errors_count); ?>.
-          </p>
-          <?php if (!empty($batch_skipped_existing)) : ?>
-            <p>
-              <strong>Skipped labels:</strong>
-              <?php
-              $skipped_labels = array_map(
-                static function ($term) {
-                  return is_array($term) ? (string) ($term['label'] ?? '') : '';
-                },
-                $batch_skipped_existing
-              );
-              echo esc_html(implode(', ', array_filter($skipped_labels)));
-              ?>
-            </p>
-          <?php endif; ?>
-        </div>
-      <?php endif; ?>
 
       <?php if (isset($_GET['cfm_meta_group_added'])) : ?>
         <div class="notice notice-success is-dismissible">
@@ -11689,33 +11985,6 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         </div>
       <?php endif; ?>
 
-      <?php if (isset($_GET['cfm_example_pack_installed'])) : ?>
-        <?php
-        $example_pack = sanitize_key(wp_unslash($_GET['cfm_example_pack_installed']));
-        $example_pack_label = class_exists('CFM_Seeder') ? CFM_Seeder::get_pack_label($example_pack) : 'Example Terms';
-        $example_created = absint($_GET['cfm_example_created'] ?? 0);
-        $example_skipped = absint($_GET['cfm_example_skipped'] ?? 0);
-        ?>
-        <div class="notice notice-success is-dismissible">
-          <p>
-            <?php echo esc_html($example_pack_label); ?> checked.
-            Created: <strong><?php echo esc_html((string) $example_created); ?></strong>.
-            Skipped existing: <strong><?php echo esc_html((string) $example_skipped); ?></strong>.
-          </p>
-        </div>
-      <?php endif; ?>
-
-      <?php if (isset($_GET['cfm_import_replaced'])) : ?>
-        <div class="notice notice-success is-dismissible">
-          <p>
-            Terms imported as a replacement and runtime tables rebuilt.
-            A recovery snapshot was saved automatically before the import.
-            <?php if (!empty($_GET['cfm_import_snapshot_id'])) : ?>
-              <a href="<?php echo esc_url(self::version_snapshot_url((int) $framework->id, absint($_GET['cfm_import_snapshot_id']))); ?>">View recovery snapshot</a>.
-            <?php endif; ?>
-          </p>
-        </div>
-      <?php endif; ?>
 
       <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'missing_axis_fields') : ?>
         <div class="notice notice-error is-dismissible">
@@ -11735,11 +12004,6 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         </div>
       <?php endif; ?>
 
-      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'invalid_example_pack') : ?>
-        <div class="notice notice-error is-dismissible">
-          <p>Example term pack could not be installed. Choose a valid pack and try again.</p>
-        </div>
-      <?php endif; ?>
 
       <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'invalid_meta_group_includes') : ?>
         <div class="notice notice-error is-dismissible">
@@ -11808,17 +12072,6 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         </div>
       <?php endif; ?>
 
-      <?php if (isset($_GET['cfm_error']) && in_array($_GET['cfm_error'], ['missing_import_framework', 'missing_import_file', 'import_upload_failed', 'import_file_too_large', 'import_file_empty', 'import_invalid_json'], true)) : ?>
-        <div class="notice notice-error is-dismissible">
-          <p>Import preview could not be generated. Confirm you selected a valid Core Terms JSON export and try again.</p>
-        </div>
-      <?php endif; ?>
-
-      <?php if (isset($_GET['cfm_error']) && in_array($_GET['cfm_error'], ['import_replace_not_confirmed', 'import_preview_expired', 'import_snapshot_failed', 'import_compile_failed'], true)) : ?>
-        <div class="notice notice-error is-dismissible">
-          <p>Import replacement could not be completed. Preview the export again, confirm replacement, and retry. No replacement was completed if snapshot creation failed.</p>
-        </div>
-      <?php endif; ?>
 
       <table class="widefat striped" style="max-width: 900px;">
         <tbody>
@@ -11844,72 +12097,6 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           </tr>
         </tbody>
       </table>
-
-      <hr>
-
-      <h2>History</h2>
-      <p class="description">
-        History records active taxonomy versions and automatic recovery snapshots, including snapshots created before replacement imports.
-      </p>
-
-      <?php
-      $version_count = CFM_Framework_Repository::count_versions((int) $framework->id);
-      $recent_versions = CFM_Framework_Repository::get_versions((int) $framework->id, 3, 0);
-      ?>
-
-      <p>
-        Current active version ID:
-        <strong><?php echo esc_html($framework->active_version_id ?: 'None'); ?></strong>
-        · Saved versions:
-        <strong><?php echo esc_html((string) $version_count); ?></strong>
-      </p>
-
-      <?php if (empty($recent_versions)) : ?>
-        <p>No versions saved yet.</p>
-      <?php else : ?>
-        <table class="widefat striped" style="max-width: 760px;">
-          <thead>
-            <tr>
-              <th>Recent Item</th>
-              <th>Status</th>
-              <th>Created</th>
-              <th>JSON Size</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php foreach ($recent_versions as $version_row) : ?>
-              <?php $is_active_version = ((int) $framework->active_version_id === (int) $version_row->id); ?>
-              <tr>
-                <td>
-                  <strong>v<?php echo esc_html((string) $version_row->version_number); ?></strong>
-                  <?php if ($is_active_version) : ?>
-                    <span style="color: #008a20; margin-left: 6px;">Current</span>
-                  <?php endif; ?>
-                </td>
-                <td>
-                  <?php if ((string) $version_row->status === 'pre_import_snapshot') : ?>
-                    Recovery snapshot
-                  <?php else : ?>
-                    <?php echo esc_html(ucwords(str_replace('_', ' ', (string) $version_row->status))); ?>
-                  <?php endif; ?>
-                </td>
-                <td><?php echo esc_html($version_row->created_at); ?></td>
-                <td><?php echo esc_html((string) strlen((string) $version_row->tree_json)); ?> bytes</td>
-                <td>
-                  <a href="<?php echo esc_url(self::version_snapshot_url((int) $framework->id, (int) $version_row->id)); ?>">View</a>
-                </td>
-              </tr>
-            <?php endforeach; ?>
-          </tbody>
-        </table>
-      <?php endif; ?>
-
-      <p>
-        <a class="button" href="<?php echo esc_url(self::versions_url((int) $framework->id)); ?>">
-          View Full History
-        </a>
-      </p>
 
       <hr>
 
@@ -11948,104 +12135,6 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           <?php submit_button('Rebuild Core Terms', 'secondary', 'submit', false); ?>
           <a class="button" href="<?php echo esc_url(self::compiled_debug_url((int) $framework->id)); ?>" style="margin-left: 8px;">Open Compiled Query Debug</a>
         </form>
-      <?php endif; ?>
-
-      <hr>
-
-      <h2>Export</h2>
-      <p class="description">
-        Download the canonical editable Core Terms definition tree as JSON. This export preserves UUIDs, hierarchy, order, archive state when present, and active version metadata. Runtime compiler tables are intentionally not exported because they can be rebuilt.
-      </p>
-      <p>
-        <a class="button" href="<?php echo esc_url(self::export_taxonomy_url((int) $framework->id)); ?>">
-          Export Terms JSON
-        </a>
-      </p>
-
-      <hr>
-
-      <h2 id="cfm-import">Import</h2>
-      <p class="description">
-        Upload a Core Terms JSON export to validate it and preview what it contains. After a valid preview, you may import it as a full replacement. Replacement automatically saves the current tree as a recovery snapshot and rebuilds runtime tables.
-      </p>
-
-      <form method="post" enctype="multipart/form-data">
-        <?php wp_nonce_field('cfm_import_taxonomy_preview', 'cfm_nonce'); ?>
-        <input type="hidden" name="cfm_action" value="import_taxonomy_preview">
-        <input type="hidden" name="framework_id" value="<?php echo esc_attr((string) $framework->id); ?>">
-
-        <table class="form-table" role="presentation">
-          <tr>
-            <th scope="row">
-              <label for="taxonomy_import_file">Import Terms JSON</label>
-            </th>
-            <td>
-              <input name="taxonomy_import_file" id="taxonomy_import_file" type="file" accept="application/json,.json" required>
-              <p class="description">Preview only. No taxonomy rows, compiled rows, or user assignments are changed.</p>
-            </td>
-          </tr>
-        </table>
-
-        <?php submit_button('Preview Import', 'secondary', 'submit', false, ['id' => 'cfm-preview-import-button', 'disabled' => 'disabled']); ?>
-      </form>
-
-      <script>
-        (function() {
-          var fileInput = document.getElementById('taxonomy_import_file');
-          var previewButton = document.getElementById('cfm-preview-import-button');
-
-          if (!fileInput || !previewButton) {
-            return;
-          }
-
-          var refreshPreviewButton = function() {
-            previewButton.disabled = !fileInput.files || fileInput.files.length === 0;
-          };
-
-          fileInput.addEventListener('change', refreshPreviewButton);
-          refreshPreviewButton();
-        }());
-      </script>
-
-      <?php if (is_array($import_preview)) : ?>
-        <?php self::render_taxonomy_import_preview($import_preview); ?>
-      <?php endif; ?>
-
-      <hr>
-
-      <h2 id="cfm-example-packs">Example Term Packs</h2>
-      <p class="description">
-        Install optional starter location terms. Packs are additive and safe to rerun: existing sibling slugs are skipped, and existing UUIDs and assignments are preserved.
-      </p>
-
-      <?php if (class_exists('CFM_Seeder')) : ?>
-        <div style="display:flex; gap:12px; flex-wrap:wrap; max-width: 1000px;">
-          <div class="card" style="max-width: 420px;">
-            <h3>Geography — US States</h3>
-            <form method="post">
-              <?php wp_nonce_field('cfm_install_example_pack', 'cfm_nonce'); ?>
-              <input type="hidden" name="cfm_action" value="install_example_pack">
-              <input type="hidden" name="framework_id" value="<?php echo esc_attr((string) $framework->id); ?>">
-              <input type="hidden" name="example_pack" value="<?php echo esc_attr(CFM_Seeder::PACK_GEOGRAPHY_US_STATES); ?>">
-              <?php submit_button('Install US States', 'secondary', 'submit', false); ?>
-            </form>
-            <p>Creates <strong>Region → United States</strong>, then adds the 50 states and District of Columbia beneath United States.</p>
-          </div>
-
-          <div class="card" style="max-width: 420px;">
-            <h3>Geography — Countries Lite</h3>
-            <form method="post">
-              <?php wp_nonce_field('cfm_install_example_pack', 'cfm_nonce'); ?>
-              <input type="hidden" name="cfm_action" value="install_example_pack">
-              <input type="hidden" name="framework_id" value="<?php echo esc_attr((string) $framework->id); ?>">
-              <input type="hidden" name="example_pack" value="<?php echo esc_attr(CFM_Seeder::PACK_GEOGRAPHY_COUNTRIES_LITE); ?>">
-              <?php submit_button('Install Countries Lite', 'secondary', 'submit', false); ?>
-            </form>
-            <p>Adds a small set of broadly useful country/global terms under <strong>Region</strong>. It does not replace or move United States or state terms.</p>
-          </div>
-        </div>
-      <?php else : ?>
-        <p>Example term packs are unavailable because the seeder class is not loaded.</p>
       <?php endif; ?>
 
       <hr>
@@ -12254,80 +12343,6 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
         <?php submit_button('Add Term'); ?>
       </form>
-
-      <h3>Quick Add Terms</h3>
-      <p class="description">Create multiple sibling terms at once. One term per line.</p>
-      <form method="post">
-        <?php wp_nonce_field('cfm_add_terms_batch', 'cfm_nonce'); ?>
-
-        <input type="hidden" name="cfm_action" value="add_terms_batch">
-        <input type="hidden" name="framework_id" value="<?php echo esc_attr($framework->id); ?>">
-
-        <table class="form-table" role="presentation">
-          <tr>
-            <th scope="row">
-              <label for="batch_parent_uuid">Parent Term</label>
-            </th>
-            <td>
-              <select name="parent_uuid" id="batch_parent_uuid">
-                <option value="" <?php selected($selected_parent_uuid, '__top_level__'); ?>>Add as Top-Level Terms</option>
-                <?php self::render_parent_options($axes, $selected_parent_uuid); ?>
-              </select>
-              <p class="description">Leave unchanged to create top-level sibling terms, or select a parent to create child sibling terms under it.</p>
-            </td>
-          </tr>
-
-          <tr>
-            <th scope="row">
-              <label for="batch_term_labels">Term Labels</label>
-            </th>
-            <td>
-              <textarea name="batch_term_labels" id="batch_term_labels" class="large-text" rows="6" placeholder="Grade 4&#10;Grade 5&#10;Grade 6"><?php echo esc_textarea(is_array($batch_error) ? (string) ($batch_error['batch_input'] ?? '') : ''); ?></textarea>
-              <p class="description">One term label per line. Slug, short label, and Community are generated from each label. Existing sibling terms are skipped and reported.</p>
-            </td>
-          </tr>
-        </table>
-
-        <?php submit_button('Create Terms'); ?>
-      </form>
-
-      <?php if (is_array($batch_error)) : ?>
-        <script>
-          (function() {
-            var review = document.getElementById('cfm-batch-error-review');
-            var modal = document.getElementById('cfm-batch-error-modal');
-            var textarea = document.getElementById('batch_term_labels');
-
-            function returnToBatch() {
-              if (modal) {
-                modal.style.display = 'none';
-              }
-              if (textarea) {
-                textarea.focus();
-              }
-            }
-
-            if (review) {
-              review.addEventListener('click', returnToBatch);
-              review.focus();
-            }
-
-            if (modal) {
-              modal.addEventListener('click', function(event) {
-                if (event.target === modal) {
-                  returnToBatch();
-                }
-              });
-            }
-
-            document.addEventListener('keydown', function(event) {
-              if (event.key === 'Escape' && modal && modal.style.display !== 'none') {
-                returnToBatch();
-              }
-            });
-          })();
-        </script>
-      <?php endif; ?>
 
       <?php self::render_term_metadata_autofill_script(); ?>
     </div>
