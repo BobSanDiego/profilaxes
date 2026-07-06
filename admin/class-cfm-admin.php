@@ -8840,6 +8840,10 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             return isInlineEditField(document.activeElement);
           }
 
+          function summaryHasActiveInlineEdit(summary) {
+            return Boolean(summary && isInlineEditField(document.activeElement) && summary.contains(document.activeElement));
+          }
+
           function updateEditInteractionLock() {
             if (!editor) {
               return;
@@ -10873,6 +10877,13 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
             summary.setAttribute('data-cfm-bound', '1');
             summary.addEventListener('click', function(event) {
+              if (summaryHasActiveInlineEdit(summary)) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                updateEditInteractionLock();
+                return;
+              }
+
               if (event.target.closest('.cfm-core-terms-editor-input')) {
                 return;
               }
