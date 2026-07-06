@@ -3014,18 +3014,10 @@ class CFM_Admin
     $term_uuid = sanitize_text_field(wp_unslash($_POST['term_uuid'] ?? ''));
     $target_uuid = sanitize_text_field(wp_unslash($_POST['target_uuid'] ?? ''));
     $placement = sanitize_key((string) wp_unslash($_POST['placement'] ?? ''));
-    $source_revision = isset($_POST['source_order_revision'])
-      ? absint($_POST['source_order_revision'])
-      : null;
-    $target_revision = isset($_POST['target_order_revision'])
-      ? absint($_POST['target_order_revision'])
-      : null;
 
     $result = self::process_branch_move($framework_id, $term_uuid, $target_uuid, $placement, [
       'confirm_assignments' => !empty($_POST['cfm_confirm_assignments']),
       'confirm_axis_change' => !empty($_POST['cfm_confirm_axis_change']),
-      'source_order_revision' => $source_revision,
-      'target_order_revision' => $target_revision,
     ]);
 
     if (empty($result['success'])) {
@@ -3271,33 +3263,6 @@ class CFM_Admin
         'code' => 'duplicate_sibling_slug',
         'message' => 'A sibling under the target parent already uses this slug.',
         'status' => 409,
-      ];
-    }
-
-    $source_revision = $options['source_order_revision'] ?? null;
-    $target_revision = $options['target_order_revision'] ?? null;
-    $current_source_revision = $original_parent_uuid !== '' ? self::get_order_revision($framework_id, $original_parent_uuid) : 0;
-    $current_target_revision = $new_parent_uuid !== '' ? self::get_order_revision($framework_id, $new_parent_uuid) : 0;
-
-    if ($source_revision !== null && (int) $source_revision !== $current_source_revision) {
-      return [
-        'success' => false,
-        'code' => 'stale_source_order',
-        'message' => 'The source branch order changed elsewhere.',
-        'status' => 409,
-        'current_source_revision' => $current_source_revision,
-        'current_target_revision' => $current_target_revision,
-      ];
-    }
-
-    if ($target_revision !== null && $new_parent_uuid !== $original_parent_uuid && (int) $target_revision !== $current_target_revision) {
-      return [
-        'success' => false,
-        'code' => 'stale_target_order',
-        'message' => 'The target branch order changed elsewhere.',
-        'status' => 409,
-        'current_source_revision' => $current_source_revision,
-        'current_target_revision' => $current_target_revision,
       ];
     }
 
