@@ -1291,6 +1291,7 @@ class CFM_Admin
     }
 
     if (empty($prepared['changes']) && empty($prepared['new_terms'])) {
+      set_transient(self::core_terms_editor_saved_transient_key($framework_id), 0, MINUTE_IN_SECONDS);
       wp_safe_redirect(self::editor_url($framework_id) . '&cfm_editor_saved=0');
       exit;
     }
@@ -1404,9 +1405,12 @@ class CFM_Admin
       );
     }
 
+    $saved_count = count($prepared['changes']) + count($prepared['new_terms']);
+    set_transient(self::core_terms_editor_saved_transient_key($framework_id), $saved_count, MINUTE_IN_SECONDS);
+
     wp_safe_redirect(
       self::editor_url($framework_id)
-        . '&cfm_editor_saved=' . (count($prepared['changes']) + count($prepared['new_terms']))
+        . '&cfm_editor_saved=' . $saved_count
         . ($compile_result['query_arg'] ?? '')
     );
     exit;
@@ -2004,6 +2008,11 @@ class CFM_Admin
   private static function core_terms_editor_error_transient_key(int $framework_id): string
   {
     return 'cfm_core_terms_editor_errors_' . $framework_id . '_' . get_current_user_id();
+  }
+
+  private static function core_terms_editor_saved_transient_key(int $framework_id): string
+  {
+    return 'cfm_core_terms_editor_saved_' . $framework_id . '_' . get_current_user_id();
   }
 
   private static function core_terms_editor_archive_transient_key(int $framework_id, string $undo_key): string
@@ -7658,9 +7667,21 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         Select a row to edit existing Core Term fields inline, insert a sibling draft, add a child draft, archive a branch, or reorder siblings.
       </p>
 
-      <?php if (isset($_GET['cfm_editor_saved'])) : ?>
+      <?php
+      $saved_count = false;
+
+      if (isset($_GET['cfm_editor_saved'])) {
+        $saved_count = get_transient(self::core_terms_editor_saved_transient_key((int) $framework->id));
+
+        if ($saved_count !== false) {
+          delete_transient(self::core_terms_editor_saved_transient_key((int) $framework->id));
+        }
+      }
+      ?>
+
+      <?php if ($saved_count !== false) : ?>
         <div class="notice notice-success is-dismissible">
-          <p><?php echo absint($_GET['cfm_editor_saved']); ?> Core Term row(s) saved and runtime tables rebuilt.</p>
+          <p><?php echo absint($saved_count); ?> Core Term row(s) saved and runtime tables rebuilt.</p>
         </div>
       <?php endif; ?>
 
@@ -8412,10 +8433,10 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         }
 
         .cfm-core-terms-editor-collapse-all {
+          color: #2271b1;
           font-size: 12px;
           line-height: 1.4;
-          min-height: 24px;
-          padding: 0 8px;
+          text-decoration: underline;
         }
 
         .cfm-core-terms-editor-depth-1 > details > summary > .cfm-core-terms-editor-row,
@@ -8493,7 +8514,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           <?php self::render_core_terms_editor_reference_row(); ?>
           <hr class="cfm-core-terms-editor-divider">
           <div class="cfm-core-terms-editor-tree-controls">
-            <button type="button" class="button button-link cfm-core-terms-editor-collapse-all" hidden>Collapse all</button>
+            <a href="#" class="cfm-core-terms-editor-collapse-all" hidden>Collapse all</a>
           </div>
           <div class="cfm-core-terms-editor-move-notice" role="status" aria-live="polite" hidden>
             <span>Branch moved.</span>
