@@ -8853,7 +8853,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             }
           }
 
-          function handleInlineEditKeydown(event) {
+          function handleInlineEditKeyEvent(event) {
             if (!isInlineEditField(event.target)) {
               return;
             }
@@ -11011,7 +11011,9 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             updateReorderControls();
             updateCollapseAllControl();
           });
-          document.addEventListener('keydown', handleInlineEditKeydown, true);
+          document.addEventListener('keydown', handleInlineEditKeyEvent, true);
+          document.addEventListener('keypress', handleInlineEditKeyEvent, true);
+          document.addEventListener('keyup', handleInlineEditKeyEvent, true);
           document.addEventListener('keydown', handleEditorKeydown);
         }());
       </script>
