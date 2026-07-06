@@ -8832,12 +8832,12 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             return dirtyRows.size > 0 || hasDraftRows();
           }
 
-          function isEditorTextInput(target) {
+          function isInlineEditField(target) {
             return Boolean(target && target.closest && target.closest('.cfm-core-terms-editor-input'));
           }
 
           function isEditInteractionLocked() {
-            return isEditorTextInput(document.activeElement);
+            return isInlineEditField(document.activeElement);
           }
 
           function updateEditInteractionLock() {
@@ -8850,6 +8850,17 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
             if (locked) {
               closeActionMenus();
+            }
+          }
+
+          function handleInlineEditKeydown(event) {
+            if (!isInlineEditField(event.target)) {
+              return;
+            }
+
+            if (event.key === ' ' || event.key === 'Spacebar' || event.code === 'Space') {
+              updateEditInteractionLock();
+              event.stopImmediatePropagation();
             }
           }
 
@@ -10585,7 +10596,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             });
 
             form.addEventListener('focusin', function(event) {
-              if (!isEditorTextInput(event.target)) {
+              if (!isInlineEditField(event.target)) {
                 return;
               }
 
@@ -10593,7 +10604,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             });
 
             form.addEventListener('focusout', function(event) {
-              if (!isEditorTextInput(event.target)) {
+              if (!isInlineEditField(event.target)) {
                 return;
               }
 
@@ -10601,12 +10612,12 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             });
 
             form.addEventListener('keydown', function(event) {
-              if (!isEditorTextInput(event.target)) {
+              if (!isInlineEditField(event.target)) {
                 return;
               }
 
-              if (event.key === ' ') {
-                event.stopPropagation();
+              if (event.key === ' ' || event.key === 'Spacebar' || event.code === 'Space') {
+                event.stopImmediatePropagation();
               }
             });
 
@@ -11000,6 +11011,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             updateReorderControls();
             updateCollapseAllControl();
           });
+          document.addEventListener('keydown', handleInlineEditKeydown, true);
           document.addEventListener('keydown', handleEditorKeydown);
         }());
       </script>
