@@ -8383,31 +8383,36 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         }
 
         .cfm-core-terms-editor-reorder-status {
-          margin: 0 0 8px 0;
-          min-height: 18px;
+          margin: 0 0 4px 0;
         }
 
-        .cfm-core-terms-editor-tree-controls {
+        .cfm-core-terms-editor-status-rail {
           align-items: center;
           display: flex;
+          gap: 8px;
           justify-content: flex-start;
-          min-height: 24px;
+          min-height: 22px;
         }
 
         .cfm-core-terms-editor-move-notice {
           align-items: center;
-          background: #f0f6fc;
-          border-left: 4px solid #2271b1;
-          color: #1d2327;
+          color: #50575e;
           display: flex;
-          gap: 10px;
-          margin: 0 0 6px;
-          max-width: 720px;
-          padding: 8px 10px;
+          gap: 6px;
         }
 
         .cfm-core-terms-editor-move-notice[hidden] {
           display: none;
+        }
+
+        .cfm-core-terms-editor-status-rail .button-link {
+          line-height: 1.4;
+          min-height: 0;
+          padding: 0;
+        }
+
+        .cfm-core-terms-editor-status-separator {
+          color: #8c8f94;
         }
 
         .cfm-core-terms-editor-drag-preview {
@@ -8513,12 +8518,14 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         >
           <?php self::render_core_terms_editor_reference_row(); ?>
           <hr class="cfm-core-terms-editor-divider">
-          <div class="cfm-core-terms-editor-tree-controls">
+          <div class="cfm-core-terms-editor-status-rail" aria-label="Core Terms Editor status">
             <a href="#" class="cfm-core-terms-editor-collapse-all" hidden>Collapse all</a>
-          </div>
-          <div class="cfm-core-terms-editor-move-notice" role="status" aria-live="polite" hidden>
-            <span>Branch moved.</span>
-            <button type="button" class="button button-link cfm-core-terms-editor-undo-move">Undo</button>
+            <span class="cfm-core-terms-editor-status-separator" hidden>|</span>
+            <span class="cfm-core-terms-editor-move-notice" role="status" aria-live="polite" hidden>
+              <span>Branch moved</span>
+              <span aria-hidden="true">·</span>
+              <button type="button" class="button button-link cfm-core-terms-editor-undo-move">Undo</button>
+            </span>
           </div>
           <p class="cfm-core-terms-editor-reorder-status description" aria-live="polite"></p>
 
@@ -8601,6 +8608,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           var reorderStatus = null;
           var moveNotice = null;
           var undoMoveButton = null;
+          var statusRailSeparator = null;
           var reorderNonce = '';
           var moveBranchNonce = '';
           var rootParentUuid = '';
@@ -9019,6 +9027,21 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             if (moveNotice) {
               moveNotice.hidden = true;
             }
+
+            updateStatusRail();
+          }
+
+          function updateStatusRail() {
+            if (!statusRailSeparator) {
+              return;
+            }
+
+            statusRailSeparator.hidden = !(
+              collapseAllButton &&
+              !collapseAllButton.hidden &&
+              moveNotice &&
+              !moveNotice.hidden
+            );
           }
 
           function clearReorderTargetClasses() {
@@ -9296,6 +9319,8 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             if (moveNotice) {
               moveNotice.hidden = !lastUndoMove;
             }
+
+            updateStatusRail();
           }
 
           function undoLastMove() {
@@ -9351,6 +9376,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
                 moveNotice.hidden = true;
               }
 
+              updateStatusRail();
               setReorderStatus('Move undone.', false);
             }).catch(function(error) {
               setReorderStatus(error && error.message ? error.message : 'Move could not be undone.', true);
@@ -9408,7 +9434,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
                   }
 
                   showUndoMoveNotice(response.data.undo_move || null);
-                  setReorderStatus(response.data.message || 'Branch moved.', false);
+                  setReorderStatus('', false);
                   return response;
                 }
 
@@ -9621,6 +9647,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             }
 
             collapseAllButton.hidden = !hasOpenBranches();
+            updateStatusRail();
           }
 
           function collapseAllBranches() {
@@ -10921,6 +10948,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             reorderStatus = document.querySelector('.cfm-core-terms-editor-reorder-status');
             moveNotice = document.querySelector('.cfm-core-terms-editor-move-notice');
             undoMoveButton = document.querySelector('.cfm-core-terms-editor-undo-move');
+            statusRailSeparator = document.querySelector('.cfm-core-terms-editor-status-separator');
             reorderNonce = editor ? (editor.getAttribute('data-reorder-nonce') || '') : '';
             moveBranchNonce = editor ? (editor.getAttribute('data-move-branch-nonce') || '') : '';
             rootParentUuid = editor ? (editor.getAttribute('data-root-parent-uuid') || '') : '';
