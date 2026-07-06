@@ -12,6 +12,7 @@ class CFM_Admin
     add_action('admin_init', [__CLASS__, 'handle_actions']);
     add_action('admin_enqueue_scripts', [__CLASS__, 'enqueue_admin_assets']);
     add_action('wp_ajax_cfm_reorder_terms', [__CLASS__, 'handle_ajax_reorder_terms']);
+    add_action('wp_ajax_cfm_move_branch', [__CLASS__, 'handle_ajax_move_branch']);
   }
 
   public static function register_menu(): void
@@ -2034,6 +2035,58 @@ class CFM_Admin
     return '';
   }
 
+  private static function next_child_uuid(array $parent_node, string $child_uuid): string
+  {
+    $children = $parent_node['children'] ?? [];
+    $found = false;
+
+    if (empty($children) || !is_array($children)) {
+      return '';
+    }
+
+    foreach ($children as $child) {
+      if (!is_array($child)) {
+        continue;
+      }
+
+      $uuid = (string) ($child['uuid'] ?? '');
+
+      if ($found) {
+        return $uuid;
+      }
+
+      if ($uuid === $child_uuid) {
+        $found = true;
+      }
+    }
+
+    return '';
+  }
+
+  private static function last_child_uuid(array $parent_node): string
+  {
+    $children = $parent_node['children'] ?? [];
+    $last_uuid = '';
+
+    if (empty($children) || !is_array($children)) {
+      return '';
+    }
+
+    foreach ($children as $child) {
+      if (!is_array($child)) {
+        continue;
+      }
+
+      $uuid = (string) ($child['uuid'] ?? '');
+
+      if ($uuid !== '') {
+        $last_uuid = $uuid;
+      }
+    }
+
+    return $last_uuid;
+  }
+
   private static function handle_move_term(): void
   {
     check_admin_referer('cfm_move_term', 'cfm_nonce');
@@ -2041,8 +2094,23 @@ class CFM_Admin
     $framework_id = absint($_POST['framework_id'] ?? 0);
     $term_uuid = sanitize_text_field(wp_unslash($_POST['term_uuid'] ?? ''));
     $new_parent_uuid = sanitize_text_field(wp_unslash($_POST['new_parent_uuid'] ?? ''));
+    $return_to_editor = sanitize_key((string) wp_unslash($_POST['cfm_return'] ?? '')) === 'editor';
+    $editor_redirect = static function (int $redirect_framework_id, string $code, array $args = []): void {
+      $url = self::editor_url($redirect_framework_id) . '&cfm_editor_move_error=' . rawurlencode($code);
+
+      foreach ($args as $key => $value) {
+        $url .= '&' . rawurlencode((string) $key) . '=' . rawurlencode((string) $value);
+      }
+
+      wp_safe_redirect($url);
+      exit;
+    };
 
     if ($framework_id <= 0 || $term_uuid === '' || $new_parent_uuid === '') {
+      if ($return_to_editor) {
+        $editor_redirect($framework_id, 'missing_fields');
+      }
+
       wp_safe_redirect(
         admin_url(
           'admin.php?page=cfm-frameworks'
@@ -2055,6 +2123,10 @@ class CFM_Admin
     }
 
     if ($term_uuid === $new_parent_uuid) {
+      if ($return_to_editor) {
+        $editor_redirect($framework_id, 'self');
+      }
+
       wp_die('A term cannot be moved under itself.');
     }
 
@@ -2069,32 +2141,62 @@ class CFM_Admin
     $new_parent_info = self::find_node_with_parent($tree, $new_parent_uuid);
 
     if (!$term_info || empty($term_info['node']) || !is_array($term_info['node'])) {
+      if ($return_to_editor) {
+        $editor_redirect($framework_id, 'missing_term');
+      }
+
       wp_die('Term not found.');
     }
 
     if (self::node_kind($term_info['node']) !== 'term') {
+      if ($return_to_editor) {
+        $editor_redirect($framework_id, 'invalid_term');
+      }
+
       wp_die('Only terms can be moved. Meta-Groups and system roots cannot be moved here.');
     }
 
     if (!$new_parent_info || empty($new_parent_info['node']) || !is_array($new_parent_info['node'])) {
+      if ($return_to_editor) {
+        $editor_redirect($framework_id, 'missing_parent');
+      }
+
       wp_die('New parent not found.');
     }
 
-    if (!in_array(self::node_kind($new_parent_info['node']), ['framework', 'root', 'term'], true)) {
+    $new_parent_kind = self::node_kind($new_parent_info['node']);
+
+    if (!in_array($new_parent_kind, $return_to_editor ? ['term'] : ['framework', 'root', 'term'], true)) {
+      if ($return_to_editor) {
+        $editor_redirect($framework_id, 'invalid_parent');
+      }
+
       wp_die('New parent must be the taxonomy root or another profile term.');
     }
 
     if (self::node_contains_uuid($term_info['node'], $new_parent_uuid)) {
+      if ($return_to_editor) {
+        $editor_redirect($framework_id, 'descendant');
+      }
+
       wp_die('A term cannot be moved under one of its own descendants.');
     }
 
     $moving_slug = sanitize_title((string) ($term_info['node']['slug'] ?? ''));
 
     if ($moving_slug === '') {
+      if ($return_to_editor) {
+        $editor_redirect($framework_id, 'missing_slug');
+      }
+
       wp_die('Term slug is missing. Move aborted.');
     }
 
     if (self::has_child_slug_conflict($tree, $new_parent_uuid, $moving_slug, $term_uuid)) {
+      if ($return_to_editor) {
+        $editor_redirect($framework_id, 'duplicate_sibling_slug');
+      }
+
       wp_safe_redirect(
         admin_url(
           'admin.php?page=cfm-frameworks'
@@ -2112,16 +2214,45 @@ class CFM_Admin
       $current_parent_uuid = (string) ($term_info['parent']['uuid'] ?? '');
     }
 
+    if ($return_to_editor && $current_parent_uuid === $new_parent_uuid) {
+      $editor_redirect($framework_id, 'same_parent');
+    }
+
+    if ($return_to_editor) {
+      $assignment_count = self::count_user_term_assignments(self::collect_node_uuids($term_info['node']));
+      $confirm_assignments = !empty($_POST['cfm_confirm_assignments']);
+
+      if ($assignment_count > 0 && !$confirm_assignments) {
+        $editor_redirect($framework_id, 'assignment_warning', ['cfm_assignment_count' => $assignment_count]);
+      }
+
+      $term_axis_uuid = self::term_axis_uuid($tree, $term_uuid);
+      $new_parent_axis_uuid = self::term_axis_uuid($tree, $new_parent_uuid);
+      $confirm_axis_change = !empty($_POST['cfm_confirm_axis_change']);
+
+      if ($term_axis_uuid !== '' && $new_parent_axis_uuid !== '' && $term_axis_uuid !== $new_parent_axis_uuid && !$confirm_axis_change) {
+        $editor_redirect($framework_id, 'axis_warning');
+      }
+    }
+
     $removed_term = null;
     $removed = self::remove_child_node_by_uuid($tree, $term_uuid, $removed_term);
 
     if (!$removed || !is_array($removed_term)) {
+      if ($return_to_editor) {
+        $editor_redirect($framework_id, 'remove_failed');
+      }
+
       wp_die('Unable to remove term from current parent.');
     }
 
     $added = self::append_child_to_node_by_uuid($tree, $new_parent_uuid, $removed_term);
 
     if (!$added) {
+      if ($return_to_editor) {
+        $editor_redirect($framework_id, 'add_failed');
+      }
+
       wp_die('Unable to add term to new parent.');
     }
 
@@ -2133,6 +2264,15 @@ class CFM_Admin
     $compile_result = self::save_active_tree_and_compile($framework_id, $tree);
 
     do_action('cfm_term_moved', $framework_id, $term_uuid, $current_parent_uuid, $new_parent_uuid, $removed_term, $compile_result);
+
+    if ($return_to_editor) {
+      wp_safe_redirect(
+        self::editor_url($framework_id)
+          . '&cfm_editor_moved=1'
+          . ($compile_result['query_arg'] ?? '')
+      );
+      exit;
+    }
 
     wp_safe_redirect(
       admin_url(
@@ -2662,6 +2802,139 @@ class CFM_Admin
     return array_values(array_unique(array_filter($uuids)));
   }
 
+  private static function term_axis_uuid(array $tree, string $term_uuid): string
+  {
+    $terms = self::root_terms($tree);
+
+    foreach ($terms as $term) {
+      if (!is_array($term)) {
+        continue;
+      }
+
+      $axis_uuid = (string) ($term['uuid'] ?? '');
+
+      if ($axis_uuid === '') {
+        continue;
+      }
+
+      if ($axis_uuid === $term_uuid || self::node_contains_uuid($term, $term_uuid)) {
+        return $axis_uuid;
+      }
+    }
+
+    return '';
+  }
+
+  private static function collect_core_terms_editor_move_options(array $terms, string $axis_uuid = '', string $path = ''): array
+  {
+    $options = [];
+
+    foreach ($terms as $term) {
+      if (!is_array($term) || self::node_kind($term) !== 'term') {
+        continue;
+      }
+
+      $uuid = (string) ($term['uuid'] ?? '');
+      $label = trim((string) ($term['label'] ?? ''));
+
+      if ($uuid === '' || $label === '') {
+        continue;
+      }
+
+      $current_axis_uuid = $axis_uuid !== '' ? $axis_uuid : $uuid;
+      $current_path = $path !== '' ? $path . ' › ' . $label : $label;
+
+      $options[] = [
+        'uuid' => $uuid,
+        'label' => $label,
+        'path' => $current_path,
+        'axis_uuid' => $current_axis_uuid,
+      ];
+
+      $children = isset($term['children']) && is_array($term['children']) ? $term['children'] : [];
+
+      if (!empty($children)) {
+        $options = array_merge($options, self::collect_core_terms_editor_move_options($children, $current_axis_uuid, $current_path));
+      }
+    }
+
+    return $options;
+  }
+
+  private static function direct_user_assignment_counts(array $term_uuids): array
+  {
+    global $wpdb;
+
+    $term_uuids = array_values(array_unique(array_filter(array_map('strval', $term_uuids))));
+
+    if (empty($term_uuids)) {
+      return [];
+    }
+
+    $user_terms_table = $wpdb->prefix . 'cfm_user_terms';
+    $placeholders = implode(',', array_fill(0, count($term_uuids), '%s'));
+    $rows = $wpdb->get_results(
+      $wpdb->prepare(
+        "SELECT term_uuid, COUNT(*) AS assignment_count FROM {$user_terms_table} WHERE term_uuid IN ({$placeholders}) GROUP BY term_uuid",
+        ...$term_uuids
+      ),
+      ARRAY_A
+    );
+
+    $counts = [];
+
+    foreach ((array) $rows as $row) {
+      $uuid = (string) ($row['term_uuid'] ?? '');
+
+      if ($uuid !== '') {
+        $counts[$uuid] = (int) ($row['assignment_count'] ?? 0);
+      }
+    }
+
+    return $counts;
+  }
+
+  private static function collect_branch_assignment_counts(array $terms): array
+  {
+    $all_uuids = [];
+
+    foreach ($terms as $term) {
+      if (is_array($term)) {
+        $all_uuids = array_merge($all_uuids, self::collect_node_uuids($term));
+      }
+    }
+
+    $direct_counts = self::direct_user_assignment_counts($all_uuids);
+    $branch_counts = [];
+
+    foreach ($terms as $term) {
+      if (is_array($term)) {
+        self::branch_assignment_count_for_node($term, $direct_counts, $branch_counts);
+      }
+    }
+
+    return $branch_counts;
+  }
+
+  private static function branch_assignment_count_for_node(array $node, array $direct_counts, array &$branch_counts): int
+  {
+    $uuid = (string) ($node['uuid'] ?? '');
+    $count = $uuid !== '' ? (int) ($direct_counts[$uuid] ?? 0) : 0;
+    $children = isset($node['children']) && is_array($node['children']) ? $node['children'] : [];
+
+    foreach ($children as $child) {
+      if (is_array($child)) {
+        $count += self::branch_assignment_count_for_node($child, $direct_counts, $branch_counts);
+      }
+    }
+
+    if ($uuid !== '') {
+      $branch_counts[$uuid] = $count;
+    }
+
+    return $count;
+  }
+
   private static function count_user_term_assignments(array $term_uuids): int
   {
     global $wpdb;
@@ -2715,6 +2988,52 @@ class CFM_Admin
     wp_send_json_success([
       'message' => '✓ Saved',
       'revision' => (int) ($result['revision'] ?? 0),
+    ]);
+  }
+
+  public static function handle_ajax_move_branch(): void
+  {
+    if (!current_user_can('manage_options')) {
+      wp_send_json_error([
+        'message' => 'You do not have permission to move Core Terms.',
+      ], 403);
+    }
+
+    check_ajax_referer('cfm_move_branch', 'cfm_nonce');
+
+    $framework_id = absint($_POST['framework_id'] ?? 0);
+    $term_uuid = sanitize_text_field(wp_unslash($_POST['term_uuid'] ?? ''));
+    $target_uuid = sanitize_text_field(wp_unslash($_POST['target_uuid'] ?? ''));
+    $placement = sanitize_key((string) wp_unslash($_POST['placement'] ?? ''));
+    $source_revision = isset($_POST['source_order_revision'])
+      ? absint($_POST['source_order_revision'])
+      : null;
+    $target_revision = isset($_POST['target_order_revision'])
+      ? absint($_POST['target_order_revision'])
+      : null;
+
+    $result = self::process_branch_move($framework_id, $term_uuid, $target_uuid, $placement, [
+      'confirm_assignments' => !empty($_POST['cfm_confirm_assignments']),
+      'confirm_axis_change' => !empty($_POST['cfm_confirm_axis_change']),
+      'source_order_revision' => $source_revision,
+      'target_order_revision' => $target_revision,
+    ]);
+
+    if (empty($result['success'])) {
+      wp_send_json_error([
+        'message' => (string) ($result['message'] ?? 'Branch could not be moved.'),
+        'code' => (string) ($result['code'] ?? 'move_failed'),
+        'assignment_count' => (int) ($result['assignment_count'] ?? 0),
+        'current_source_revision' => (int) ($result['current_source_revision'] ?? 0),
+        'current_target_revision' => (int) ($result['current_target_revision'] ?? 0),
+      ], (int) ($result['status'] ?? 400));
+    }
+
+    wp_send_json_success([
+      'message' => '✓ Moved',
+      'revisions' => (array) ($result['revisions'] ?? []),
+      'move' => (array) ($result['move'] ?? []),
+      'undo_move' => (array) ($result['undo_move'] ?? []),
     ]);
   }
 
@@ -2824,6 +3143,294 @@ class CFM_Admin
       'success' => true,
       'revision' => self::get_order_revision($framework_id, $parent_uuid),
     ];
+  }
+
+  private static function process_branch_move(int $framework_id, string $term_uuid, string $target_uuid, string $placement, array $options = []): array
+  {
+    $placement = self::normalize_branch_move_placement($placement);
+
+    if ($framework_id <= 0 || $term_uuid === '' || $target_uuid === '' || $placement === '') {
+      return [
+        'success' => false,
+        'code' => 'missing_move_fields',
+        'message' => 'Move request was incomplete.',
+        'status' => 400,
+      ];
+    }
+
+    $framework = CFM_Framework_Repository::get_framework($framework_id);
+
+    if (!$framework) {
+      return [
+        'success' => false,
+        'code' => 'profile_taxonomy_not_found',
+        'message' => 'Core Terms definition not found.',
+        'status' => 404,
+      ];
+    }
+
+    $tree = self::get_framework_tree($framework);
+    $term_info = self::find_node_with_parent($tree, $term_uuid);
+    $target_info = self::find_node_with_parent($tree, $target_uuid);
+
+    if (!$term_info || empty($term_info['node']) || !is_array($term_info['node'])) {
+      return [
+        'success' => false,
+        'code' => 'missing_term',
+        'message' => 'Moved branch was not found.',
+        'status' => 404,
+      ];
+    }
+
+    if (!$target_info || empty($target_info['node']) || !is_array($target_info['node'])) {
+      return [
+        'success' => false,
+        'code' => 'missing_target',
+        'message' => 'Move target was not found.',
+        'status' => 404,
+      ];
+    }
+
+    if (self::node_kind($term_info['node']) !== 'term' || self::node_kind($target_info['node']) !== 'term') {
+      return [
+        'success' => false,
+        'code' => 'invalid_term',
+        'message' => 'Only Core Term branches can be moved here.',
+        'status' => 400,
+      ];
+    }
+
+    if ($term_uuid === $target_uuid || self::node_contains_uuid($term_info['node'], $target_uuid)) {
+      return [
+        'success' => false,
+        'code' => 'invalid_descendant_target',
+        'message' => 'A branch cannot move onto itself or one of its descendants.',
+        'status' => 400,
+      ];
+    }
+
+    $original_parent = (!empty($term_info['parent']) && is_array($term_info['parent'])) ? $term_info['parent'] : [];
+    $original_parent_uuid = (string) ($original_parent['uuid'] ?? '');
+    $original_insert_after_uuid = $original_parent ? self::previous_child_uuid($original_parent, $term_uuid) : '';
+    $original_insert_before_uuid = $original_parent ? self::next_child_uuid($original_parent, $term_uuid) : '';
+    $new_parent_uuid = '';
+    $new_insert_after_uuid = '';
+    $new_insert_before_uuid = '';
+    $new_placement = $placement;
+
+    if ($placement === 'before' || $placement === 'after') {
+      $target_parent = (!empty($target_info['parent']) && is_array($target_info['parent'])) ? $target_info['parent'] : [];
+      $new_parent_uuid = (string) ($target_parent['uuid'] ?? '');
+
+      if ($new_parent_uuid === '') {
+        return [
+          'success' => false,
+          'code' => 'invalid_target_parent',
+          'message' => 'Move target does not have a valid parent.',
+          'status' => 400,
+        ];
+      }
+
+      if ($placement === 'before') {
+        $new_insert_after_uuid = self::previous_child_uuid($target_parent, $target_uuid);
+        $new_insert_before_uuid = $target_uuid;
+      } else {
+        $new_insert_after_uuid = $target_uuid;
+        $new_insert_before_uuid = self::next_child_uuid($target_parent, $target_uuid);
+      }
+    } else {
+      $new_parent_uuid = $target_uuid;
+      $new_insert_after_uuid = self::last_child_uuid($target_info['node']);
+      $new_insert_before_uuid = '';
+      $new_placement = 'child_append';
+    }
+
+    $moving_slug = self::normalize_slug((string) ($term_info['node']['slug'] ?? ''));
+
+    if ($moving_slug === '') {
+      return [
+        'success' => false,
+        'code' => 'missing_slug',
+        'message' => 'Moved branch is missing a slug.',
+        'status' => 400,
+      ];
+    }
+
+    if (self::has_child_slug_conflict($tree, $new_parent_uuid, $moving_slug, $term_uuid)) {
+      return [
+        'success' => false,
+        'code' => 'duplicate_sibling_slug',
+        'message' => 'A sibling under the target parent already uses this slug.',
+        'status' => 409,
+      ];
+    }
+
+    $source_revision = $options['source_order_revision'] ?? null;
+    $target_revision = $options['target_order_revision'] ?? null;
+    $current_source_revision = $original_parent_uuid !== '' ? self::get_order_revision($framework_id, $original_parent_uuid) : 0;
+    $current_target_revision = $new_parent_uuid !== '' ? self::get_order_revision($framework_id, $new_parent_uuid) : 0;
+
+    if ($source_revision !== null && (int) $source_revision !== $current_source_revision) {
+      return [
+        'success' => false,
+        'code' => 'stale_source_order',
+        'message' => 'The source branch order changed elsewhere.',
+        'status' => 409,
+        'current_source_revision' => $current_source_revision,
+        'current_target_revision' => $current_target_revision,
+      ];
+    }
+
+    if ($target_revision !== null && $new_parent_uuid !== $original_parent_uuid && (int) $target_revision !== $current_target_revision) {
+      return [
+        'success' => false,
+        'code' => 'stale_target_order',
+        'message' => 'The target branch order changed elsewhere.',
+        'status' => 409,
+        'current_source_revision' => $current_source_revision,
+        'current_target_revision' => $current_target_revision,
+      ];
+    }
+
+    $assignment_count = self::count_user_term_assignments(self::collect_node_uuids($term_info['node']));
+
+    if ($assignment_count > 0 && empty($options['confirm_assignments'])) {
+      return [
+        'success' => false,
+        'code' => 'assignment_warning',
+        'message' => 'This branch has active user assignments. Confirm before moving it.',
+        'status' => 409,
+        'assignment_count' => $assignment_count,
+      ];
+    }
+
+    $term_axis_uuid = self::term_axis_uuid($tree, $term_uuid);
+    $target_axis_uuid = self::term_axis_uuid($tree, $new_parent_uuid);
+
+    if ($target_axis_uuid === '' && ($placement === 'before' || $placement === 'after')) {
+      $target_axis_uuid = self::term_axis_uuid($tree, $target_uuid);
+    }
+
+    if ($term_axis_uuid !== '' && $target_axis_uuid !== '' && $term_axis_uuid !== $target_axis_uuid && empty($options['confirm_axis_change'])) {
+      return [
+        'success' => false,
+        'code' => 'axis_warning',
+        'message' => 'This move changes the branch axis/top-level context. Confirm before moving it.',
+        'status' => 409,
+      ];
+    }
+
+    $removed_term = null;
+
+    if (!self::remove_child_node_by_uuid($tree, $term_uuid, $removed_term) || !is_array($removed_term)) {
+      return [
+        'success' => false,
+        'code' => 'remove_failed',
+        'message' => 'Unable to remove branch from its current parent.',
+        'status' => 500,
+      ];
+    }
+
+    if ($placement === 'before') {
+      $added = self::insert_child_before_uuid($tree, $new_parent_uuid, $target_uuid, $removed_term);
+    } elseif ($placement === 'after') {
+      $added = self::insert_child_after_uuid($tree, $new_parent_uuid, $target_uuid, $removed_term);
+    } else {
+      $added = self::append_child_to_node_by_uuid($tree, $new_parent_uuid, $removed_term);
+    }
+
+    if (!$added) {
+      return [
+        'success' => false,
+        'code' => 'add_failed',
+        'message' => 'Unable to add branch to its new placement.',
+        'status' => 500,
+      ];
+    }
+
+    if ($original_parent_uuid !== '') {
+      self::bump_order_revision($framework_id, $original_parent_uuid);
+    }
+
+    if ($new_parent_uuid !== '' && $new_parent_uuid !== $original_parent_uuid) {
+      self::bump_order_revision($framework_id, $new_parent_uuid);
+    }
+
+    $compile_result = self::save_active_tree_and_compile($framework_id, $tree);
+
+    if (empty($compile_result['success'])) {
+      return [
+        'success' => false,
+        'code' => 'compile_failed',
+        'message' => 'Branch was moved, but runtime tables could not be rebuilt.',
+        'status' => 500,
+      ];
+    }
+
+    do_action('cfm_term_moved', $framework_id, $term_uuid, $original_parent_uuid, $new_parent_uuid, $removed_term, $compile_result);
+
+    $revisions = [];
+
+    if ($original_parent_uuid !== '') {
+      $revisions[$original_parent_uuid] = self::get_order_revision($framework_id, $original_parent_uuid);
+    }
+
+    if ($new_parent_uuid !== '') {
+      $revisions[$new_parent_uuid] = self::get_order_revision($framework_id, $new_parent_uuid);
+    }
+
+    $undo_payload = [
+      'moved_term_uuid' => $term_uuid,
+      'original_parent_uuid' => $original_parent_uuid,
+      'original_placement' => [
+        'insert_after_uuid' => $original_insert_after_uuid,
+        'insert_before_uuid' => $original_insert_before_uuid,
+      ],
+      'new_parent_uuid' => $new_parent_uuid,
+      'new_placement' => [
+        'placement' => $new_placement,
+        'target_uuid' => $target_uuid,
+        'insert_after_uuid' => $new_insert_after_uuid,
+        'insert_before_uuid' => $new_insert_before_uuid,
+      ],
+      'invalidate_on' => [
+        'add_child',
+        'insert_sibling',
+        'inline_edit',
+        'archive',
+        'restore_archive',
+        'delete_archive',
+        'reorder',
+        'move',
+      ],
+    ];
+
+    return [
+      'success' => true,
+      'revisions' => $revisions,
+      'move' => [
+        'moved_term_uuid' => $term_uuid,
+        'original_parent_uuid' => $original_parent_uuid,
+        'new_parent_uuid' => $new_parent_uuid,
+        'placement' => $new_placement,
+      ],
+      'undo_move' => $undo_payload,
+    ];
+  }
+
+  private static function normalize_branch_move_placement(string $placement): string
+  {
+    $placement = sanitize_key($placement);
+
+    if (in_array($placement, ['before', 'after'], true)) {
+      return $placement;
+    }
+
+    if (in_array($placement, ['child', 'child_append', 'append_child', 'into'], true)) {
+      return 'child';
+    }
+
+    return '';
   }
 
   private static function normalize_tree_children(array &$node): void
@@ -7020,6 +7627,8 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
     $editor_errors = [];
     $ordering_groups = [];
     $order_revisions = [];
+    $move_parent_options = self::collect_core_terms_editor_move_options($terms);
+    $branch_assignment_counts = self::collect_branch_assignment_counts($terms);
 
     self::collect_ordering_groups($tree, $ordering_groups);
 
@@ -7078,6 +7687,41 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
       <?php if (isset($_GET['cfm_editor_unarchived'])) : ?>
         <div class="notice notice-success is-dismissible">
           <p>Archived Core Term branch restored and runtime tables rebuilt.</p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_editor_moved'])) : ?>
+        <div class="notice notice-success is-dismissible">
+          <p>Core Term branch moved and runtime tables rebuilt.</p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (!empty($_GET['cfm_editor_move_error'])) :
+        $move_error = sanitize_key((string) wp_unslash($_GET['cfm_editor_move_error']));
+        $move_error_messages = [
+          'missing_fields' => 'Move request was incomplete.',
+          'self' => 'A term cannot be moved under itself.',
+          'missing_term' => 'The term being moved could not be found.',
+          'invalid_term' => 'Only Core Terms can be moved from this editor.',
+          'missing_parent' => 'The selected destination parent could not be found.',
+          'invalid_parent' => 'Move To can only move a branch under another Core Term.',
+          'descendant' => 'A term cannot be moved under one of its own descendants.',
+          'missing_slug' => 'The term slug is missing. Move aborted.',
+          'duplicate_sibling_slug' => 'Move blocked because the destination already has a child with the same slug.',
+          'same_parent' => 'Choose a different parent before moving this branch.',
+          'assignment_warning' => 'This branch has active user assignments. Confirm the assignment warning before moving it.',
+          'axis_warning' => 'This move changes the branch axis. Confirm the axis warning before moving it.',
+          'remove_failed' => 'The branch could not be removed from its current parent.',
+          'add_failed' => 'The branch could not be added to the selected parent.',
+        ];
+      ?>
+        <div class="notice notice-error is-dismissible">
+          <p>
+            <?php echo esc_html($move_error_messages[$move_error] ?? 'Core Term branch could not be moved.'); ?>
+            <?php if (!empty($_GET['cfm_assignment_count'])) : ?>
+              Assignment count: <?php echo esc_html((string) absint($_GET['cfm_assignment_count'])); ?>.
+            <?php endif; ?>
+          </p>
         </div>
       <?php endif; ?>
 
@@ -7616,6 +8260,72 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           color: #b32d2e;
         }
 
+        .cfm-core-terms-editor-move-modal[hidden] {
+          display: none;
+        }
+
+        .cfm-core-terms-editor-move-modal {
+          align-items: center;
+          bottom: 0;
+          display: flex;
+          justify-content: center;
+          left: 0;
+          position: fixed;
+          right: 0;
+          top: 0;
+          z-index: 100000;
+        }
+
+        .cfm-core-terms-editor-move-backdrop {
+          background: rgba(0, 0, 0, 0.35);
+          bottom: 0;
+          left: 0;
+          position: absolute;
+          right: 0;
+          top: 0;
+        }
+
+        .cfm-core-terms-editor-move-panel {
+          background: #fff;
+          border: 1px solid #c3c4c7;
+          border-radius: 6px;
+          box-shadow: 0 16px 42px rgba(0, 0, 0, 0.22);
+          box-sizing: border-box;
+          display: grid;
+          gap: 10px;
+          max-width: min(520px, calc(100vw - 40px));
+          padding: 20px;
+          position: relative;
+          width: 520px;
+        }
+
+        .cfm-core-terms-editor-move-panel h2 {
+          margin: 0;
+        }
+
+        .cfm-core-terms-editor-move-panel select {
+          max-width: 100%;
+          width: 100%;
+        }
+
+        .cfm-core-terms-editor-move-warning {
+          background: #fff8e5;
+          border-left: 4px solid #dba617;
+          padding: 8px 10px;
+        }
+
+        .cfm-core-terms-editor-move-error {
+          color: #b32d2e;
+          margin: 0;
+        }
+
+        .cfm-core-terms-editor-move-actions {
+          display: flex;
+          gap: 8px;
+          justify-content: flex-start;
+          margin-top: 4px;
+        }
+
         .cfm-core-terms-editor-row.has-error .cfm-core-terms-editor-status {
           color: #b32d2e;
           display: inline;
@@ -7638,6 +8348,20 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         .cfm-core-terms-editor-reorder-status {
           margin: 0 0 8px 0;
           min-height: 18px;
+        }
+
+        .cfm-core-terms-editor-tree-controls {
+          align-items: center;
+          display: flex;
+          justify-content: flex-start;
+          min-height: 24px;
+        }
+
+        .cfm-core-terms-editor-collapse-all {
+          font-size: 12px;
+          line-height: 1.4;
+          min-height: 24px;
+          padding: 0 8px;
         }
 
         .cfm-core-terms-editor-depth-1 > details > summary > .cfm-core-terms-editor-row,
@@ -7709,21 +8433,72 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           data-framework-id="<?php echo esc_attr((string) (int) $framework->id); ?>"
           data-root-parent-uuid="<?php echo esc_attr((string) ($tree['uuid'] ?? '')); ?>"
           data-reorder-nonce="<?php echo esc_attr(wp_create_nonce('cfm_reorder_terms')); ?>"
+          data-move-branch-nonce="<?php echo esc_attr(wp_create_nonce('cfm_move_branch')); ?>"
           data-order-revisions="<?php echo esc_attr(wp_json_encode($order_revisions)); ?>"
         >
           <?php self::render_core_terms_editor_reference_row(); ?>
           <hr class="cfm-core-terms-editor-divider">
+          <div class="cfm-core-terms-editor-tree-controls">
+            <button type="button" class="button button-link cfm-core-terms-editor-collapse-all" hidden>Collapse all</button>
+          </div>
           <p class="cfm-core-terms-editor-reorder-status description" aria-live="polite"></p>
 
           <?php if (empty($terms)) : ?>
             <p>No Core Terms found.</p>
           <?php else : ?>
             <div class="cfm-core-terms-editor-tree">
-              <?php self::render_core_terms_editor_nodes($terms); ?>
+              <?php self::render_core_terms_editor_nodes($terms, 0, $branch_assignment_counts); ?>
             </div>
           <?php endif; ?>
         </section>
       </form>
+      <form class="cfm-core-terms-editor-move-form" method="post" action="<?php echo esc_url(admin_url('admin.php?page=cfm-frameworks&action=editor&framework_id=' . (int) $framework->id)); ?>" hidden>
+        <?php wp_nonce_field('cfm_move_term', 'cfm_nonce'); ?>
+        <input type="hidden" name="cfm_action" value="move_term">
+        <input type="hidden" name="cfm_return" value="editor">
+        <input type="hidden" name="framework_id" value="<?php echo esc_attr((string) (int) $framework->id); ?>">
+        <input type="hidden" name="term_uuid" value="">
+        <input type="hidden" name="new_parent_uuid" value="">
+        <input type="hidden" name="cfm_confirm_assignments" value="">
+        <input type="hidden" name="cfm_confirm_axis_change" value="">
+      </form>
+      <div class="cfm-core-terms-editor-move-modal" role="dialog" aria-modal="true" aria-labelledby="cfm-core-terms-editor-move-title" hidden>
+        <div class="cfm-core-terms-editor-move-backdrop" data-cfm-move-cancel="1"></div>
+        <div class="cfm-core-terms-editor-move-panel">
+          <h2 id="cfm-core-terms-editor-move-title">Move Branch</h2>
+          <p class="description cfm-core-terms-editor-move-summary"></p>
+          <label for="cfm-core-terms-editor-new-parent">New Parent</label>
+          <select id="cfm-core-terms-editor-new-parent" class="cfm-core-terms-editor-new-parent">
+            <option value="">Select a new parent</option>
+            <?php foreach ($move_parent_options as $move_parent_option) : ?>
+              <option
+                value="<?php echo esc_attr((string) $move_parent_option['uuid']); ?>"
+                data-axis-uuid="<?php echo esc_attr((string) $move_parent_option['axis_uuid']); ?>"
+              >
+                <?php echo esc_html((string) $move_parent_option['path']); ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+          <p class="description">The moved branch will be appended as the last child of the selected parent.</p>
+          <div class="cfm-core-terms-editor-move-warning cfm-core-terms-editor-move-assignment-warning" hidden>
+            <label>
+              <input type="checkbox" class="cfm-core-terms-editor-confirm-assignments">
+              This branch has <span class="cfm-core-terms-editor-assignment-count">0</span> active user assignment(s). I understand moving it may change the assignment context.
+            </label>
+          </div>
+          <div class="cfm-core-terms-editor-move-warning cfm-core-terms-editor-move-axis-warning" hidden>
+            <label>
+              <input type="checkbox" class="cfm-core-terms-editor-confirm-axis">
+              This move changes the branch axis/top-level context. I understand this can affect how consuming plugins group or display the branch.
+            </label>
+          </div>
+          <p class="cfm-core-terms-editor-move-error" role="alert" hidden></p>
+          <div class="cfm-core-terms-editor-move-actions">
+            <button type="button" class="button button-primary cfm-core-terms-editor-move-submit" disabled>Move Branch</button>
+            <button type="button" class="button cfm-core-terms-editor-move-cancel" data-cfm-move-cancel="1">Cancel</button>
+          </div>
+        </div>
+      </div>
       <form class="cfm-core-terms-editor-archive-form" method="post" action="<?php echo esc_url(admin_url('admin.php?page=cfm-frameworks&action=editor&framework_id=' . (int) $framework->id)); ?>" hidden>
         <?php wp_nonce_field('cfm_core_terms_editor_archive', 'cfm_nonce'); ?>
         <input type="hidden" name="cfm_action" value="core_terms_editor_archive">
@@ -7746,6 +8521,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           var editorTree = null;
           var reorderStatus = null;
           var reorderNonce = '';
+          var moveBranchNonce = '';
           var rootParentUuid = '';
           var frameworkId = '';
           var orderRevisions = {};
@@ -7757,6 +8533,19 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           var autofillingDraft = false;
           var activeActionState = null;
           var actionMenuCloseTimer = null;
+          var moveForm = null;
+          var moveModal = null;
+          var moveSelect = null;
+          var moveSubmit = null;
+          var moveSummary = null;
+          var moveError = null;
+          var moveAssignmentWarning = null;
+          var moveAxisWarning = null;
+          var moveAssignmentCheckbox = null;
+          var moveAxisCheckbox = null;
+          var moveAssignmentCount = null;
+          var moveActiveRow = null;
+          var collapseAllButton = null;
 
           function normalizeSlug(value) {
             return String(value || '')
@@ -8317,10 +9106,34 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             writeStoredJson('open', collectOpenState());
           }
 
+          function hasOpenBranches() {
+            return Boolean(document.querySelector('.cfm-core-terms-editor-term > details[open]'));
+          }
+
+          function updateCollapseAllControl() {
+            if (!collapseAllButton) {
+              return;
+            }
+
+            collapseAllButton.hidden = !hasOpenBranches();
+          }
+
+          function collapseAllBranches() {
+            document
+              .querySelectorAll('.cfm-core-terms-editor-term > details[open]')
+              .forEach(function(details) {
+                details.open = false;
+              });
+
+            saveOpenState();
+            updateCollapseAllControl();
+          }
+
           function restoreOpenState() {
             var openUuids = readStoredJson('open', []);
 
             if (!Array.isArray(openUuids)) {
+              updateCollapseAllControl();
               return;
             }
 
@@ -8332,6 +9145,8 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
                 details.open = true;
               }
             });
+
+            updateCollapseAllControl();
           }
 
           function currentDrafts() {
@@ -8420,6 +9235,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
                 '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-move-down" aria-label="Move down"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M10 15l-5-5"></path><path d="M10 15l5-5"></path><path d="M10 5v10"></path></svg></button>' +
                 '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-insert-sibling" aria-label="Insert sibling" aria-haspopup="menu" aria-expanded="false" data-cfm-action-menu-trigger="sibling"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M5 6h7"></path><path d="M5 14h7"></path><path d="M15 10v6"></path><path d="M12 13h6"></path></svg></button>' +
                 '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-add-child" aria-label="Add child" aria-haspopup="menu" aria-expanded="false" data-cfm-action-menu-trigger="child"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M5 4v10h6"></path><path d="M8 14h6"></path><path d="M15 11v6"></path><path d="M12 14h6"></path></svg></button>' +
+                '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-move-branch" aria-label="Move branch"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M5 10h10"></path><path d="M11 6l4 4-4 4"></path><path d="M5 5v10"></path></svg></button>' +
                 '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-archive-branch" aria-label="Archive branch" aria-haspopup="true" aria-expanded="false" data-cfm-action-menu-trigger="archive"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M4 6h12"></path><path d="M6 6v10h8V6"></path><path d="M8 4h4l1 2H7l1-2z"></path><path d="M8 10h4"></path></svg></button>' +
                 '<span class="cfm-core-terms-editor-action-menu cfm-core-terms-editor-sibling-menu" role="menu" data-cfm-action-menu="sibling" hidden>' +
                   '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-insert-sibling-before" role="menuitem">Insert sibling before</button>' +
@@ -8430,8 +9246,8 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
                   '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-prepend-child" role="menuitem">Prepend child</button>' +
                   '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-append-child" role="menuitem">Append child</button>' +
                 '</span>' +
-                '<span class="cfm-core-terms-editor-action-menu cfm-core-terms-editor-archive-menu" role="tooltip" data-cfm-action-menu="archive" hidden>' +
-                  '<span class="cfm-core-terms-editor-action-menu-label">Archive branch</span>' +
+                '<span class="cfm-core-terms-editor-action-menu cfm-core-terms-editor-archive-menu" role="menu" data-cfm-action-menu="archive" hidden>' +
+                  '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-archive-menu-action" role="menuitem">Archive branch</button>' +
                 '</span>' +
                 '<button type="button" class="button button-small cfm-core-terms-editor-cancel-draft">Cancel</button>' +
                 '<span class="cfm-core-terms-editor-status" aria-live="polite">Unsaved</span>' +
@@ -8446,6 +9262,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
             if (details) {
               details.open = true;
+              updateCollapseAllControl();
               return details;
             }
 
@@ -8479,6 +9296,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             term.classList.add('cfm-core-terms-editor-has-children');
             bindSummary(summary);
             bindCaret(caretSlot);
+            updateCollapseAllControl();
 
             return details;
           }
@@ -8494,6 +9312,162 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
                 (children && children.querySelector(':scope > .cfm-core-terms-editor-term'))
               )
             );
+          }
+
+          function descendantUuidsForRow(row) {
+            var term = row ? row.closest('.cfm-core-terms-editor-term') : null;
+            var descendants = [];
+
+            if (!term) {
+              return descendants;
+            }
+
+            term
+              .querySelectorAll(':scope .cfm-core-terms-editor-term .cfm-core-terms-editor-row[data-term-uuid]')
+              .forEach(function(descendantRow) {
+                if (descendantRow !== row) {
+                  descendants.push(descendantRow.getAttribute('data-term-uuid') || '');
+                }
+              });
+
+            return descendants.filter(Boolean);
+          }
+
+          function rowLabel(row) {
+            var label = row ? row.querySelector('.cfm-core-terms-editor-label-display') : null;
+            return label ? label.textContent.trim() : 'this branch';
+          }
+
+          function closeMoveModal() {
+            if (!moveModal) {
+              return;
+            }
+
+            moveModal.hidden = true;
+            moveActiveRow = null;
+
+            if (moveSelect) {
+              moveSelect.value = '';
+            }
+
+            if (moveError) {
+              moveError.hidden = true;
+              moveError.textContent = '';
+            }
+          }
+
+          function moveWarningsSatisfied() {
+            var needsAssignments = moveAssignmentWarning && !moveAssignmentWarning.hidden;
+            var needsAxis = moveAxisWarning && !moveAxisWarning.hidden;
+
+            return (!needsAssignments || (moveAssignmentCheckbox && moveAssignmentCheckbox.checked)) &&
+              (!needsAxis || (moveAxisCheckbox && moveAxisCheckbox.checked));
+          }
+
+          function updateMoveModalState() {
+            if (!moveActiveRow || !moveSelect || !moveSubmit) {
+              return;
+            }
+
+            var selected = moveSelect.options[moveSelect.selectedIndex] || null;
+            var selectedUuid = selected ? selected.value : '';
+            var rowAxis = moveActiveRow.getAttribute('data-axis-uuid') || '';
+            var targetAxis = selected ? (selected.getAttribute('data-axis-uuid') || '') : '';
+            var assignmentCount = parseInt(moveActiveRow.getAttribute('data-assignment-count') || '0', 10) || 0;
+            var validTarget = Boolean(selectedUuid && !selected.disabled);
+            var axisChange = Boolean(validTarget && rowAxis && targetAxis && rowAxis !== targetAxis);
+
+            if (moveAssignmentWarning) {
+              moveAssignmentWarning.hidden = assignmentCount <= 0;
+            }
+
+            if (moveAssignmentCount) {
+              moveAssignmentCount.textContent = String(assignmentCount);
+            }
+
+            if (moveAxisWarning) {
+              moveAxisWarning.hidden = !axisChange;
+            }
+
+            if (moveError) {
+              moveError.hidden = true;
+              moveError.textContent = '';
+            }
+
+            moveSubmit.disabled = !validTarget || !moveWarningsSatisfied();
+          }
+
+          function openMoveModal(row) {
+            if (!row || isDraftRow(row) || !moveModal || !moveSelect) {
+              return;
+            }
+
+            closeActionMenus();
+
+            if (isReorderDisabled()) {
+              if (moveError) {
+                moveError.textContent = 'Save or reset changes before moving a branch.';
+                moveError.hidden = false;
+              }
+
+              window.alert('Save or reset changes before moving a branch.');
+              return;
+            }
+
+            var rowUuid = row.getAttribute('data-term-uuid') || '';
+            var currentParentUuid = row.getAttribute('data-parent-uuid') || '';
+            var descendants = new Set(descendantUuidsForRow(row));
+
+            Array.prototype.forEach.call(moveSelect.options, function(option) {
+              var optionUuid = option.value || '';
+              var disabled = !optionUuid ||
+                optionUuid === rowUuid ||
+                optionUuid === currentParentUuid ||
+                descendants.has(optionUuid);
+
+              option.disabled = disabled;
+            });
+
+            moveActiveRow = row;
+            moveSelect.value = '';
+
+            if (moveSummary) {
+              moveSummary.textContent = 'Move "' + rowLabel(row) + '" and all child terms under a different Core Term.';
+            }
+
+            if (moveAssignmentCheckbox) {
+              moveAssignmentCheckbox.checked = false;
+            }
+
+            if (moveAxisCheckbox) {
+              moveAxisCheckbox.checked = false;
+            }
+
+            moveModal.hidden = false;
+            updateMoveModalState();
+            moveSelect.focus();
+          }
+
+          function submitMoveBranch() {
+            if (!moveActiveRow || !moveForm || !moveSelect || !moveSubmit || moveSubmit.disabled) {
+              return;
+            }
+
+            var termInput = moveForm.querySelector('input[name="term_uuid"]');
+            var parentInput = moveForm.querySelector('input[name="new_parent_uuid"]');
+            var assignmentInput = moveForm.querySelector('input[name="cfm_confirm_assignments"]');
+            var axisInput = moveForm.querySelector('input[name="cfm_confirm_axis_change"]');
+
+            if (!termInput || !parentInput || !assignmentInput || !axisInput) {
+              return;
+            }
+
+            termInput.value = moveActiveRow.getAttribute('data-term-uuid') || '';
+            parentInput.value = moveSelect.value || '';
+            assignmentInput.value = moveAssignmentCheckbox && moveAssignmentCheckbox.checked ? '1' : '';
+            axisInput.value = moveAxisCheckbox && moveAxisCheckbox.checked ? '1' : '';
+            formSubmitting = true;
+            moveForm.submit();
           }
 
           function closeActionMenus(exceptState) {
@@ -8928,6 +9902,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
             details.open = !details.open;
             saveOpenState();
+            updateCollapseAllControl();
           }
 
           function isCaretClick(target) {
@@ -9089,6 +10064,13 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
               });
             }
 
+            if (collapseAllButton) {
+              collapseAllButton.addEventListener('click', function(event) {
+                event.preventDefault();
+                collapseAllBranches();
+              });
+            }
+
             form.addEventListener('click', function(event) {
               var row = event.target.closest('.cfm-core-terms-editor-row[data-term-uuid]');
 
@@ -9149,6 +10131,16 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
                 event.preventDefault();
                 event.stopPropagation();
                 openActionMenu(row, 'child', true);
+              } else if (event.target.closest('.cfm-core-terms-editor-move-branch')) {
+                event.preventDefault();
+                event.stopPropagation();
+                closeActionMenus();
+                openMoveModal(row);
+              } else if (event.target.closest('.cfm-core-terms-editor-archive-menu-action')) {
+                event.preventDefault();
+                event.stopPropagation();
+                closeActionMenus();
+                archiveBranch(row);
               } else if (event.target.closest('.cfm-core-terms-editor-archive-branch')) {
                 event.preventDefault();
                 event.stopPropagation();
@@ -9188,8 +10180,37 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             document.addEventListener('keydown', function(event) {
               if (event.key === 'Escape') {
                 closeActionMenus();
+                closeMoveModal();
               }
             });
+
+            if (moveSelect) {
+              moveSelect.addEventListener('change', updateMoveModalState);
+            }
+
+            if (moveAssignmentCheckbox) {
+              moveAssignmentCheckbox.addEventListener('change', updateMoveModalState);
+            }
+
+            if (moveAxisCheckbox) {
+              moveAxisCheckbox.addEventListener('change', updateMoveModalState);
+            }
+
+            if (moveSubmit) {
+              moveSubmit.addEventListener('click', function(event) {
+                event.preventDefault();
+                submitMoveBranch();
+              });
+            }
+
+            if (moveModal) {
+              moveModal.addEventListener('click', function(event) {
+                if (event.target.closest('[data-cfm-move-cancel]')) {
+                  event.preventDefault();
+                  closeMoveModal();
+                }
+              });
+            }
           }
 
           function autofillDraftRow(row) {
@@ -9360,6 +10381,18 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             form = document.querySelector('.cfm-core-terms-editor-form');
             archiveForm = document.querySelector('.cfm-core-terms-editor-archive-form');
             archiveTermInput = archiveForm ? archiveForm.querySelector('input[name="term_uuid"]') : null;
+            moveForm = document.querySelector('.cfm-core-terms-editor-move-form');
+            moveModal = document.querySelector('.cfm-core-terms-editor-move-modal');
+            moveSelect = document.querySelector('.cfm-core-terms-editor-new-parent');
+            moveSubmit = document.querySelector('.cfm-core-terms-editor-move-submit');
+            moveSummary = document.querySelector('.cfm-core-terms-editor-move-summary');
+            moveError = document.querySelector('.cfm-core-terms-editor-move-error');
+            moveAssignmentWarning = document.querySelector('.cfm-core-terms-editor-move-assignment-warning');
+            moveAxisWarning = document.querySelector('.cfm-core-terms-editor-move-axis-warning');
+            moveAssignmentCheckbox = document.querySelector('.cfm-core-terms-editor-confirm-assignments');
+            moveAxisCheckbox = document.querySelector('.cfm-core-terms-editor-confirm-axis');
+            moveAssignmentCount = document.querySelector('.cfm-core-terms-editor-assignment-count');
+            collapseAllButton = document.querySelector('.cfm-core-terms-editor-collapse-all');
             saveButton = document.querySelector('.cfm-core-terms-editor-save');
             resetButton = document.querySelector('.cfm-core-terms-editor-reset');
             dirtyCount = document.querySelector('.cfm-core-terms-editor-dirty-count');
@@ -9369,6 +10402,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             editorTree = document.querySelector('.cfm-core-terms-editor-tree');
             reorderStatus = document.querySelector('.cfm-core-terms-editor-reorder-status');
             reorderNonce = editor ? (editor.getAttribute('data-reorder-nonce') || '') : '';
+            moveBranchNonce = editor ? (editor.getAttribute('data-move-branch-nonce') || '') : '';
             rootParentUuid = editor ? (editor.getAttribute('data-root-parent-uuid') || '') : '';
             frameworkId = editor ? (editor.getAttribute('data-framework-id') || '') : '';
 
@@ -9385,6 +10419,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             updateAllRowSaveVisibility();
             updateToolbar();
             updateReorderControls();
+            updateCollapseAllControl();
           });
           document.addEventListener('keydown', handleEditorKeydown);
         }());
@@ -9422,24 +10457,26 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
     <?php
   }
 
-  private static function render_core_terms_editor_nodes(array $terms, int $depth = 0): void
+  private static function render_core_terms_editor_nodes(array $terms, int $depth = 0, array $branch_assignment_counts = [], string $parent_uuid = '', string $axis_uuid = ''): void
   {
     foreach ($terms as $term) {
       if (!is_array($term) || self::node_kind($term) !== 'term') {
         continue;
       }
 
-      self::render_core_terms_editor_node($term, $depth);
+      self::render_core_terms_editor_node($term, $depth, $branch_assignment_counts, $parent_uuid, $axis_uuid);
     }
   }
 
-  private static function render_core_terms_editor_node(array $term, int $depth = 0): void
+  private static function render_core_terms_editor_node(array $term, int $depth = 0, array $branch_assignment_counts = [], string $parent_uuid = '', string $axis_uuid = ''): void
   {
     $children = isset($term['children']) && is_array($term['children'])
       ? array_values(array_filter($term['children'], static function ($child): bool {
         return is_array($child) && self::node_kind($child) === 'term';
       }))
       : [];
+    $term_uuid = (string) ($term['uuid'] ?? '');
+    $term_axis_uuid = $axis_uuid !== '' ? $axis_uuid : $term_uuid;
 
     $classes = [
       'cfm-core-terms-editor-term',
@@ -9455,20 +10492,20 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
     if (!empty($children)) {
       echo '<details>';
       echo '<summary>';
-      self::render_core_terms_editor_node_fields($term, true, 'span');
+      self::render_core_terms_editor_node_fields($term, true, 'span', $parent_uuid, $term_axis_uuid, (int) ($branch_assignment_counts[$term_uuid] ?? 0));
       echo '</summary>';
       echo '<div class="cfm-core-terms-editor-children">';
-      self::render_core_terms_editor_nodes($children, $depth + 1);
+      self::render_core_terms_editor_nodes($children, $depth + 1, $branch_assignment_counts, $term_uuid, $term_axis_uuid);
       echo '</div>';
       echo '</details>';
     } else {
-      self::render_core_terms_editor_node_fields($term, false);
+      self::render_core_terms_editor_node_fields($term, false, 'div', $parent_uuid, $term_axis_uuid, (int) ($branch_assignment_counts[$term_uuid] ?? 0));
     }
 
     echo '</div>';
   }
 
-  private static function render_core_terms_editor_node_fields(array $term, bool $has_children, string $container_tag = 'div'): void
+  private static function render_core_terms_editor_node_fields(array $term, bool $has_children, string $container_tag = 'div', string $parent_uuid = '', string $axis_uuid = '', int $assignment_count = 0): void
   {
     $uuid = (string) ($term['uuid'] ?? '');
     $label = (string) ($term['label'] ?? '');
@@ -9485,6 +10522,9 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
       . ' data-original-slug="' . esc_attr($slug) . '"'
       . ' data-original-short-label="' . esc_attr($short_label) . '"'
       . ' data-original-community="' . esc_attr($community) . '"'
+      . ' data-parent-uuid="' . esc_attr($parent_uuid) . '"'
+      . ' data-axis-uuid="' . esc_attr($axis_uuid) . '"'
+      . ' data-assignment-count="' . esc_attr((string) max(0, $assignment_count)) . '"'
       . '>';
     echo '<span class="cfm-core-terms-editor-rail">';
 
@@ -9525,6 +10565,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
     echo '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-move-down" aria-label="Move down"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M10 15l-5-5"></path><path d="M10 15l5-5"></path><path d="M10 5v10"></path></svg></button>';
     echo '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-insert-sibling" aria-label="Insert sibling" aria-haspopup="menu" aria-expanded="false" data-cfm-action-menu-trigger="sibling"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M5 6h7"></path><path d="M5 14h7"></path><path d="M15 10v6"></path><path d="M12 13h6"></path></svg></button>';
     echo '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-add-child" aria-label="Add child" aria-haspopup="menu" aria-expanded="false" data-cfm-action-menu-trigger="child"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M5 4v10h6"></path><path d="M8 14h6"></path><path d="M15 11v6"></path><path d="M12 14h6"></path></svg></button>';
+    echo '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-move-branch" aria-label="Move branch"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M5 10h10"></path><path d="M11 6l4 4-4 4"></path><path d="M5 5v10"></path></svg></button>';
     echo '<button type="button" class="cfm-core-terms-editor-row-action cfm-core-terms-editor-archive-branch" aria-label="Archive branch" aria-haspopup="true" aria-expanded="false" data-cfm-action-menu-trigger="archive"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M4 6h12"></path><path d="M6 6v10h8V6"></path><path d="M8 4h4l1 2H7l1-2z"></path><path d="M8 10h4"></path></svg></button>';
     echo '<span class="cfm-core-terms-editor-action-menu cfm-core-terms-editor-sibling-menu" role="menu" data-cfm-action-menu="sibling" hidden>';
     echo '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-insert-sibling-before" role="menuitem">Insert sibling before</button>';
@@ -9535,8 +10576,8 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
     echo '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-prepend-child" role="menuitem">Prepend child</button>';
     echo '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-append-child" role="menuitem">Append child</button>';
     echo '</span>';
-    echo '<span class="cfm-core-terms-editor-action-menu cfm-core-terms-editor-archive-menu" role="tooltip" data-cfm-action-menu="archive" hidden>';
-    echo '<span class="cfm-core-terms-editor-action-menu-label">Archive branch</span>';
+    echo '<span class="cfm-core-terms-editor-action-menu cfm-core-terms-editor-archive-menu" role="menu" data-cfm-action-menu="archive" hidden>';
+    echo '<button type="button" class="cfm-core-terms-editor-menu-item cfm-core-terms-editor-archive-menu-action" role="menuitem">Archive branch</button>';
     echo '</span>';
     echo '<button type="button" class="button button-small cfm-core-terms-editor-cancel-draft">Cancel</button>';
     echo '<span class="cfm-core-terms-editor-status" aria-live="polite">Unsaved</span>';
