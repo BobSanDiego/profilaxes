@@ -954,13 +954,9 @@ class CFM_Admin
 
     if ($framework_id <= 0 || $label === '' || $slug === '' || count($includes) < 2) {
       wp_safe_redirect(
-        admin_url(
-          'admin.php?page=cfm-frameworks'
-            . '&action=edit'
-            . '&framework_id=' . $framework_id
+        self::meta_groups_url($framework_id)
             . '&cfm_error=missing_meta_group_fields'
             . '#cfm-meta-groups'
-        )
       );
       exit;
     }
@@ -991,13 +987,9 @@ class CFM_Admin
     foreach ($includes as $include_uuid) {
       if (!isset($available_uuids[$include_uuid])) {
         wp_safe_redirect(
-          admin_url(
-            'admin.php?page=cfm-frameworks'
-              . '&action=edit'
-              . '&framework_id=' . $framework_id
+          self::meta_groups_url($framework_id)
               . '&cfm_error=invalid_meta_group_includes'
               . '#cfm-meta-groups'
-          )
         );
         exit;
       }
@@ -1005,13 +997,9 @@ class CFM_Admin
 
     if (self::has_child_slug_conflict($tree, (string) ($tree['uuid'] ?? ''), $slug)) {
       wp_safe_redirect(
-        admin_url(
-          'admin.php?page=cfm-frameworks'
-            . '&action=edit'
-            . '&framework_id=' . $framework_id
+        self::meta_groups_url($framework_id)
             . '&cfm_error=duplicate_meta_group_slug'
             . '#cfm-meta-groups'
-        )
       );
       exit;
     }
@@ -1030,14 +1018,10 @@ class CFM_Admin
     $compile_result = self::save_active_tree_and_compile($framework_id, $tree);
 
     wp_safe_redirect(
-      admin_url(
-        'admin.php?page=cfm-frameworks'
-          . '&action=edit'
-          . '&framework_id=' . $framework_id
+      self::meta_groups_url($framework_id)
           . '&cfm_meta_group_added=1'
           . $compile_result['query_arg']
           . '#cfm-meta-groups'
-      )
     );
     exit;
   }
@@ -1155,14 +1139,10 @@ class CFM_Admin
     $compile_result = self::save_active_tree_and_compile($framework_id, $tree);
 
     wp_safe_redirect(
-      admin_url(
-        'admin.php?page=cfm-frameworks'
-          . '&action=edit'
-          . '&framework_id=' . $framework_id
+      self::meta_groups_url($framework_id)
           . '&cfm_meta_group_updated=1'
           . $compile_result['query_arg']
           . '#cfm-meta-groups'
-      )
     );
     exit;
   }
@@ -4492,7 +4472,7 @@ class CFM_Admin
     }
 
     if ($action === 'meta_groups') {
-      self::render_meta_groups_placeholder_page();
+      self::render_meta_groups_page();
       return;
     }
 
@@ -5415,6 +5395,17 @@ class CFM_Admin
     return $url;
   }
 
+  private static function meta_groups_url(int $framework_id = 0): string
+  {
+    $url = admin_url('admin.php?page=cfm-frameworks&action=meta_groups');
+
+    if ($framework_id > 0) {
+      $url = add_query_arg('framework_id', $framework_id, $url);
+    }
+
+    return $url;
+  }
+
   private static function versions_url(int $framework_id, int $paged = 1): string
   {
     $url = admin_url(
@@ -5997,23 +5988,178 @@ class CFM_Admin
   <?php
   }
 
-  public static function render_meta_groups_placeholder_page(): void
+  public static function render_meta_groups_page(): void
   {
-    $framework = self::primary_framework_for_admin();
-    $links = [];
-
-    if ($framework) {
-      $links[] = [
-        'label' => 'Open Legacy Meta-Groups',
-        'url' => self::edit_url((int) $framework->id) . '#cfm-meta-groups',
-      ];
+    if (!current_user_can('manage_options')) {
+      wp_die('You do not have permission to access this page.');
     }
 
-    self::render_admin_placeholder_page(
-      'Core Terms Meta-Groups',
-      'Meta-Group list, create, and edit workflows will move here in a later ticket. Existing Meta-Group tools remain available on the legacy Core Terms page.',
-      $links
-    );
+    $framework_id = isset($_GET['framework_id'])
+      ? absint($_GET['framework_id'])
+      : 0;
+
+    $framework = $framework_id > 0
+      ? CFM_Framework_Repository::get_framework($framework_id)
+      : self::primary_framework_for_admin();
+
+    if (!$framework) {
+      self::render_admin_placeholder_page(
+        'Core Terms Meta-Groups',
+        'Create the primary Core Terms definition before managing Meta-Groups.',
+        [
+          [
+            'label' => 'Open Dashboard',
+            'url' => admin_url('admin.php?page=cfm-frameworks'),
+          ],
+        ]
+      );
+      return;
+    }
+
+    $framework_id = (int) $framework->id;
+    $tree = self::get_framework_tree($framework);
+    $meta_groups = self::root_meta_groups($tree);
+    $available_terms = self::collect_assignable_term_nodes($tree);
+    $terms_by_uuid = [];
+
+    foreach ($available_terms as $available_term) {
+      $available_uuid = (string) ($available_term['uuid'] ?? '');
+
+      if ($available_uuid !== '') {
+        $terms_by_uuid[$available_uuid] = $available_term;
+      }
+    }
+
+  ?>
+    <div class="wrap">
+      <h1>Core Terms Meta-Groups</h1>
+
+      <p>
+        <a class="button button-secondary" href="<?php echo esc_url(self::editor_url($framework_id)); ?>">Core Terms Editor</a>
+        <a class="button button-secondary" href="<?php echo esc_url(self::edit_url($framework_id)); ?>">Legacy Maintenance View</a>
+      </p>
+
+      <?php if (isset($_GET['cfm_meta_group_added'])) : ?>
+        <div class="notice notice-success is-dismissible">
+          <p>Meta-Group added.</p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_meta_group_updated'])) : ?>
+        <div class="notice notice-success is-dismissible">
+          <p>Meta-Group updated.</p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'missing_meta_group_fields') : ?>
+        <div class="notice notice-error is-dismissible">
+          <p>Meta-Group label, slug, and at least two included terms are required.</p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'invalid_meta_group_includes') : ?>
+        <div class="notice notice-error is-dismissible">
+          <p>Meta-Group includes must reference existing terms only.</p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'duplicate_meta_group_slug') : ?>
+        <div class="notice notice-error is-dismissible">
+          <p>That Meta-Group slug already exists at the top level. Choose a different slug.</p>
+        </div>
+      <?php endif; ?>
+
+      <h2 id="cfm-meta-groups">Meta-Groups</h2>
+      <div class="notice notice-info inline">
+        <p><strong>Meta-Groups are audience-only collections.</strong> They collect existing terms for future audience and extension use without changing the term tree.</p>
+        <p>Users are assigned terms, not Meta-Groups. A Meta-Group can include terms from different branches without moving, copying, or replacing those terms.</p>
+      </div>
+
+      <?php self::render_meta_groups_table($meta_groups, $terms_by_uuid, $framework_id); ?>
+
+      <h3>Create Meta-Group</h3>
+
+      <?php if (count($available_terms) < 2) : ?>
+        <p>Create at least two terms before adding a Meta-Group.</p>
+      <?php else : ?>
+        <form method="post">
+          <?php wp_nonce_field('cfm_add_meta_group', 'cfm_nonce'); ?>
+
+          <input type="hidden" name="cfm_action" value="add_meta_group">
+          <input type="hidden" name="framework_id" value="<?php echo esc_attr((string) $framework_id); ?>">
+
+          <table class="form-table" role="presentation">
+            <tr>
+              <th scope="row">
+                <label for="meta_group_label">Meta-Group Label</label>
+              </th>
+              <td>
+                <input name="meta_group_label" id="meta_group_label" type="text" class="regular-text" data-cfm-autofill-label="add-meta-group" required>
+                <p class="description">Example: STEM, New Teachers, K-5 Science</p>
+              </td>
+            </tr>
+
+            <tr>
+              <th scope="row">
+                <label for="meta_group_slug">Meta-Group Slug</label>
+              </th>
+              <td>
+                <input name="meta_group_slug" id="meta_group_slug" type="text" class="regular-text" data-cfm-autofill-target="add-meta-group" data-cfm-autofill-type="slug">
+                <p class="description">Example: stem, new-teachers, k-5-science</p>
+              </td>
+            </tr>
+
+            <tr>
+              <th scope="row">
+                <label for="meta_group_short_label">Short Label</label>
+              </th>
+              <td>
+                <input name="meta_group_short_label" id="meta_group_short_label" type="text" class="regular-text" data-cfm-autofill-target="add-meta-group" data-cfm-autofill-type="copy">
+                <p class="description">Compact display text. Leave blank to use the Meta-Group label.</p>
+              </td>
+            </tr>
+
+            <tr>
+              <th scope="row">
+                <label for="meta_group_description">Community</label>
+              </th>
+              <td>
+                <input name="meta_group_description" id="meta_group_description" type="text" class="regular-text" data-cfm-autofill-target="add-meta-group" data-cfm-autofill-type="copy">
+                <p class="description">Community-facing context. Leave blank to use the Meta-Group label.</p>
+              </td>
+            </tr>
+
+            <tr>
+              <th scope="row">Included Terms</th>
+              <td>
+                <div data-cfm-meta-term-selector="1">
+                  <p class="description" style="margin-top:0;">Select existing terms only. Parent checkboxes select or clear all descendant terms.</p>
+                  <div style="display:flex; justify-content:space-between; max-width:760px; margin:0 0 8px;">
+                    <span>
+                      <a href="#" data-cfm-meta-expand="1">Expand all</a>
+                      <span aria-hidden="true"> | </span>
+                      <a href="#" data-cfm-meta-expand="0">Collapse all</a>
+                    </span>
+                    <span id="cfm-meta-selected-count" class="description">0 terms selected</span>
+                  </div>
+                  <fieldset style="max-height: 340px; overflow: auto; border: 1px solid #ccd0d4; background: #fff; padding: 10px; max-width:760px;">
+                    <legend class="screen-reader-text">Included Terms</legend>
+                    <?php self::render_meta_group_term_checklist(self::root_terms($tree)); ?>
+                  </fieldset>
+                </div>
+                <p class="description">Meta-Groups do not create new terms, move terms in the tree, or become directly assignable user values.</p>
+              </td>
+            </tr>
+          </table>
+
+          <?php submit_button('Add Meta-Group'); ?>
+        </form>
+        <?php self::render_meta_group_term_checklist_script(); ?>
+      <?php endif; ?>
+
+      <?php self::render_term_metadata_autofill_script(); ?>
+    </div>
+  <?php
   }
 
   public static function render_maintenance_placeholder_page(): void
@@ -7300,7 +7446,7 @@ class CFM_Admin
       <h1>Edit Meta-Group: <?php echo esc_html($meta_group['label'] ?? ''); ?></h1>
 
       <p>
-        <a href="<?php echo esc_url(admin_url('admin.php?page=cfm-frameworks&action=edit&framework_id=' . (int) $framework->id . '#cfm-meta-groups')); ?>">← Back to Meta-Groups</a>
+        <a href="<?php echo esc_url(self::meta_groups_url((int) $framework->id) . '#cfm-meta-groups'); ?>">← Back to Meta-Groups</a>
       </p>
 
       <div class="notice notice-info inline">
@@ -11884,17 +12030,6 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
     $tree = self::get_framework_tree($framework);
     $axes = self::root_terms($tree);
-    $meta_groups = self::root_meta_groups($tree);
-    $available_terms = self::collect_assignable_term_nodes($tree);
-    $terms_by_uuid = [];
-
-    foreach ($available_terms as $available_term) {
-      $available_uuid = (string) ($available_term['uuid'] ?? '');
-
-      if ($available_uuid !== '') {
-        $terms_by_uuid[$available_uuid] = $available_term;
-      }
-    }
     $ordering_reload_url = admin_url(
       'admin.php?page=cfm-frameworks'
         . '&action=edit'
@@ -11910,6 +12045,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         <a class="button button-secondary" href="<?php echo esc_url(self::editor_url((int) $framework->id)); ?>">Core Terms Editor</a>
         <a class="button button-secondary" href="<?php echo esc_url(self::archived_terms_url((int) $framework->id)); ?>">Archived Terms</a>
         <a class="button button-secondary" href="<?php echo esc_url(self::data_url((int) $framework->id)); ?>">Data</a>
+        <a class="button button-secondary" href="<?php echo esc_url(self::meta_groups_url((int) $framework->id)); ?>">Meta-Groups</a>
       </p>
 
       <?php if (isset($_GET['cfm_axis_added'])) : ?>
@@ -11924,18 +12060,6 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         </div>
       <?php endif; ?>
 
-
-      <?php if (isset($_GET['cfm_meta_group_added'])) : ?>
-        <div class="notice notice-success is-dismissible">
-          <p>Meta-Group added.</p>
-        </div>
-      <?php endif; ?>
-
-      <?php if (isset($_GET['cfm_meta_group_updated'])) : ?>
-        <div class="notice notice-success is-dismissible">
-          <p>Meta-Group updated.</p>
-        </div>
-      <?php endif; ?>
 
       <?php if (isset($_GET['cfm_term_moved'])) : ?>
         <div class="notice notice-success is-dismissible">
@@ -11997,26 +12121,6 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           <p>Parent, term label, and term slug are required.</p>
         </div>
       <?php endif; ?>
-
-      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'missing_meta_group_fields') : ?>
-        <div class="notice notice-error is-dismissible">
-          <p>Meta-Group label, slug, and at least two included terms are required.</p>
-        </div>
-      <?php endif; ?>
-
-
-      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'invalid_meta_group_includes') : ?>
-        <div class="notice notice-error is-dismissible">
-          <p>Meta-Group includes must reference existing terms only.</p>
-        </div>
-      <?php endif; ?>
-
-      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'duplicate_meta_group_slug') : ?>
-        <div class="notice notice-error is-dismissible">
-          <p>That Meta-Group slug already exists at the top level. Choose a different slug.</p>
-        </div>
-      <?php endif; ?>
-
 
       <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'missing_move_fields') : ?>
         <div class="notice notice-error is-dismissible">
@@ -12184,96 +12288,6 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
       <h2 id="cfm-ordering">Ordering</h2>
       <p class="description">Ordering is sibling-scoped. Drag terms within each group to change their display order.</p>
       <?php self::render_ordering_controls((int) $framework->id, $tree); ?>
-
-      <hr>
-
-      <h2 id="cfm-meta-groups">Meta-Groups</h2>
-      <div class="notice notice-info inline">
-        <p><strong>Meta-Groups are audience-only collections.</strong> They collect existing terms for future audience and extension use without changing the term tree.</p>
-        <p>Users are assigned terms, not Meta-Groups. A Meta-Group can include terms from different branches without moving, copying, or replacing those terms.</p>
-      </div>
-
-      <?php self::render_meta_groups_table($meta_groups, $terms_by_uuid, (int) $framework->id); ?>
-
-      <h3>Create Meta-Group</h3>
-
-      <?php if (count($available_terms) < 2) : ?>
-        <p>Create at least two terms before adding a Meta-Group.</p>
-      <?php else : ?>
-        <form method="post">
-          <?php wp_nonce_field('cfm_add_meta_group', 'cfm_nonce'); ?>
-
-          <input type="hidden" name="cfm_action" value="add_meta_group">
-          <input type="hidden" name="framework_id" value="<?php echo esc_attr($framework->id); ?>">
-
-          <table class="form-table" role="presentation">
-            <tr>
-              <th scope="row">
-                <label for="meta_group_label">Meta-Group Label</label>
-              </th>
-              <td>
-                <input name="meta_group_label" id="meta_group_label" type="text" class="regular-text" data-cfm-autofill-label="add-meta-group" required>
-                <p class="description">Example: STEM, New Teachers, K–5 Science</p>
-              </td>
-            </tr>
-
-            <tr>
-              <th scope="row">
-                <label for="meta_group_slug">Meta-Group Slug</label>
-              </th>
-              <td>
-                <input name="meta_group_slug" id="meta_group_slug" type="text" class="regular-text" data-cfm-autofill-target="add-meta-group" data-cfm-autofill-type="slug">
-                <p class="description">Example: stem, new-teachers, k-5-science</p>
-              </td>
-            </tr>
-
-            <tr>
-              <th scope="row">
-                <label for="meta_group_short_label">Short Label</label>
-              </th>
-              <td>
-                <input name="meta_group_short_label" id="meta_group_short_label" type="text" class="regular-text" data-cfm-autofill-target="add-meta-group" data-cfm-autofill-type="copy">
-                <p class="description">Compact display text. Leave blank to use the Meta-Group label.</p>
-              </td>
-            </tr>
-
-            <tr>
-              <th scope="row">
-                <label for="meta_group_description">Community</label>
-              </th>
-              <td>
-                <input name="meta_group_description" id="meta_group_description" type="text" class="regular-text" data-cfm-autofill-target="add-meta-group" data-cfm-autofill-type="copy">
-                <p class="description">Community-facing context. Leave blank to use the Meta-Group label.</p>
-              </td>
-            </tr>
-
-            <tr>
-              <th scope="row">Included Terms</th>
-              <td>
-                <div data-cfm-meta-term-selector="1">
-                  <p class="description" style="margin-top:0;">Select existing terms only. Parent checkboxes select or clear all descendant terms.</p>
-                  <div style="display:flex; justify-content:space-between; max-width:760px; margin:0 0 8px;">
-                    <span>
-                      <a href="#" data-cfm-meta-expand="1">Expand all</a>
-                      <span aria-hidden="true"> | </span>
-                      <a href="#" data-cfm-meta-expand="0">Collapse all</a>
-                    </span>
-                    <span id="cfm-meta-selected-count" class="description">0 terms selected</span>
-                  </div>
-                  <fieldset style="max-height: 340px; overflow: auto; border: 1px solid #ccd0d4; background: #fff; padding: 10px; max-width:760px;">
-                    <legend class="screen-reader-text">Included Terms</legend>
-                    <?php self::render_meta_group_term_checklist(self::root_terms($tree)); ?>
-                  </fieldset>
-                </div>
-                <p class="description">Meta-Groups do not create new terms, move terms in the tree, or become directly assignable user values.</p>
-              </td>
-            </tr>
-          </table>
-
-          <?php submit_button('Add Meta-Group'); ?>
-        </form>
-        <?php self::render_meta_group_term_checklist_script(); ?>
-      <?php endif; ?>
 
       <hr>
 
