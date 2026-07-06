@@ -498,12 +498,8 @@ class CFM_Admin
 
     if (!$active_version) {
       wp_safe_redirect(
-        admin_url(
-          'admin.php?page=cfm-frameworks'
-            . '&action=edit'
-            . '&framework_id=' . $framework_id
-            . '&cfm_error=no_active_version'
-        )
+        self::maintenance_url($framework_id)
+          . '&cfm_error=no_active_version'
       );
       exit;
     }
@@ -515,12 +511,8 @@ class CFM_Admin
       : '&cfm_error=compile_failed';
 
     wp_safe_redirect(
-      admin_url(
-        'admin.php?page=cfm-frameworks'
-          . '&action=edit'
-          . '&framework_id=' . $framework_id
-          . $query_arg
-      )
+      self::maintenance_url($framework_id)
+        . $query_arg
     );
     exit;
   }
@@ -4477,7 +4469,7 @@ class CFM_Admin
     }
 
     if ($action === 'maintenance') {
-      self::render_maintenance_placeholder_page();
+      self::render_maintenance_page();
       return;
     }
 
@@ -5406,6 +5398,17 @@ class CFM_Admin
     return $url;
   }
 
+  private static function maintenance_url(int $framework_id = 0): string
+  {
+    $url = admin_url('admin.php?page=cfm-frameworks&action=maintenance');
+
+    if ($framework_id > 0) {
+      $url = add_query_arg('framework_id', $framework_id, $url);
+    }
+
+    return $url;
+  }
+
   private static function versions_url(int $framework_id, int $paged = 1): string
   {
     $url = admin_url(
@@ -6162,27 +6165,116 @@ class CFM_Admin
   <?php
   }
 
-  public static function render_maintenance_placeholder_page(): void
+  public static function render_maintenance_page(): void
   {
-    $framework = self::primary_framework_for_admin();
-    $links = [];
-
-    if ($framework) {
-      $links[] = [
-        'label' => 'Open Legacy Maintenance',
-        'url' => self::edit_url((int) $framework->id),
-      ];
-      $links[] = [
-        'label' => 'Compiled Query Debug',
-        'url' => self::compiled_debug_url((int) $framework->id),
-      ];
+    if (!current_user_can('manage_options')) {
+      wp_die('You do not have permission to access this page.');
     }
 
-    self::render_admin_placeholder_page(
-      'Core Terms Maintenance',
-      'Manual rebuild, compiled query debug, diagnostics, and Labs-oriented maintenance tools will be organized here in a later ticket. Existing tools remain in their current locations.',
-      $links
-    );
+    $framework_id = isset($_GET['framework_id'])
+      ? absint($_GET['framework_id'])
+      : 0;
+
+    $framework = $framework_id > 0
+      ? CFM_Framework_Repository::get_framework($framework_id)
+      : self::primary_framework_for_admin();
+
+    if (!$framework) {
+      self::render_admin_placeholder_page(
+        'Core Terms Maintenance',
+        'Create the primary Core Terms definition before using rebuild and diagnostic tools.',
+        [
+          [
+            'label' => 'Open Dashboard',
+            'url' => admin_url('admin.php?page=cfm-frameworks'),
+          ],
+        ]
+      );
+      return;
+    }
+
+    $framework_id = (int) $framework->id;
+    $active_version = CFM_Framework_Repository::get_active_version($framework_id);
+    $compiled_counts = $active_version
+      ? CFM_Framework_Repository::get_compiled_counts($framework_id, (int) $active_version->id)
+      : ['terms' => 0, 'closure' => 0];
+
+  ?>
+    <div class="wrap">
+      <h1>Core Terms Maintenance</h1>
+
+      <p>
+        <a class="button button-secondary" href="<?php echo esc_url(self::editor_url($framework_id)); ?>">Core Terms Editor</a>
+        <a class="button button-secondary" href="<?php echo esc_url(self::edit_url($framework_id)); ?>">Legacy Maintenance View</a>
+      </p>
+
+      <?php if (isset($_GET['cfm_compiled'])) : ?>
+        <div class="notice notice-success is-dismissible">
+          <p>Runtime tables rebuilt.</p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'no_active_version') : ?>
+        <div class="notice notice-error is-dismissible">
+          <p>No active version exists to compile.</p>
+        </div>
+      <?php endif; ?>
+
+      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'compile_failed') : ?>
+        <div class="notice notice-error is-dismissible">
+          <p>Runtime rebuild failed. The saved profile tree may not match the query tables. Check PHP error logs, then retry compile.</p>
+        </div>
+      <?php endif; ?>
+
+      <h2>Compiler</h2>
+      <p class="description">
+        Rebuild the active runtime tables from the canonical Core Terms tree. Use this only when compiled query data needs to be refreshed or inspected.
+      </p>
+
+      <?php if (!$active_version) : ?>
+        <p>No active version exists to compile.</p>
+      <?php else : ?>
+        <table class="widefat striped" style="max-width: 760px;">
+          <tbody>
+            <tr>
+              <th style="width: 180px;">Active Version</th>
+              <td>v<?php echo esc_html((string) $active_version->version_number); ?></td>
+            </tr>
+            <tr>
+              <th>Compiled At</th>
+              <td><?php echo esc_html($active_version->compiled_at ?: 'Not compiled'); ?></td>
+            </tr>
+            <tr>
+              <th>Compiled Terms</th>
+              <td><?php echo esc_html((string) $compiled_counts['terms']); ?></td>
+            </tr>
+            <tr>
+              <th>Closure Rows</th>
+              <td><?php echo esc_html((string) $compiled_counts['closure']); ?></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <form method="post" style="margin-top: 12px;">
+          <?php wp_nonce_field('cfm_compile_active_version', 'cfm_nonce'); ?>
+          <input type="hidden" name="cfm_action" value="compile_active_version">
+          <input type="hidden" name="framework_id" value="<?php echo esc_attr((string) $framework_id); ?>">
+          <?php submit_button('Rebuild Core Terms', 'secondary', 'submit', false); ?>
+          <a class="button" href="<?php echo esc_url(self::compiled_debug_url($framework_id)); ?>" style="margin-left: 8px;">Open Compiled Query Debug</a>
+        </form>
+      <?php endif; ?>
+
+      <hr>
+
+      <h2>Diagnostics</h2>
+      <p class="description">
+        Compiled Query Debug contains the existing read-only diagnostics and smoke-test forms for compiled terms, Audience API helpers, and audience contract checks.
+      </p>
+      <p>
+        <a class="button button-secondary" href="<?php echo esc_url(self::compiled_debug_url($framework_id)); ?>">Open Compiled Query Debug</a>
+      </p>
+    </div>
+  <?php
   }
 
   public static function render_archived_terms_page(): void
@@ -12046,6 +12138,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         <a class="button button-secondary" href="<?php echo esc_url(self::archived_terms_url((int) $framework->id)); ?>">Archived Terms</a>
         <a class="button button-secondary" href="<?php echo esc_url(self::data_url((int) $framework->id)); ?>">Data</a>
         <a class="button button-secondary" href="<?php echo esc_url(self::meta_groups_url((int) $framework->id)); ?>">Meta-Groups</a>
+        <a class="button button-secondary" href="<?php echo esc_url(self::maintenance_url((int) $framework->id)); ?>">Maintenance</a>
       </p>
 
       <?php if (isset($_GET['cfm_axis_added'])) : ?>
@@ -12094,12 +12187,6 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
               <a href="<?php echo esc_url(self::version_snapshot_url((int) $framework->id, absint($_GET['cfm_pre_restore_snapshot_id']))); ?>">View pre-restore snapshot</a>.
             <?php endif; ?>
           </p>
-        </div>
-      <?php endif; ?>
-
-      <?php if (isset($_GET['cfm_compiled'])) : ?>
-        <div class="notice notice-success is-dismissible">
-          <p>Runtime tables rebuilt.</p>
         </div>
       <?php endif; ?>
 
@@ -12158,24 +12245,11 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         </div>
       <?php endif; ?>
 
-      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'no_active_version') : ?>
-        <div class="notice notice-error is-dismissible">
-          <p>No active version exists to compile.</p>
-        </div>
-      <?php endif; ?>
-
       <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'version_save_failed') : ?>
         <div class="notice notice-error is-dismissible">
           <p>Term changes could not be saved.</p>
         </div>
       <?php endif; ?>
-
-      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'compile_failed') : ?>
-        <div class="notice notice-error is-dismissible">
-          <p>Runtime rebuild failed. The saved profile tree may not match the query tables. Check PHP error logs, then retry compile.</p>
-        </div>
-      <?php endif; ?>
-
 
       <table class="widefat striped" style="max-width: 900px;">
         <tbody>
@@ -12201,45 +12275,6 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           </tr>
         </tbody>
       </table>
-
-      <hr>
-
-      <h2>Compiler</h2>
-
-      <?php $active_version = CFM_Framework_Repository::get_active_version((int) $framework->id); ?>
-      <?php if (!$active_version) : ?>
-        <p>No active version exists to compile.</p>
-      <?php else : ?>
-        <?php $compiled_counts = CFM_Framework_Repository::get_compiled_counts((int) $framework->id, (int) $active_version->id); ?>
-        <table class="widefat striped" style="max-width: 760px;">
-          <tbody>
-            <tr>
-              <th style="width: 180px;">Active Version</th>
-              <td>v<?php echo esc_html((string) $active_version->version_number); ?></td>
-            </tr>
-            <tr>
-              <th>Compiled At</th>
-              <td><?php echo esc_html($active_version->compiled_at ?: 'Not compiled'); ?></td>
-            </tr>
-            <tr>
-              <th>Compiled Terms</th>
-              <td><?php echo esc_html((string) $compiled_counts['terms']); ?></td>
-            </tr>
-            <tr>
-              <th>Closure Rows</th>
-              <td><?php echo esc_html((string) $compiled_counts['closure']); ?></td>
-            </tr>
-          </tbody>
-        </table>
-
-        <form method="post" style="margin-top: 12px;">
-          <?php wp_nonce_field('cfm_compile_active_version', 'cfm_nonce'); ?>
-          <input type="hidden" name="cfm_action" value="compile_active_version">
-          <input type="hidden" name="framework_id" value="<?php echo esc_attr($framework->id); ?>">
-          <?php submit_button('Rebuild Core Terms', 'secondary', 'submit', false); ?>
-          <a class="button" href="<?php echo esc_url(self::compiled_debug_url((int) $framework->id)); ?>" style="margin-left: 8px;">Open Compiled Query Debug</a>
-        </form>
-      <?php endif; ?>
 
       <hr>
 
