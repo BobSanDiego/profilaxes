@@ -8236,6 +8236,12 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           visibility: visible;
         }
 
+        .cfm-core-terms-editor.is-edit-interaction-locked .cfm-core-terms-editor-row-action {
+          opacity: 0 !important;
+          pointer-events: none !important;
+          visibility: hidden !important;
+        }
+
         .cfm-core-terms-editor-row-action:hover,
         .cfm-core-terms-editor-row-action:focus-visible {
           background: #f0f6fc;
@@ -8824,6 +8830,27 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
           function isReorderDisabled() {
             return dirtyRows.size > 0 || hasDraftRows();
+          }
+
+          function isEditorTextInput(target) {
+            return Boolean(target && target.closest && target.closest('.cfm-core-terms-editor-input'));
+          }
+
+          function isEditInteractionLocked() {
+            return isEditorTextInput(document.activeElement);
+          }
+
+          function updateEditInteractionLock() {
+            if (!editor) {
+              return;
+            }
+
+            var locked = isEditInteractionLocked();
+            editor.classList.toggle('is-edit-interaction-locked', locked);
+
+            if (locked) {
+              closeActionMenus();
+            }
           }
 
           function setReorderStatus(message, isError) {
@@ -9507,6 +9534,10 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           function startRowDrag(row, handle, event) {
             var group = siblingGroupForRow(row);
 
+            if (isEditInteractionLocked()) {
+              return;
+            }
+
             if (!group || !group.parentUuid || isReorderDisabled() || isDraftRow(row)) {
               setReorderStatus('Save or reset changes before reordering.', true);
               return;
@@ -10022,6 +10053,11 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             var trigger = parts.trigger;
             var menu = parts.menu;
 
+            if (isEditInteractionLocked()) {
+              closeActionMenus();
+              return;
+            }
+
             if (!uuid || !trigger || !menu) {
               return;
             }
@@ -10118,6 +10154,11 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           }
 
           function handleActionHover(target) {
+            if (isEditInteractionLocked()) {
+              closeActionMenus();
+              return;
+            }
+
             var trigger = target.closest('[data-cfm-action-menu-trigger]');
 
             if (!trigger) {
@@ -10543,6 +10584,32 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
               updateDirtyState(row);
             });
 
+            form.addEventListener('focusin', function(event) {
+              if (!isEditorTextInput(event.target)) {
+                return;
+              }
+
+              updateEditInteractionLock();
+            });
+
+            form.addEventListener('focusout', function(event) {
+              if (!isEditorTextInput(event.target)) {
+                return;
+              }
+
+              window.setTimeout(updateEditInteractionLock, 0);
+            });
+
+            form.addEventListener('keydown', function(event) {
+              if (!isEditorTextInput(event.target)) {
+                return;
+              }
+
+              if (event.key === ' ') {
+                event.stopPropagation();
+              }
+            });
+
             form.addEventListener('submit', function(event) {
               var rows = rowSaveRequested ? [rowSaveRequested] : Array.from(dirtyRows);
               var mode = rowSaveRequested ? 'row' : 'all';
@@ -10659,6 +10726,11 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             });
 
             form.addEventListener('pointerover', function(event) {
+              if (isEditInteractionLocked()) {
+                closeActionMenus();
+                return;
+              }
+
               handleActionHover(event.target);
             });
 
