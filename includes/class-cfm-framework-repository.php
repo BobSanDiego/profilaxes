@@ -916,7 +916,7 @@ class CFM_Framework_Repository
     return $archive ?: null;
   }
 
-  public static function get_term_archives(int $framework_id = 0, bool $include_deleted = false): array
+  public static function get_term_archives(int $framework_id = 0, bool $include_deleted = false, bool $include_restored = true): array
   {
     global $wpdb;
 
@@ -931,6 +931,10 @@ class CFM_Framework_Repository
 
     if (!$include_deleted) {
       $where[] = 'deleted_at IS NULL';
+    }
+
+    if (!$include_restored) {
+      $where[] = 'restored_at IS NULL';
     }
 
     $sql = "SELECT * FROM {$table}";

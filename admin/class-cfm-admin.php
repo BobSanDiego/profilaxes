@@ -6292,7 +6292,7 @@ class CFM_Admin
       wp_die('Core Terms definition not found.');
     }
 
-    $archives = CFM_Framework_Repository::get_term_archives($framework_id, true);
+    $archives = CFM_Framework_Repository::get_term_archives($framework_id, false, false);
     $framework_cache = [];
     $now = current_time('timestamp');
 
@@ -6358,7 +6358,7 @@ class CFM_Admin
       <?php endif; ?>
 
       <?php if (empty($archives)) : ?>
-        <p>No archived Core Terms branches found.</p>
+        <p>No archived branches are currently available to restore.</p>
       <?php else : ?>
         <table class="widefat striped">
           <thead>
