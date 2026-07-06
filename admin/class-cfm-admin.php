@@ -8090,12 +8090,28 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           opacity: 0.72;
         }
 
-        .cfm-core-terms-editor-row.is-reorder-target-before {
+        .cfm-core-terms-editor-row.is-reorder-target-before,
+        .cfm-core-terms-editor-row.is-branch-drop-before {
           box-shadow: inset 0 2px 0 #2271b1;
         }
 
-        .cfm-core-terms-editor-row.is-reorder-target-after {
+        .cfm-core-terms-editor-row.is-reorder-target-after,
+        .cfm-core-terms-editor-row.is-branch-drop-after {
           box-shadow: inset 0 -2px 0 #2271b1;
+        }
+
+        .cfm-core-terms-editor-row.is-branch-drop-child {
+          background: #eef6fc;
+          box-shadow: inset 4px 0 0 #2271b1;
+        }
+
+        .cfm-core-terms-editor-row.is-branch-drop-child::after {
+          color: #2271b1;
+          content: "↳ child";
+          font-size: 11px;
+          font-weight: 600;
+          justify-self: start;
+          text-transform: uppercase;
         }
 
         .cfm-core-terms-editor-row.has-error {
@@ -8357,6 +8373,44 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           min-height: 24px;
         }
 
+        .cfm-core-terms-editor-move-notice {
+          align-items: center;
+          background: #f0f6fc;
+          border-left: 4px solid #2271b1;
+          color: #1d2327;
+          display: flex;
+          gap: 10px;
+          margin: 0 0 6px;
+          max-width: 720px;
+          padding: 8px 10px;
+        }
+
+        .cfm-core-terms-editor-move-notice[hidden] {
+          display: none;
+        }
+
+        .cfm-core-terms-editor-drag-preview {
+          background: #1d2327;
+          border-radius: 6px;
+          box-shadow: 0 8px 18px rgba(0, 0, 0, 0.2);
+          color: #fff;
+          font-size: 12px;
+          left: 0;
+          line-height: 1.35;
+          max-width: 220px;
+          padding: 8px 10px;
+          pointer-events: none;
+          position: fixed;
+          top: 0;
+          transform: translate(-9999px, -9999px);
+          z-index: 100001;
+        }
+
+        .cfm-core-terms-editor-drag-preview strong {
+          display: block;
+          font-size: 13px;
+        }
+
         .cfm-core-terms-editor-collapse-all {
           font-size: 12px;
           line-height: 1.4;
@@ -8441,6 +8495,10 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           <div class="cfm-core-terms-editor-tree-controls">
             <button type="button" class="button button-link cfm-core-terms-editor-collapse-all" hidden>Collapse all</button>
           </div>
+          <div class="cfm-core-terms-editor-move-notice" role="status" aria-live="polite" hidden>
+            <span>Branch moved.</span>
+            <button type="button" class="button button-link cfm-core-terms-editor-undo-move">Undo</button>
+          </div>
           <p class="cfm-core-terms-editor-reorder-status description" aria-live="polite"></p>
 
           <?php if (empty($terms)) : ?>
@@ -8520,12 +8578,17 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           var editor = null;
           var editorTree = null;
           var reorderStatus = null;
+          var moveNotice = null;
+          var undoMoveButton = null;
           var reorderNonce = '';
           var moveBranchNonce = '';
           var rootParentUuid = '';
           var frameworkId = '';
           var orderRevisions = {};
           var dragState = null;
+          var branchDragState = null;
+          var branchAutoExpandTimer = null;
+          var lastUndoMove = null;
           var formSubmitting = false;
           var rowSaveRequested = null;
           var restoringDrafts = false;
@@ -8913,6 +8976,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
               return;
             }
 
+            invalidateUndoMove();
             var previousOrder = groupOrder(group);
             var term = group.terms[index];
 
@@ -8928,11 +8992,19 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             submitSiblingOrder(siblingGroupForRow(row), previousOrder).catch(function() {});
           }
 
+          function invalidateUndoMove() {
+            lastUndoMove = null;
+
+            if (moveNotice) {
+              moveNotice.hidden = true;
+            }
+          }
+
           function clearReorderTargetClasses() {
             document
-              .querySelectorAll('.is-reorder-source, .is-reorder-target-before, .is-reorder-target-after')
+              .querySelectorAll('.is-reorder-source, .is-reorder-target-before, .is-reorder-target-after, .is-branch-drop-before, .is-branch-drop-child, .is-branch-drop-after')
               .forEach(function(row) {
-                row.classList.remove('is-reorder-source', 'is-reorder-target-before', 'is-reorder-target-after');
+                row.classList.remove('is-reorder-source', 'is-reorder-target-before', 'is-reorder-target-after', 'is-branch-drop-before', 'is-branch-drop-child', 'is-branch-drop-after');
               });
           }
 
@@ -8942,44 +9014,451 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             return element ? element.closest('.cfm-core-terms-editor-row[data-term-uuid]') : null;
           }
 
+          function descendantCountForTerm(term) {
+            if (!term) {
+              return 0;
+            }
+
+            return term.querySelectorAll('.cfm-core-terms-editor-row[data-term-uuid]').length - 1;
+          }
+
+          function ensureDragPreview() {
+            var preview = document.querySelector('.cfm-core-terms-editor-drag-preview');
+
+            if (!preview) {
+              preview = document.createElement('div');
+              preview.className = 'cfm-core-terms-editor-drag-preview';
+              document.body.appendChild(preview);
+            }
+
+            return preview;
+          }
+
+          function updateDragPreview(event) {
+            if (!branchDragState || !branchDragState.preview) {
+              return;
+            }
+
+            branchDragState.preview.style.transform = 'translate(' + (event.clientX + 14) + 'px, ' + (event.clientY + 14) + 'px)';
+          }
+
+          function hideDragPreview() {
+            var preview = branchDragState ? branchDragState.preview : document.querySelector('.cfm-core-terms-editor-drag-preview');
+
+            if (preview) {
+              preview.style.transform = 'translate(-9999px, -9999px)';
+            }
+          }
+
+          function dropIntentForRow(row, event) {
+            var box = row.getBoundingClientRect();
+            var offset = event.clientY - box.top;
+            var ratio = box.height > 0 ? offset / box.height : 0.5;
+
+            if (ratio <= 0.2) {
+              return 'before';
+            }
+
+            if (ratio >= 0.8) {
+              return 'after';
+            }
+
+            return 'child';
+          }
+
+          function setBranchDropTarget(row, placement) {
+            clearReorderTargetClasses();
+
+            if (!row || !placement) {
+              return;
+            }
+
+            row.classList.add('is-branch-drop-' + placement);
+          }
+
+          function scheduleBranchAutoExpand(row) {
+            var term = row ? row.closest('.cfm-core-terms-editor-term') : null;
+            var details = term ? term.querySelector(':scope > details') : null;
+
+            if (!details || details.open || !rowHasChildren(row)) {
+              cancelBranchAutoExpand();
+              return;
+            }
+
+            if (
+              branchAutoExpandTimer &&
+              branchDragState &&
+              branchDragState.autoExpandRow === row
+            ) {
+              return;
+            }
+
+            cancelBranchAutoExpand();
+
+            if (branchDragState) {
+              branchDragState.autoExpandRow = row;
+            }
+
+            branchAutoExpandTimer = window.setTimeout(function() {
+              details.open = true;
+              saveOpenState();
+              updateCollapseAllControl();
+              branchAutoExpandTimer = null;
+
+              if (branchDragState) {
+                branchDragState.autoExpandRow = null;
+              }
+            }, 750);
+          }
+
+          function cancelBranchAutoExpand() {
+            if (branchAutoExpandTimer) {
+              window.clearTimeout(branchAutoExpandTimer);
+              branchAutoExpandTimer = null;
+            }
+
+            if (branchDragState) {
+              branchDragState.autoExpandRow = null;
+            }
+          }
+
+          function branchMoveParentUuid(row, placement) {
+            if (!row) {
+              return '';
+            }
+
+            if (placement === 'child') {
+              return row.getAttribute('data-term-uuid') || '';
+            }
+
+            var group = siblingGroupForRow(row);
+
+            return group ? group.parentUuid : '';
+          }
+
+          function branchMoveRequest(termUuid, targetUuid, placement, confirmations, revisions) {
+            var body = new URLSearchParams();
+
+            confirmations = confirmations || {};
+            revisions = revisions || {};
+
+            body.append('action', 'cfm_move_branch');
+            body.append('cfm_nonce', moveBranchNonce);
+            body.append('framework_id', frameworkId);
+            body.append('term_uuid', termUuid);
+            body.append('target_uuid', targetUuid);
+            body.append('placement', placement);
+
+            if (confirmations.assignments) {
+              body.append('cfm_confirm_assignments', '1');
+            }
+
+            if (confirmations.axis) {
+              body.append('cfm_confirm_axis_change', '1');
+            }
+
+            if (typeof revisions.source !== 'undefined') {
+              body.append('source_order_revision', String(revisions.source));
+            }
+
+            if (typeof revisions.target !== 'undefined') {
+              body.append('target_order_revision', String(revisions.target));
+            }
+
+            return window.fetch(ajaxurl, {
+              method: 'POST',
+              credentials: 'same-origin',
+              body: body
+            }).then(function(response) {
+              return response.json();
+            });
+          }
+
+          function updateReturnedRevisions(revisions) {
+            if (!revisions || typeof revisions !== 'object') {
+              return;
+            }
+
+            Object.keys(revisions).forEach(function(parentUuid) {
+              orderRevisions[parentUuid] = parseInt(revisions[parentUuid], 10) || 0;
+            });
+          }
+
+          function applyMovedBranchToDom(sourceTerm, targetRow, placement) {
+            var targetTerm = targetRow ? targetRow.closest('.cfm-core-terms-editor-term') : null;
+
+            if (!sourceTerm || !targetTerm || sourceTerm === targetTerm) {
+              return false;
+            }
+
+            if (placement === 'before') {
+              targetTerm.insertAdjacentElement('beforebegin', sourceTerm);
+            } else if (placement === 'after') {
+              targetTerm.insertAdjacentElement('afterend', sourceTerm);
+            } else {
+              var details = ensureTermCanHaveChildren(targetTerm);
+              var children = details ? details.querySelector(':scope > .cfm-core-terms-editor-children') : null;
+
+              if (!children) {
+                return false;
+              }
+
+              children.appendChild(sourceTerm);
+            }
+
+            refreshMovedBranchMetadata(sourceTerm, targetRow, placement);
+            saveOpenState();
+            updateCollapseAllControl();
+            updateReorderControls();
+            return true;
+          }
+
+          function refreshMovedBranchMetadata(sourceTerm, targetRow, placement) {
+            var rootRow = directRow(sourceTerm);
+            var targetTerm = targetRow ? targetRow.closest('.cfm-core-terms-editor-term') : null;
+            var parentRow = null;
+            var axisUuid = targetRow ? (targetRow.getAttribute('data-axis-uuid') || '') : '';
+            var depth = 0;
+
+            if (placement === 'child') {
+              parentRow = targetRow;
+              depth = depthForTerm(targetTerm) + 1;
+            } else {
+              var parentTerm = sourceTerm.parentElement ? sourceTerm.parentElement.closest('.cfm-core-terms-editor-term') : null;
+              parentRow = parentTerm ? directRow(parentTerm) : null;
+              depth = depthForTerm(targetTerm);
+            }
+
+            if (rootRow) {
+              rootRow.setAttribute('data-parent-uuid', parentRow ? (parentRow.getAttribute('data-term-uuid') || '') : rootParentUuid);
+            }
+
+            if (!axisUuid && parentRow) {
+              axisUuid = parentRow.getAttribute('data-axis-uuid') || '';
+            }
+
+            if (axisUuid) {
+              sourceTerm
+                .querySelectorAll('.cfm-core-terms-editor-row[data-term-uuid]')
+                .forEach(function(row) {
+                  row.setAttribute('data-axis-uuid', axisUuid);
+                });
+            }
+
+            setTermDepth(sourceTerm, depth);
+          }
+
+          function setTermDepth(term, depth) {
+            if (!term) {
+              return;
+            }
+
+            term.className = String(term.className || '').replace(/\bcfm-core-terms-editor-depth-\d+\b/g, '').trim();
+            term.classList.add('cfm-core-terms-editor-depth-' + Math.max(0, depth));
+
+            Array.from(term.children).forEach(function(child) {
+              if (child.classList && child.classList.contains('cfm-core-terms-editor-term')) {
+                setTermDepth(child, depth + 1);
+              }
+            });
+
+            term
+              .querySelectorAll(':scope > details > .cfm-core-terms-editor-children > .cfm-core-terms-editor-term')
+              .forEach(function(childTerm) {
+                setTermDepth(childTerm, depth + 1);
+              });
+          }
+
+          function showUndoMoveNotice(undoPayload) {
+            lastUndoMove = undoPayload || null;
+
+            if (moveNotice) {
+              moveNotice.hidden = !lastUndoMove;
+            }
+          }
+
+          function undoLastMove() {
+            var undo = lastUndoMove;
+            var targetUuid = '';
+            var placement = '';
+
+            if (!undo || !undo.moved_term_uuid || !undo.original_parent_uuid || !undo.original_placement) {
+              return;
+            }
+
+            if (undo.original_placement.insert_before_uuid) {
+              targetUuid = undo.original_placement.insert_before_uuid;
+              placement = 'before';
+            } else if (undo.original_placement.insert_after_uuid) {
+              targetUuid = undo.original_placement.insert_after_uuid;
+              placement = 'after';
+            } else {
+              targetUuid = undo.original_parent_uuid;
+              placement = 'child';
+            }
+
+            if (!targetUuid || !placement) {
+              return;
+            }
+
+            setReorderStatus('Undoing move...', false);
+
+            branchMoveRequest(undo.moved_term_uuid, targetUuid, placement, {
+              assignments: true,
+              axis: true
+            }, {}).then(function(response) {
+              var movedRow = rowByUuid(undo.moved_term_uuid);
+              var targetRow = rowByUuid(targetUuid);
+              var movedTerm = movedRow ? movedRow.closest('.cfm-core-terms-editor-term') : null;
+
+              if (!response || !response.success || !response.data) {
+                throw new Error(response && response.data && response.data.message ? response.data.message : 'Move could not be undone.');
+              }
+
+              updateReturnedRevisions(response.data.revisions);
+
+              if (movedTerm && targetRow) {
+                applyMovedBranchToDom(movedTerm, targetRow, placement);
+              } else {
+                window.location.reload();
+                return;
+              }
+
+              lastUndoMove = null;
+
+              if (moveNotice) {
+                moveNotice.hidden = true;
+              }
+
+              setReorderStatus('Move undone.', false);
+            }).catch(function(error) {
+              setReorderStatus(error && error.message ? error.message : 'Move could not be undone.', true);
+            });
+          }
+
+          function confirmMoveWarning(responseData, confirmations) {
+            var code = responseData && responseData.code ? responseData.code : '';
+
+            if (code === 'assignment_warning') {
+              if (!window.confirm((responseData.message || 'This branch has active assignments.') + '\n\nMove anyway?')) {
+                return false;
+              }
+
+              confirmations.assignments = true;
+              return true;
+            }
+
+            if (code === 'axis_warning') {
+              if (!window.confirm((responseData.message || 'This move changes the branch context.') + '\n\nMove anyway?')) {
+                return false;
+              }
+
+              confirmations.axis = true;
+              return true;
+            }
+
+            return false;
+          }
+
+          function persistBranchMove(sourceRow, targetRow, placement, sourceTerm) {
+            var termUuid = sourceRow ? (sourceRow.getAttribute('data-term-uuid') || '') : '';
+            var targetUuid = targetRow ? (targetRow.getAttribute('data-term-uuid') || '') : '';
+            var sourceParentUuid = branchMoveParentUuid(sourceRow, 'after');
+            var targetParentUuid = branchMoveParentUuid(targetRow, placement);
+            var confirmations = {};
+            var revisions = {};
+
+            if (sourceParentUuid) {
+              revisions.source = orderRevisions[sourceParentUuid] || 0;
+            }
+
+            if (targetParentUuid) {
+              revisions.target = orderRevisions[targetParentUuid] || 0;
+            }
+
+            function attemptMove() {
+              return branchMoveRequest(termUuid, targetUuid, placement, confirmations, revisions).then(function(response) {
+                if (response && response.success && response.data) {
+                  updateReturnedRevisions(response.data.revisions);
+
+                  if (!applyMovedBranchToDom(sourceTerm, targetRow, placement)) {
+                    window.location.reload();
+                    return response;
+                  }
+
+                  showUndoMoveNotice(response.data.undo_move || null);
+                  setReorderStatus(response.data.message || 'Branch moved.', false);
+                  return response;
+                }
+
+                if (response && response.data && confirmMoveWarning(response.data, confirmations)) {
+                  return attemptMove();
+                }
+
+                throw new Error(response && response.data && response.data.message ? response.data.message : 'Branch could not be moved.');
+              });
+            }
+
+            invalidateUndoMove();
+            setReorderStatus('Moving branch...', false);
+            return attemptMove().catch(function(error) {
+              setReorderStatus(error && error.message ? error.message : 'Branch could not be moved.', true);
+              throw error;
+            });
+          }
+
           function updateDragTarget(event) {
             var row = rowFromPointer(event);
 
             clearReorderTargetClasses();
 
-            if (!dragState || !row || row === dragState.row || isDraftRow(row)) {
-              dragState.targetRow = null;
-              dragState.placement = '';
+            if (!branchDragState || !row || row === branchDragState.row || isDraftRow(row)) {
+              if (branchDragState) {
+                branchDragState.targetRow = null;
+                branchDragState.placement = '';
+              }
+              cancelBranchAutoExpand();
               return;
             }
 
-            var targetGroup = siblingGroupForRow(row);
+            var targetTerm = row.closest('.cfm-core-terms-editor-term');
 
-            if (!targetGroup || targetGroup.container !== dragState.group.container) {
-              dragState.targetRow = null;
-              dragState.placement = '';
+            if (!targetTerm || branchDragState.term.contains(targetTerm)) {
+              branchDragState.targetRow = null;
+              branchDragState.placement = '';
+              cancelBranchAutoExpand();
               return;
             }
 
-            var box = row.getBoundingClientRect();
-            var placement = event.clientY < box.top + (box.height / 2) ? 'before' : 'after';
+            var placement = dropIntentForRow(row, event);
 
-            dragState.targetRow = row;
-            dragState.placement = placement;
-            row.classList.add(placement === 'before' ? 'is-reorder-target-before' : 'is-reorder-target-after');
+            branchDragState.targetRow = row;
+            branchDragState.placement = placement;
+            setBranchDropTarget(row, placement);
+
+            if (placement === 'child') {
+              scheduleBranchAutoExpand(row);
+            } else {
+              cancelBranchAutoExpand();
+            }
           }
 
           function finishDrag(event, cancelled) {
-            if (!dragState) {
+            if (!branchDragState) {
               return;
             }
 
-            var state = dragState;
-            dragState = null;
+            var state = branchDragState;
+            branchDragState = null;
             document.removeEventListener('pointermove', handleDragMove);
             document.removeEventListener('pointerup', handleDragEnd);
             document.removeEventListener('pointercancel', handleDragCancel);
             clearReorderTargetClasses();
+            cancelBranchAutoExpand();
+
+            if (state.preview) {
+              state.preview.style.transform = 'translate(-9999px, -9999px)';
+            }
 
             if (state.handle && state.pointerId && state.handle.releasePointerCapture) {
               try {
@@ -8993,26 +9472,21 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
             var targetTerm = state.targetRow.closest('.cfm-core-terms-editor-term');
 
-            if (!targetTerm || targetTerm === state.term) {
+            if (!targetTerm || targetTerm === state.term || state.term.contains(targetTerm)) {
               return;
             }
 
-            if (state.placement === 'before') {
-              state.group.container.insertBefore(state.term, targetTerm);
-            } else {
-              state.group.container.insertBefore(state.term, targetTerm.nextSibling);
-            }
-
             saveOpenState();
-            submitSiblingOrder(siblingGroupForRow(state.row), state.previousOrder).catch(function() {});
+            persistBranchMove(state.row, state.targetRow, state.placement, state.term).catch(function() {});
           }
 
           function handleDragMove(event) {
-            if (!dragState) {
+            if (!branchDragState) {
               return;
             }
 
             event.preventDefault();
+            updateDragPreview(event);
             updateDragTarget(event);
           }
 
@@ -9027,26 +9501,36 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
           function startRowDrag(row, handle, event) {
             var group = siblingGroupForRow(row);
 
-            if (!group || !group.parentUuid || group.rows.length < 2 || isReorderDisabled() || isDraftRow(row)) {
+            if (!group || !group.parentUuid || isReorderDisabled() || isDraftRow(row)) {
               setReorderStatus('Save or reset changes before reordering.', true);
               return;
             }
 
             event.preventDefault();
             closeActionMenus();
+            invalidateUndoMove();
 
-            dragState = {
+            var term = row.closest('.cfm-core-terms-editor-term');
+            var label = inputValue(row, '.cfm-core-terms-editor-input-label') || 'Core Term branch';
+            var descendants = descendantCountForTerm(term);
+            var preview = ensureDragPreview();
+
+            preview.innerHTML = '<strong>Moving:</strong>' + label + (descendants > 0 ? '<br>(+' + descendants + ' descendants)' : '');
+
+            branchDragState = {
               row: row,
-              term: row.closest('.cfm-core-terms-editor-term'),
+              term: term,
               group: group,
               handle: handle,
               pointerId: event.pointerId,
-              previousOrder: groupOrder(group),
               targetRow: null,
-              placement: ''
+              placement: '',
+              autoExpandRow: null,
+              preview: preview
             };
 
             row.classList.add('is-reorder-source');
+            updateDragPreview(event);
 
             if (handle && handle.setPointerCapture && event.pointerId) {
               try {
@@ -9662,6 +10146,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
               return null;
             }
 
+            invalidateUndoMove();
             var parentTerm = baseTerm.parentElement.closest('.cfm-core-terms-editor-term');
             var parentRow = parentTerm ? directRow(parentTerm) : null;
             placement = placement === 'before' ? 'before' : 'after';
@@ -9691,6 +10176,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
               return null;
             }
 
+            invalidateUndoMove();
             placement = placement === 'prepend' ? 'prepend' : 'append';
             var draftTerm = createDraftTerm(depthForTerm(baseTerm) + 1, {
               mode: placement === 'prepend' ? 'add_child_prepend' : 'add_child_append',
@@ -9750,6 +10236,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
               return;
             }
 
+            invalidateUndoMove();
             formSubmitting = true;
             archiveTermInput.value = row.getAttribute('data-term-uuid') || '';
             archiveForm.submit();
@@ -10026,6 +10513,8 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
                 return;
               }
 
+              invalidateUndoMove();
+
               if (event.target.matches('.cfm-core-terms-editor-input-slug')) {
                 event.target.value = normalizeSlug(event.target.value);
               }
@@ -10068,6 +10557,13 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
               collapseAllButton.addEventListener('click', function(event) {
                 event.preventDefault();
                 collapseAllBranches();
+              });
+            }
+
+            if (undoMoveButton) {
+              undoMoveButton.addEventListener('click', function(event) {
+                event.preventDefault();
+                undoLastMove();
               });
             }
 
@@ -10135,6 +10631,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
                 event.preventDefault();
                 event.stopPropagation();
                 closeActionMenus();
+                invalidateUndoMove();
                 openMoveModal(row);
               } else if (event.target.closest('.cfm-core-terms-editor-archive-menu-action')) {
                 event.preventDefault();
@@ -10401,6 +10898,8 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
             editor = document.querySelector('.cfm-core-terms-editor');
             editorTree = document.querySelector('.cfm-core-terms-editor-tree');
             reorderStatus = document.querySelector('.cfm-core-terms-editor-reorder-status');
+            moveNotice = document.querySelector('.cfm-core-terms-editor-move-notice');
+            undoMoveButton = document.querySelector('.cfm-core-terms-editor-undo-move');
             reorderNonce = editor ? (editor.getAttribute('data-reorder-nonce') || '') : '';
             moveBranchNonce = editor ? (editor.getAttribute('data-move-branch-nonce') || '') : '';
             rootParentUuid = editor ? (editor.getAttribute('data-root-parent-uuid') || '') : '';
