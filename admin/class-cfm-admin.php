@@ -12309,7 +12309,7 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
                   <?php if (empty($terms)) : ?>
                     <em>No terms yet.</em>
                   <?php else : ?>
-                    <?php self::render_terms_recursive($terms, 0, (int) $framework->id, true); ?>
+                    <?php self::render_terms_recursive($terms); ?>
                   <?php endif; ?>
                 </td>
               </tr>
