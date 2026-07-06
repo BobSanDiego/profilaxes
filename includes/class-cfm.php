@@ -28,6 +28,7 @@ class CFM
     add_action('show_user_profile', [__CLASS__, 'render_user_profile_terms']);
     add_action('edit_user_profile', [__CLASS__, 'render_user_profile_terms']);
     add_action('admin_menu', [__CLASS__, 'register_assignment_admin_page']);
+    add_filter('cfm_term_connection_sources', [__CLASS__, 'add_user_member_connection_source'], 10, 2);
   }
 
   public static function maybe_upgrade_schema(): void
@@ -269,6 +270,116 @@ class CFM
       $context,
       $include_descendants
     );
+  }
+
+  public static function collect_branch_term_uuids(array $branch): array
+  {
+    $uuids = [];
+    $uuid = (string) ($branch['uuid'] ?? '');
+
+    if ($uuid !== '') {
+      $uuids[] = $uuid;
+    }
+
+    $children = $branch['children'] ?? [];
+
+    if (is_array($children)) {
+      foreach ($children as $child) {
+        if (is_array($child)) {
+          $uuids = array_merge($uuids, self::collect_branch_term_uuids($child));
+        }
+      }
+    }
+
+    return array_values(array_unique(array_filter($uuids)));
+  }
+
+  public static function get_term_connection_sources(array $context): array
+  {
+    $context = self::normalize_term_connection_context($context);
+    $sources = apply_filters('cfm_term_connection_sources', [], $context);
+
+    if (!is_array($sources)) {
+      return [];
+    }
+
+    $normalized = [];
+
+    foreach ($sources as $source) {
+      if (!is_array($source)) {
+        continue;
+      }
+
+      $key = sanitize_key((string) ($source['key'] ?? ''));
+      $label = trim((string) ($source['label'] ?? ''));
+
+      if ($key === '' || $label === '') {
+        continue;
+      }
+
+      $normalized[] = [
+        'key' => $key,
+        'label' => $label,
+        'count' => max(0, (int) ($source['count'] ?? 0)),
+        'status' => sanitize_key((string) ($source['status'] ?? 'available')) ?: 'available',
+        'details_url' => isset($source['details_url']) ? esc_url_raw((string) $source['details_url']) : '',
+      ];
+    }
+
+    return $normalized;
+  }
+
+  public static function add_user_member_connection_source(array $sources, array $context): array
+  {
+    global $wpdb;
+
+    $framework_id = max(0, (int) ($context['framework_id'] ?? 0));
+    $term_uuids = isset($context['branch_term_uuids']) && is_array($context['branch_term_uuids'])
+      ? array_values(array_unique(array_filter(array_map('strval', $context['branch_term_uuids']))))
+      : [];
+
+    if ($framework_id <= 0 || empty($term_uuids)) {
+      $count = 0;
+    } else {
+      $user_terms_table = $wpdb->prefix . 'cfm_user_terms';
+      $placeholders = implode(',', array_fill(0, count($term_uuids), '%s'));
+      $params = array_merge([$framework_id], $term_uuids);
+
+      $count = (int) $wpdb->get_var(
+        $wpdb->prepare(
+          "SELECT COUNT(DISTINCT user_id)
+             FROM {$user_terms_table}
+             WHERE framework_id = %d
+             AND term_uuid IN ({$placeholders})",
+          ...$params
+        )
+      );
+    }
+
+    $sources[] = [
+      'key' => 'user_members',
+      'label' => 'User Members',
+      'count' => $count,
+      'status' => 'available',
+    ];
+
+    return $sources;
+  }
+
+  private static function normalize_term_connection_context(array $context): array
+  {
+    $term_uuids = isset($context['branch_term_uuids']) && is_array($context['branch_term_uuids'])
+      ? array_values(array_unique(array_filter(array_map('strval', $context['branch_term_uuids']))))
+      : [];
+
+    return [
+      'framework_id' => max(0, (int) ($context['framework_id'] ?? 0)),
+      'archive_id' => max(0, (int) ($context['archive_id'] ?? 0)),
+      'archive_key' => sanitize_key((string) ($context['archive_key'] ?? '')),
+      'root_term_uuid' => sanitize_text_field((string) ($context['root_term_uuid'] ?? '')),
+      'branch_term_uuids' => $term_uuids,
+      'branch_label' => sanitize_text_field((string) ($context['branch_label'] ?? '')),
+    ];
   }
 
 

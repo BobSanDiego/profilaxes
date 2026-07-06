@@ -6368,6 +6368,7 @@ class CFM_Admin
               <th scope="col">Archived Date</th>
               <th scope="col">Days Archived</th>
               <th scope="col">Archived By</th>
+              <th scope="col">Active Connections</th>
               <th scope="col">Restored Status</th>
               <th scope="col">Deleted Status</th>
               <th scope="col">Action</th>
@@ -6388,6 +6389,15 @@ class CFM_Admin
               $branch_label = is_array($branch) && !empty($branch['label'])
                 ? (string) $branch['label']
                 : '(Unknown branch)';
+              $branch_term_uuids = is_array($branch) ? CFM::collect_branch_term_uuids($branch) : [];
+              $connection_sources = CFM::get_term_connection_sources([
+                'framework_id' => $archive_framework_id,
+                'archive_id' => (int) ($archive->id ?? 0),
+                'archive_key' => (string) ($archive->archive_key ?? ''),
+                'root_term_uuid' => (string) ($archive->root_term_uuid ?? ''),
+                'branch_term_uuids' => $branch_term_uuids,
+                'branch_label' => $branch_label,
+              ]);
               $archived_at = (string) ($archive->archived_at ?? '');
               $archived_timestamp = $archived_at !== '' ? strtotime($archived_at) : false;
               $days_archived = $archived_timestamp
@@ -6428,6 +6438,20 @@ class CFM_Admin
                 <td><?php echo esc_html((string) $days_archived); ?></td>
                 <td>
                   <?php echo esc_html($archived_user ? $archived_user->display_name : ($archived_by > 0 ? 'User #' . $archived_by : 'Unknown')); ?>
+                </td>
+                <td>
+                  <?php if (!empty($connection_sources)) : ?>
+                    <ul style="margin:0;">
+                      <?php foreach ($connection_sources as $source) : ?>
+                        <li>
+                          <?php echo esc_html((string) $source['label']); ?>:
+                          <?php echo esc_html(number_format_i18n((int) $source['count'])); ?>
+                        </li>
+                      <?php endforeach; ?>
+                    </ul>
+                  <?php else : ?>
+                    <span class="description">None detected</span>
+                  <?php endif; ?>
                 </td>
                 <td>
                   <?php if ($restored_at !== '') : ?>
