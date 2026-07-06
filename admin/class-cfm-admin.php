@@ -12122,13 +12122,6 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
 
     $tree = self::get_framework_tree($framework);
     $axes = self::root_terms($tree);
-    $ordering_reload_url = admin_url(
-      'admin.php?page=cfm-frameworks'
-        . '&action=edit'
-        . '&framework_id=' . $framework_id
-        . '&cfm_order_reload=' . time()
-        . '#cfm-ordering'
-    );
 
   ?>
     <div class="wrap">
@@ -12141,28 +12134,9 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         <a class="button button-secondary" href="<?php echo esc_url(self::maintenance_url((int) $framework->id)); ?>">Maintenance</a>
       </p>
 
-      <?php if (isset($_GET['cfm_axis_added'])) : ?>
-        <div class="notice notice-success is-dismissible">
-          <p>Top-level term added.</p>
-        </div>
-      <?php endif; ?>
-
-      <?php if (isset($_GET['cfm_term_added'])) : ?>
-        <div class="notice notice-success is-dismissible">
-          <p>Term added.</p>
-        </div>
-      <?php endif; ?>
-
-
       <?php if (isset($_GET['cfm_term_moved'])) : ?>
         <div class="notice notice-success is-dismissible">
           <p>Term moved.</p>
-        </div>
-      <?php endif; ?>
-
-      <?php if (isset($_GET['cfm_terms_reordered'])) : ?>
-        <div class="notice notice-success is-dismissible">
-          <p>Term order saved and runtime tables rebuilt.</p>
         </div>
       <?php endif; ?>
 
@@ -12197,18 +12171,6 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
       <?php endif; ?>
 
 
-      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'missing_axis_fields') : ?>
-        <div class="notice notice-error is-dismissible">
-          <p>Top-level term label is required.</p>
-        </div>
-      <?php endif; ?>
-
-      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'missing_term_fields') : ?>
-        <div class="notice notice-error is-dismissible">
-          <p>Parent, term label, and term slug are required.</p>
-        </div>
-      <?php endif; ?>
-
       <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'missing_move_fields') : ?>
         <div class="notice notice-error is-dismissible">
           <p>Term and new parent are required.</p>
@@ -12224,24 +12186,6 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
       <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'archive_has_assignments') : ?>
         <div class="notice notice-error is-dismissible">
           <p>This term cannot be archived because it or one of its descendants has active user assignments. Move or reassign users first.</p>
-        </div>
-      <?php endif; ?>
-
-      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'missing_reorder_fields') : ?>
-        <div class="notice notice-error is-dismissible">
-          <p>Order save request was incomplete. <a href="<?php echo esc_url($ordering_reload_url); ?>">Reload ordering</a>.</p>
-        </div>
-      <?php endif; ?>
-
-      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'stale_order') : ?>
-        <div class="notice notice-warning is-dismissible">
-          <p>Order changed elsewhere. <a href="<?php echo esc_url($ordering_reload_url); ?>">Reload ordering</a>.</p>
-        </div>
-      <?php endif; ?>
-
-      <?php if (isset($_GET['cfm_error']) && $_GET['cfm_error'] === 'invalid_reorder') : ?>
-        <div class="notice notice-error is-dismissible">
-          <p>Unable to reorder this sibling group. <a href="<?php echo esc_url($ordering_reload_url); ?>">Reload ordering</a>.</p>
         </div>
       <?php endif; ?>
 
@@ -12318,82 +12262,6 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
         </table>
       <?php endif; ?>
 
-      <hr>
-
-      <h2 id="cfm-ordering">Ordering</h2>
-      <p class="description">Ordering is sibling-scoped. Drag terms within each group to change their display order.</p>
-      <?php self::render_ordering_controls((int) $framework->id, $tree); ?>
-
-      <hr>
-
-      <h2 id="cfm-add-term">Add Term</h2>
-
-      <form method="post">
-        <?php wp_nonce_field('cfm_add_term', 'cfm_nonce'); ?>
-
-        <input type="hidden" name="cfm_action" value="add_term">
-        <input type="hidden" name="framework_id" value="<?php echo esc_attr($framework->id); ?>">
-
-        <table class="form-table" role="presentation">
-          <tr>
-            <th scope="row">
-              <label for="parent_uuid">Parent Term</label>
-            </th>
-            <td>
-              <?php $selected_parent_uuid = sanitize_text_field($_GET['cfm_parent_uuid'] ?? '__top_level__'); ?>
-              <select name="parent_uuid" id="parent_uuid">
-                <option value="" <?php selected($selected_parent_uuid, '__top_level__'); ?>>Add as Top-Level Term</option>
-                <?php self::render_parent_options($axes, $selected_parent_uuid); ?>
-              </select>
-              <p class="description">Leave unchanged to create a top-level term, or select an existing term to create a child term.</p>
-            </td>
-          </tr>
-
-          <tr>
-            <th scope="row">
-              <label for="term_label">Term Label</label>
-            </th>
-            <td>
-              <input name="term_label" id="term_label" type="text" class="regular-text" data-cfm-autofill-label="add-term" required>
-              <p class="description">Example: Grade Level, Grade 1, Curriculum, Algebra, Region, California</p>
-            </td>
-          </tr>
-
-          <tr>
-            <th scope="row">
-              <label for="term_slug">Term Slug</label>
-            </th>
-            <td>
-              <input name="term_slug" id="term_slug" type="text" class="regular-text" data-cfm-autofill-target="add-term" data-cfm-autofill-type="slug">
-              <p class="description">Example: grade-level, grade-1, curriculum, algebra, region, california</p>
-            </td>
-          </tr>
-
-          <tr>
-            <th scope="row">
-              <label for="term_short_label">Short Label</label>
-            </th>
-            <td>
-              <input name="term_short_label" id="term_short_label" type="text" class="regular-text" data-cfm-autofill-target="add-term" data-cfm-autofill-type="copy">
-              <p class="description">Compact display text. Leave blank to use the term label.</p>
-            </td>
-          </tr>
-
-          <tr>
-            <th scope="row">
-              <label for="term_description">Community</label>
-            </th>
-            <td>
-              <input name="term_description" id="term_description" type="text" class="regular-text" data-cfm-autofill-target="add-term" data-cfm-autofill-type="copy">
-              <p class="description">Community-facing context. Leave blank to use the term label.</p>
-            </td>
-          </tr>
-        </table>
-
-        <?php submit_button('Add Term'); ?>
-      </form>
-
-      <?php self::render_term_metadata_autofill_script(); ?>
     </div>
 <?php
   }
