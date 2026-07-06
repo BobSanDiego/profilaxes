@@ -4573,7 +4573,7 @@ class CFM_Admin
 
     if ($framework) {
       $_GET['framework_id'] = (int) $framework->id;
-      self::render_framework_edit_page();
+      self::render_core_terms_editor_page();
       return;
     }
 
