@@ -26,6 +26,57 @@ class CFM_Admin
       'dashicons-groups',
       58
     );
+
+    add_submenu_page(
+      'cfm-frameworks',
+      'Core Terms Editor',
+      'Editor',
+      'manage_options',
+      'cfm-frameworks&action=editor',
+      [__CLASS__, 'render_frameworks_page']
+    );
+
+    add_submenu_page(
+      'cfm-frameworks',
+      'Core Terms Archives',
+      'Archives',
+      'manage_options',
+      'cfm-frameworks&action=archived_terms',
+      [__CLASS__, 'render_frameworks_page']
+    );
+
+    add_submenu_page(
+      'cfm-frameworks',
+      'Core Terms Data',
+      'Data',
+      'manage_options',
+      'cfm-frameworks&action=data',
+      [__CLASS__, 'render_frameworks_page']
+    );
+
+    add_submenu_page(
+      'cfm-frameworks',
+      'Core Terms Meta-Groups',
+      'Meta-Groups',
+      'manage_options',
+      'cfm-frameworks&action=meta_groups',
+      [__CLASS__, 'render_frameworks_page']
+    );
+
+    add_submenu_page(
+      'cfm-frameworks',
+      'Core Terms Maintenance',
+      'Maintenance',
+      'manage_options',
+      'cfm-frameworks&action=maintenance',
+      [__CLASS__, 'render_frameworks_page']
+    );
+
+    global $submenu;
+
+    if (isset($submenu['cfm-frameworks'][0][0])) {
+      $submenu['cfm-frameworks'][0][0] = 'Dashboard';
+    }
   }
 
   public static function handle_actions(): void
@@ -4451,6 +4502,21 @@ class CFM_Admin
       return;
     }
 
+    if ($action === 'data') {
+      self::render_data_placeholder_page();
+      return;
+    }
+
+    if ($action === 'meta_groups') {
+      self::render_meta_groups_placeholder_page();
+      return;
+    }
+
+    if ($action === 'maintenance') {
+      self::render_maintenance_placeholder_page();
+      return;
+    }
+
     if ($action === 'versions') {
       self::render_versions_page();
       return;
@@ -5454,6 +5520,109 @@ class CFM_Admin
     ], admin_url('admin.php'));
 
     return wp_nonce_url($url, 'cfm_export_taxonomy_' . $framework_id);
+  }
+
+  private static function primary_framework_for_admin(): ?object
+  {
+    $frameworks = CFM_Framework_Repository::get_frameworks();
+
+    if (empty($frameworks)) {
+      return null;
+    }
+
+    foreach ($frameworks as $framework) {
+      if ((string) ($framework->slug ?? '') === 'primary') {
+        return $framework;
+      }
+    }
+
+    return $frameworks[0];
+  }
+
+  private static function render_admin_placeholder_page(string $title, string $description, array $links = []): void
+  {
+  ?>
+    <div class="wrap">
+      <h1><?php echo esc_html($title); ?></h1>
+      <p><?php echo esc_html($description); ?></p>
+
+      <?php if (!empty($links)) : ?>
+        <p>
+          <?php foreach ($links as $link) : ?>
+            <a class="button button-secondary" href="<?php echo esc_url((string) ($link['url'] ?? '')); ?>">
+              <?php echo esc_html((string) ($link['label'] ?? 'Open')); ?>
+            </a>
+          <?php endforeach; ?>
+        </p>
+      <?php endif; ?>
+    </div>
+  <?php
+  }
+
+  public static function render_data_placeholder_page(): void
+  {
+    $framework = self::primary_framework_for_admin();
+    $links = [];
+
+    if ($framework) {
+      $legacy_url = self::edit_url((int) $framework->id);
+      $links[] = [
+        'label' => 'Open Legacy Data Sections',
+        'url' => $legacy_url . '#cfm-import',
+      ];
+      $links[] = [
+        'label' => 'Version History',
+        'url' => self::versions_url((int) $framework->id),
+      ];
+    }
+
+    self::render_admin_placeholder_page(
+      'Core Terms Data',
+      'Import, export, quick add, version history, snapshots, restore, and example packs will move here in a later ticket. Existing data tools remain available on the legacy Core Terms page.',
+      $links
+    );
+  }
+
+  public static function render_meta_groups_placeholder_page(): void
+  {
+    $framework = self::primary_framework_for_admin();
+    $links = [];
+
+    if ($framework) {
+      $links[] = [
+        'label' => 'Open Legacy Meta-Groups',
+        'url' => self::edit_url((int) $framework->id) . '#cfm-meta-groups',
+      ];
+    }
+
+    self::render_admin_placeholder_page(
+      'Core Terms Meta-Groups',
+      'Meta-Group list, create, and edit workflows will move here in a later ticket. Existing Meta-Group tools remain available on the legacy Core Terms page.',
+      $links
+    );
+  }
+
+  public static function render_maintenance_placeholder_page(): void
+  {
+    $framework = self::primary_framework_for_admin();
+    $links = [];
+
+    if ($framework) {
+      $links[] = [
+        'label' => 'Open Legacy Maintenance',
+        'url' => self::edit_url((int) $framework->id),
+      ];
+      $links[] = [
+        'label' => 'Compiled Query Debug',
+        'url' => self::compiled_debug_url((int) $framework->id),
+      ];
+    }
+
+    self::render_admin_placeholder_page(
+      'Core Terms Maintenance',
+      'Manual rebuild, compiled query debug, diagnostics, and Labs-oriented maintenance tools will be organized here in a later ticket. Existing tools remain in their current locations.',
+      $links
+    );
   }
 
   public static function render_archived_terms_page(): void
@@ -7601,6 +7770,11 @@ $user_ids = CFM::resolve_users($audience);</code></pre>
     $framework_id = isset($_GET['framework_id'])
       ? absint($_GET['framework_id'])
       : 0;
+
+    if ($framework_id <= 0) {
+      $primary_framework = self::primary_framework_for_admin();
+      $framework_id = $primary_framework ? (int) $primary_framework->id : 0;
+    }
 
     $framework = CFM_Framework_Repository::get_framework($framework_id);
 
