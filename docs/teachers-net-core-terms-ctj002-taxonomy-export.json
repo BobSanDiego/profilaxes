@@ -1,0 +1,971 @@
+{
+    "export_type": "profilaxes_profile_taxonomy",
+    "export_schema_version": 2,
+    "exported_at": "2026-07-07 18:18:13",
+    "preservation_ticket": "CTJ002",
+    "preservation_note": "Teachers.Net Job Center classification coverage fix for R001/J159 seed mapping.",
+    "site_url": "https://teachers-net.ddev.site",
+    "plugin": {
+        "name": "Core Terms",
+        "version": "0.6.1"
+    },
+    "framework": {
+        "id": 1,
+        "uuid": "7b8c0c1f-bdec-4cfc-b215-26d41ec32a3d",
+        "name": "Teachers.Net",
+        "slug": "teachers-net",
+        "description": "Minimal local Core Terms framework for Teachers.Net Jobs discovery.",
+        "active_version_id": 1
+    },
+    "active_version": {
+        "id": 1,
+        "version_number": 1,
+        "status": "active",
+        "compiled_at": "2026-07-07 18:07:35",
+        "created_by": null,
+        "created_at": "2026-07-07 18:07:35"
+    },
+    "source_of_truth": {
+        "canonical_data": "framework_versions.tree_json",
+        "runtime_tables": [
+            "cfm_terms_compiled",
+            "cfm_term_closure",
+            "cfm_term_relationships"
+        ],
+        "runtime_tables_rebuildable": true,
+        "assignment_storage": "cfm_user_terms stores user assignments by stable term UUID"
+    },
+    "tree": {
+        "label": "Teachers.Net",
+        "slug": "teachers-net",
+        "kind": "framework",
+        "children": [
+            {
+                "uuid": "2c09a868-532a-4e67-a99d-4a8aa44c084c",
+                "label": "Grade Level",
+                "slug": "grade-level",
+                "kind": "term",
+                "children": [
+                    {
+                        "uuid": "c39cfa9b-8f5a-4017-b6dc-eb75d1aa333d",
+                        "label": "Early Childhood",
+                        "slug": "early-childhood",
+                        "short_label": "Early Childhood",
+                        "kind": "term",
+                        "description": "Early Childhood Teachers",
+                        "children": [
+                            {
+                                "uuid": "c857bef6-d5d1-448c-8cdc-a918940fdf59",
+                                "label": "Early Learning",
+                                "slug": "early-learning",
+                                "short_label": "Early Learning",
+                                "kind": "term",
+                                "description": "Early Learning Teachers",
+                                "children": []
+                            },
+                            {
+                                "uuid": "55de542b-860e-4efb-be29-d6c397565f15",
+                                "label": "Pre-K",
+                                "slug": "pre-k",
+                                "kind": "term",
+                                "children": [],
+                                "short_label": "Pre-K",
+                                "description": "Pre-K Teachers"
+                            },
+                            {
+                                "uuid": "d6925081-bbe4-4225-ba57-745292e48ddf",
+                                "label": "Kindergarten",
+                                "slug": "kindergarten",
+                                "short_label": "Kindergarten",
+                                "kind": "term",
+                                "description": "Kindergarten Teachers",
+                                "children": []
+                            },
+                            {
+                                "uuid": "a022460c-8979-4e52-b3a8-fbab727554bd",
+                                "label": "Transitional Kindergarten",
+                                "slug": "transitional-kindergarten",
+                                "short_label": "TK",
+                                "kind": "term",
+                                "description": "Transitional Kindergarten Teachers",
+                                "children": []
+                            }
+                        ]
+                    },
+                    {
+                        "uuid": "2563bfe4-1ba6-4c22-b36e-7779ca6ecbc9",
+                        "label": "Elementary",
+                        "slug": "elementary",
+                        "short_label": "Elementary",
+                        "kind": "term",
+                        "description": "Elementary Teachers",
+                        "children": [
+                            {
+                                "uuid": "768511ef-a7e1-44a6-bb9d-304b09a6b1a9",
+                                "label": "Grade 1",
+                                "slug": "grade-1",
+                                "short_label": "Grade 1",
+                                "kind": "term",
+                                "description": "Grade 1",
+                                "children": []
+                            },
+                            {
+                                "uuid": "7f248d0d-e897-4d6a-ab04-000fb82f2cf5",
+                                "label": "Grade 2",
+                                "slug": "grade-2",
+                                "short_label": "Grade 2",
+                                "kind": "term",
+                                "description": "Grade 2",
+                                "children": []
+                            },
+                            {
+                                "uuid": "64d72915-437a-4f55-9c47-c01001441c18",
+                                "label": "Grade 3",
+                                "slug": "grade-3",
+                                "short_label": "Grade 3",
+                                "kind": "term",
+                                "description": "Grade 3",
+                                "children": []
+                            },
+                            {
+                                "uuid": "3061b243-835f-4f56-8b11-40ae9c8249b2",
+                                "label": "Grade 5",
+                                "slug": "grade-5",
+                                "short_label": "Grade 5",
+                                "kind": "term",
+                                "description": "Grade 5",
+                                "children": []
+                            },
+                            {
+                                "uuid": "073dd227-e6ba-4dda-8159-2e6067519250",
+                                "label": "Grade 4",
+                                "slug": "grade-4",
+                                "short_label": "Grade 4",
+                                "kind": "term",
+                                "description": "Grade 4",
+                                "children": []
+                            }
+                        ]
+                    },
+                    {
+                        "uuid": "e449211f-95bb-4287-90d3-0c451a81ef4c",
+                        "label": "Middle School",
+                        "slug": "middle-school",
+                        "short_label": "Middle School",
+                        "kind": "term",
+                        "description": "Middle School Teachers",
+                        "children": [
+                            {
+                                "uuid": "f167d17f-6d99-4341-9a77-7dda8cc76fd5",
+                                "label": "Grade 6",
+                                "slug": "grade-6",
+                                "short_label": "Grade 6",
+                                "kind": "term",
+                                "description": "Grade 6",
+                                "children": []
+                            },
+                            {
+                                "uuid": "5d189ff1-f372-4eec-9ead-82ebf14c24ac",
+                                "label": "Grade 7",
+                                "slug": "grade-7",
+                                "short_label": "Grade 7",
+                                "kind": "term",
+                                "description": "Grade 7",
+                                "children": []
+                            },
+                            {
+                                "uuid": "1bd6b70d-d58a-4bd9-afae-7826fe738ee0",
+                                "label": "Grade 8",
+                                "slug": "grade-8",
+                                "short_label": "Grade 8",
+                                "kind": "term",
+                                "description": "Grade 8",
+                                "children": []
+                            }
+                        ]
+                    },
+                    {
+                        "uuid": "3993cd02-964b-4d67-ad3d-267dcb0a6a04",
+                        "label": "High School",
+                        "slug": "high-school",
+                        "short_label": "High School",
+                        "kind": "term",
+                        "description": "High School Teachers",
+                        "children": [
+                            {
+                                "uuid": "e33d88d1-19bf-4380-b55a-561c37005f18",
+                                "label": "Grade 9",
+                                "slug": "grade-9",
+                                "short_label": "Grade 9",
+                                "kind": "term",
+                                "description": "Grade 9 Teachers",
+                                "children": []
+                            },
+                            {
+                                "uuid": "50b7c944-7432-4e1b-bbbb-5d2261466aeb",
+                                "label": "Grade 10",
+                                "slug": "grade-10",
+                                "short_label": "Grade 10",
+                                "kind": "term",
+                                "description": "Grade 10 Teachers",
+                                "children": []
+                            },
+                            {
+                                "uuid": "2bd5ced9-81e7-4b2a-b1e7-74f43ee7a69f",
+                                "label": "Grade 11",
+                                "slug": "grade-11",
+                                "short_label": "Grade 11",
+                                "kind": "term",
+                                "description": "Grade 11",
+                                "children": []
+                            },
+                            {
+                                "uuid": "f190288d-7878-448e-85d0-ce3d431078f7",
+                                "label": "Grade 12",
+                                "slug": "grade-12",
+                                "short_label": "Grade 12",
+                                "kind": "term",
+                                "description": "Grade 12",
+                                "children": []
+                            }
+                        ]
+                    },
+                    {
+                        "uuid": "7f650a7a-0541-4830-bf10-e1f4ccd1eadf",
+                        "label": "Higher Education",
+                        "slug": "higher-education",
+                        "kind": "term",
+                        "children": [],
+                        "short_label": "Higher Education",
+                        "description": "Higher Education Instructors"
+                    },
+                    {
+                        "uuid": "213b627b-f788-4df2-9719-c7822481c750",
+                        "label": "Adult Education",
+                        "slug": "adult-education",
+                        "short_label": "Adult Ed",
+                        "kind": "term",
+                        "description": "Adult Educators",
+                        "children": []
+                    }
+                ],
+                "short_label": "Grade Level",
+                "description": "Grade Level Teachers"
+            },
+            {
+                "uuid": "8b7ec968-acba-4edd-894c-495e4f30e1cd",
+                "label": "Subject Area",
+                "slug": "subject-area",
+                "kind": "term",
+                "children": [
+                    {
+                        "uuid": "ad2d902b-9f30-4356-b814-229fc60df450",
+                        "label": "English Language Arts",
+                        "slug": "english-language-arts",
+                        "kind": "term",
+                        "children": [],
+                        "short_label": "ELA",
+                        "description": "English Language Arts Teachers"
+                    },
+                    {
+                        "uuid": "69294fa2-c0c4-4a2f-9864-211848c1c00a",
+                        "label": "Mathematics",
+                        "slug": "mathematics",
+                        "kind": "term",
+                        "children": [
+                            {
+                                "uuid": "9d0ac9a3-767c-412a-9bd2-7f49db764826",
+                                "label": "Algebra",
+                                "slug": "algebra",
+                                "short_label": "Algebra",
+                                "kind": "term",
+                                "description": "Algebra Teachers",
+                                "children": []
+                            }
+                        ],
+                        "short_label": "Math",
+                        "description": "Mathematics Teachers"
+                    },
+                    {
+                        "uuid": "8f2243d1-8ea7-4547-b44b-88a5456d318b",
+                        "label": "Science",
+                        "slug": "science",
+                        "kind": "term",
+                        "children": [
+                            {
+                                "uuid": "4586519a-09ca-4d86-97c3-40af5d008502",
+                                "label": "Biology",
+                                "slug": "biology",
+                                "short_label": "Biology",
+                                "kind": "term",
+                                "description": "Biology Teachers",
+                                "children": []
+                            }
+                        ],
+                        "short_label": "Science",
+                        "description": "Science"
+                    },
+                    {
+                        "uuid": "bce06bd1-8a54-4526-a93e-8b5643b17fcd",
+                        "label": "Social Studies",
+                        "slug": "social-studies",
+                        "kind": "term",
+                        "children": [
+                            {
+                                "uuid": "20a6b1c0-8435-437f-849f-cf17d221e1e3",
+                                "label": "History",
+                                "slug": "history",
+                                "short_label": "History",
+                                "kind": "term",
+                                "description": "History Teachers",
+                                "children": []
+                            }
+                        ],
+                        "short_label": "Social Studies",
+                        "description": "Social Studies"
+                    },
+                    {
+                        "uuid": "6d407f6b-80a5-4f69-b334-9bf8d0c9b40e",
+                        "label": "Art",
+                        "slug": "art",
+                        "kind": "term",
+                        "children": [
+                            {
+                                "uuid": "78cde0d3-12c9-42c0-aa9f-21c0ea0ee800",
+                                "label": "Crafts and such",
+                                "slug": "crafts-and-such",
+                                "short_label": "Crafts and such",
+                                "kind": "term",
+                                "description": "Crafts and such Teachers",
+                                "children": []
+                            }
+                        ],
+                        "short_label": "Art",
+                        "description": "Art"
+                    },
+                    {
+                        "uuid": "a323e85c-4a34-440c-8df4-80ec5d185bee",
+                        "label": "Music",
+                        "slug": "music",
+                        "kind": "term",
+                        "children": [],
+                        "short_label": "Music",
+                        "description": "Music"
+                    },
+                    {
+                        "uuid": "a2990cb3-d1c7-4cdf-9f92-dde31d521e5d",
+                        "label": "General / Multiple Subjects",
+                        "slug": "general-multiple-subjects",
+                        "short_label": "Gen/Mult Subj",
+                        "kind": "term",
+                        "description": "General / Multiple Subjects",
+                        "children": []
+                    },
+                    {
+                        "uuid": "5395981b-4c01-46ba-9b2f-c16ba6fd78f2",
+                        "label": "Special Education",
+                        "slug": "special-education",
+                        "kind": "term",
+                        "children": [],
+                        "short_label": "Special Education",
+                        "description": "Special Education"
+                    },
+                    {
+                        "uuid": "380dd99a-95e2-490d-ac79-b14ef959854a",
+                        "label": "English Learners / ESL",
+                        "slug": "english-learners-esl",
+                        "kind": "term",
+                        "children": [],
+                        "short_label": "ESL/ELL",
+                        "description": "English Learners / ESL Teachers"
+                    },
+                    {
+                        "uuid": "019e13ed-b304-4897-8029-b4116d11989d",
+                        "label": "World Languages",
+                        "slug": "world-languages",
+                        "kind": "term",
+                        "children": [
+                            {
+                                "uuid": "ee999b0b-0ea5-46e8-ac81-f0828de37f59",
+                                "label": "Spanish",
+                                "slug": "spanish",
+                                "short_label": "Spanish",
+                                "kind": "term",
+                                "description": "Spanish Teachers",
+                                "children": []
+                            }
+                        ],
+                        "short_label": "World Languages",
+                        "description": "World Languages"
+                    },
+                    {
+                        "uuid": "8a619941-e623-4eec-9545-3678f5798830",
+                        "label": "Technology",
+                        "slug": "technology",
+                        "kind": "term",
+                        "children": [
+                            {
+                                "uuid": "f2c2c7e6-0220-4314-8837-9971f29d35f5",
+                                "label": "Computer Science",
+                                "slug": "computer-science",
+                                "short_label": "Computer Science",
+                                "kind": "term",
+                                "description": "Computer Science Teachers",
+                                "children": []
+                            }
+                        ],
+                        "short_label": "Technology",
+                        "description": "Technology"
+                    },
+                    {
+                        "uuid": "7160ba2a-aac6-4770-9450-d5e122de6762",
+                        "label": "Career Technical Education",
+                        "slug": "career-technical-education",
+                        "kind": "term",
+                        "children": [],
+                        "short_label": "CTE",
+                        "description": "Career Technical Education Teachers"
+                    },
+                    {
+                        "uuid": "c8baf6ee-ecc7-437a-84fd-ab1952df4696",
+                        "label": "Physical Education / Health",
+                        "slug": "physical-education-health",
+                        "kind": "term",
+                        "children": [],
+                        "short_label": "PE/Health",
+                        "description": "Physical Education / Health Teachers"
+                    },
+                    {
+                        "uuid": "2e0ea2f5-8d10-4bfb-8f3e-6cd1cfa146c8",
+                        "label": "Counseling",
+                        "slug": "counseling",
+                        "short_label": "Counseling",
+                        "kind": "term",
+                        "description": "Counseling Professionals",
+                        "children": []
+                    },
+                    {
+                        "uuid": "52479565-8e1e-4e91-ab96-3c48d05c71b2",
+                        "label": "Reading / Literacy",
+                        "slug": "reading-literacy",
+                        "short_label": "Reading/Lit",
+                        "kind": "term",
+                        "description": "Reading / Literacy Teachers",
+                        "children": []
+                    },
+                    {
+                        "uuid": "816599cb-c627-4ad8-a3b2-ae5f2fb590c8",
+                        "label": "Library / Media",
+                        "slug": "library-media",
+                        "short_label": "Library/Media",
+                        "kind": "term",
+                        "description": "School Librarians",
+                        "children": []
+                    }
+                ],
+                "short_label": "Subject Area",
+                "description": "Subject Area"
+            },
+            {
+                "uuid": "0e7fe983-68df-4026-95a3-c66575cd9dbe",
+                "label": "Location",
+                "slug": "location",
+                "kind": "term",
+                "children": [
+                    {
+                        "uuid": "87b032ce-70d5-4bab-a56f-35bf59acb5a4",
+                        "label": "United States",
+                        "slug": "united-states",
+                        "kind": "term",
+                        "children": [
+                            {
+                                "uuid": "3877d049-1e0f-40e5-a2e4-43d412643cb0",
+                                "label": "Alabama",
+                                "slug": "alabama",
+                                "short_label": "Alabama",
+                                "kind": "term",
+                                "description": "Alabama",
+                                "children": []
+                            },
+                            {
+                                "uuid": "4a7a89db-9850-4f2d-87df-fa7d6ac5daae",
+                                "label": "Alaska",
+                                "slug": "alaska",
+                                "short_label": "Alaska",
+                                "kind": "term",
+                                "description": "Alaska",
+                                "children": []
+                            },
+                            {
+                                "uuid": "5c23adfd-4e7c-4235-a4ea-5a300170cad6",
+                                "label": "Arizona",
+                                "slug": "arizona",
+                                "short_label": "Arizona",
+                                "kind": "term",
+                                "description": "Arizona",
+                                "children": []
+                            },
+                            {
+                                "uuid": "93a04f6d-2ccc-4dab-b50a-b5be8ad2ea9c",
+                                "label": "Arkansas",
+                                "slug": "arkansas",
+                                "short_label": "Arkansas",
+                                "kind": "term",
+                                "description": "Arkansas",
+                                "children": []
+                            },
+                            {
+                                "uuid": "e6fa1ab0-d216-4982-9c14-44cab36bfab0",
+                                "label": "California",
+                                "slug": "california",
+                                "short_label": "California",
+                                "kind": "term",
+                                "description": "California",
+                                "children": []
+                            },
+                            {
+                                "uuid": "a9f6d2f1-d19e-421c-a959-b421738bb14b",
+                                "label": "Colorado",
+                                "slug": "colorado",
+                                "short_label": "Colorado",
+                                "kind": "term",
+                                "description": "Colorado",
+                                "children": []
+                            },
+                            {
+                                "uuid": "81352040-51b5-4a84-a9db-2ce701421604",
+                                "label": "Connecticut",
+                                "slug": "connecticut",
+                                "short_label": "Connecticut",
+                                "kind": "term",
+                                "description": "Connecticut",
+                                "children": []
+                            },
+                            {
+                                "uuid": "050e3201-1735-46e3-95ad-d1e8ec2a8cea",
+                                "label": "Delaware",
+                                "slug": "delaware",
+                                "short_label": "Delaware",
+                                "kind": "term",
+                                "description": "Delaware",
+                                "children": []
+                            },
+                            {
+                                "uuid": "f4e84e61-2435-4850-8601-027b5ad854aa",
+                                "label": "District of Columbia",
+                                "slug": "district-of-columbia",
+                                "short_label": "District of Columbia",
+                                "kind": "term",
+                                "description": "District of Columbia",
+                                "children": []
+                            },
+                            {
+                                "uuid": "44d8053c-1998-445d-a4c5-c5c0197f63e2",
+                                "label": "Florida",
+                                "slug": "florida",
+                                "short_label": "Florida",
+                                "kind": "term",
+                                "description": "Florida",
+                                "children": []
+                            },
+                            {
+                                "uuid": "d31cc7eb-60ce-4de4-8448-1d429205313f",
+                                "label": "Georgia",
+                                "slug": "georgia",
+                                "short_label": "Georgia",
+                                "kind": "term",
+                                "description": "Georgia",
+                                "children": []
+                            },
+                            {
+                                "uuid": "a4f1c538-c067-4972-996a-19fe7bd58094",
+                                "label": "Hawaii",
+                                "slug": "hawaii",
+                                "short_label": "Hawaii",
+                                "kind": "term",
+                                "description": "Hawaii",
+                                "children": []
+                            },
+                            {
+                                "uuid": "e305c908-534f-4262-ae9f-f34d553fb21b",
+                                "label": "Idaho",
+                                "slug": "idaho",
+                                "short_label": "Idaho",
+                                "kind": "term",
+                                "description": "Idaho",
+                                "children": []
+                            },
+                            {
+                                "uuid": "6d6d020a-9846-4885-9a55-19c0fd7a2963",
+                                "label": "Illinois",
+                                "slug": "illinois",
+                                "short_label": "Illinois",
+                                "kind": "term",
+                                "description": "Illinois",
+                                "children": []
+                            },
+                            {
+                                "uuid": "80c7047e-2dfa-499d-bef0-d64315722fd3",
+                                "label": "Indiana",
+                                "slug": "indiana",
+                                "short_label": "Indiana",
+                                "kind": "term",
+                                "description": "Indiana",
+                                "children": []
+                            },
+                            {
+                                "uuid": "b793836e-47b0-4366-9dc8-6d54f42697be",
+                                "label": "Iowa",
+                                "slug": "iowa",
+                                "short_label": "Iowa",
+                                "kind": "term",
+                                "description": "Iowa",
+                                "children": []
+                            },
+                            {
+                                "uuid": "59367236-c725-4ab0-8578-16393fab7ff7",
+                                "label": "Kansas",
+                                "slug": "kansas",
+                                "short_label": "Kansas",
+                                "kind": "term",
+                                "description": "Kansas",
+                                "children": []
+                            },
+                            {
+                                "uuid": "1e0e6cc1-4b68-4047-bcf5-88bf61221759",
+                                "label": "Kentucky",
+                                "slug": "kentucky",
+                                "short_label": "Kentucky",
+                                "kind": "term",
+                                "description": "Kentucky",
+                                "children": []
+                            },
+                            {
+                                "uuid": "886ae21e-439a-43e5-bed5-c251e0d8786c",
+                                "label": "Louisiana",
+                                "slug": "louisiana",
+                                "short_label": "Louisiana",
+                                "kind": "term",
+                                "description": "Louisiana",
+                                "children": []
+                            },
+                            {
+                                "uuid": "244da4af-eb8d-44f8-9022-3e32da7ed717",
+                                "label": "Maine",
+                                "slug": "maine",
+                                "short_label": "Maine",
+                                "kind": "term",
+                                "description": "Maine",
+                                "children": []
+                            },
+                            {
+                                "uuid": "b443b8f6-13d3-4e01-8523-bf95f239e450",
+                                "label": "Maryland",
+                                "slug": "maryland",
+                                "short_label": "Maryland",
+                                "kind": "term",
+                                "description": "Maryland",
+                                "children": []
+                            },
+                            {
+                                "uuid": "472b8073-db37-45a0-8556-d1f7821f284c",
+                                "label": "Massachusetts",
+                                "slug": "massachusetts",
+                                "short_label": "Massachusetts",
+                                "kind": "term",
+                                "description": "Massachusetts",
+                                "children": []
+                            },
+                            {
+                                "uuid": "f5502439-4f9c-482e-8449-98f1c98c36b4",
+                                "label": "Michigan",
+                                "slug": "michigan",
+                                "short_label": "Michigan",
+                                "kind": "term",
+                                "description": "Michigan",
+                                "children": []
+                            },
+                            {
+                                "uuid": "4275a96d-7bec-405c-b454-66d69c22a4f4",
+                                "label": "Minnesota",
+                                "slug": "minnesota",
+                                "short_label": "Minnesota",
+                                "kind": "term",
+                                "description": "Minnesota",
+                                "children": []
+                            },
+                            {
+                                "uuid": "795f8b32-46f8-4ce3-8796-c1de4ce44cc2",
+                                "label": "Mississippi",
+                                "slug": "mississippi",
+                                "short_label": "Mississippi",
+                                "kind": "term",
+                                "description": "Mississippi",
+                                "children": []
+                            },
+                            {
+                                "uuid": "cd70f8fc-2c32-4ab4-ada7-78f5cdebee0a",
+                                "label": "Missouri",
+                                "slug": "missouri",
+                                "short_label": "Missouri",
+                                "kind": "term",
+                                "description": "Missouri",
+                                "children": []
+                            },
+                            {
+                                "uuid": "a2ea7584-2741-493a-99d2-d5f1295b4685",
+                                "label": "Montana",
+                                "slug": "montana",
+                                "short_label": "Montana",
+                                "kind": "term",
+                                "description": "Montana",
+                                "children": []
+                            },
+                            {
+                                "uuid": "696fc3ba-6df1-430f-a8c0-3141e4a36c48",
+                                "label": "Nebraska",
+                                "slug": "nebraska",
+                                "short_label": "Nebraska",
+                                "kind": "term",
+                                "description": "Nebraska",
+                                "children": []
+                            },
+                            {
+                                "uuid": "7a6574b2-c89d-4837-839b-a1ac1ecc0041",
+                                "label": "Nevada",
+                                "slug": "nevada",
+                                "short_label": "Nevada",
+                                "kind": "term",
+                                "description": "Nevada",
+                                "children": []
+                            },
+                            {
+                                "uuid": "34bd9209-5229-401e-84a5-1f69aaad4277",
+                                "label": "New Hampshire",
+                                "slug": "new-hampshire",
+                                "short_label": "New Hampshire",
+                                "kind": "term",
+                                "description": "New Hampshire",
+                                "children": []
+                            },
+                            {
+                                "uuid": "ac2e2a33-bed5-404c-8987-1ce17cadd1ed",
+                                "label": "New Jersey",
+                                "slug": "new-jersey",
+                                "short_label": "New Jersey",
+                                "kind": "term",
+                                "description": "New Jersey",
+                                "children": []
+                            },
+                            {
+                                "uuid": "29e074dc-a4d8-430d-baef-2f6d655ec04d",
+                                "label": "New Mexico",
+                                "slug": "new-mexico",
+                                "short_label": "New Mexico",
+                                "kind": "term",
+                                "description": "New Mexico",
+                                "children": []
+                            },
+                            {
+                                "uuid": "3f7dd099-00dc-415d-9387-7cbeea6cecd2",
+                                "label": "New York",
+                                "slug": "new-york",
+                                "short_label": "New York",
+                                "kind": "term",
+                                "description": "New York",
+                                "children": []
+                            },
+                            {
+                                "uuid": "f523c517-a5e6-46a9-b094-6f7ac7ea53df",
+                                "label": "North Carolina",
+                                "slug": "north-carolina",
+                                "short_label": "North Carolina",
+                                "kind": "term",
+                                "description": "North Carolina",
+                                "children": []
+                            },
+                            {
+                                "uuid": "a3ffe4bc-182c-46a1-ab70-d846ac3c814c",
+                                "label": "North Dakota",
+                                "slug": "north-dakota",
+                                "short_label": "North Dakota",
+                                "kind": "term",
+                                "description": "North Dakota",
+                                "children": []
+                            },
+                            {
+                                "uuid": "5bb4c0f0-b727-40e4-9040-7761f61c0686",
+                                "label": "Ohio",
+                                "slug": "ohio",
+                                "short_label": "Ohio",
+                                "kind": "term",
+                                "description": "Ohio",
+                                "children": []
+                            },
+                            {
+                                "uuid": "c36aa37e-7841-46cf-bb60-9e4d5b5e6bed",
+                                "label": "Oklahoma",
+                                "slug": "oklahoma",
+                                "short_label": "Oklahoma",
+                                "kind": "term",
+                                "description": "Oklahoma",
+                                "children": []
+                            },
+                            {
+                                "uuid": "bddbc393-0d92-477e-b411-cb60b6f96e3e",
+                                "label": "Oregon",
+                                "slug": "oregon",
+                                "short_label": "Oregon",
+                                "kind": "term",
+                                "description": "Oregon",
+                                "children": []
+                            },
+                            {
+                                "uuid": "eac1d43f-0273-4caa-95f0-de94735ffdbc",
+                                "label": "Pennsylvania",
+                                "slug": "pennsylvania",
+                                "short_label": "Pennsylvania",
+                                "kind": "term",
+                                "description": "Pennsylvania",
+                                "children": []
+                            },
+                            {
+                                "uuid": "e75fbd75-7d27-4591-9df6-31ec2835bfbb",
+                                "label": "Rhode Island",
+                                "slug": "rhode-island",
+                                "short_label": "Rhode Island",
+                                "kind": "term",
+                                "description": "Rhode Island",
+                                "children": []
+                            },
+                            {
+                                "uuid": "fd8eb020-f1f7-4e2a-86b0-0f2574cc2584",
+                                "label": "South Carolina",
+                                "slug": "south-carolina",
+                                "short_label": "South Carolina",
+                                "kind": "term",
+                                "description": "South Carolina",
+                                "children": []
+                            },
+                            {
+                                "uuid": "7e9cf08f-fb0f-416d-8cb1-ed837953e80b",
+                                "label": "South Dakota",
+                                "slug": "south-dakota",
+                                "short_label": "South Dakota",
+                                "kind": "term",
+                                "description": "South Dakota",
+                                "children": []
+                            },
+                            {
+                                "uuid": "8451b607-0cb2-4905-b52a-7835d9571e19",
+                                "label": "Tennessee",
+                                "slug": "tennessee",
+                                "short_label": "Tennessee",
+                                "kind": "term",
+                                "description": "Tennessee",
+                                "children": []
+                            },
+                            {
+                                "uuid": "324901bc-9857-4bac-8c62-93ecc95ae64b",
+                                "label": "Texas",
+                                "slug": "texas",
+                                "short_label": "Texas",
+                                "kind": "term",
+                                "description": "Texas",
+                                "children": []
+                            },
+                            {
+                                "uuid": "5d799f2d-c53c-4105-ac0f-b3a10432701a",
+                                "label": "Utah",
+                                "slug": "utah",
+                                "short_label": "Utah",
+                                "kind": "term",
+                                "description": "Utah",
+                                "children": []
+                            },
+                            {
+                                "uuid": "f8d14c3a-6ede-40f3-95ec-c97d65118ff3",
+                                "label": "Vermont",
+                                "slug": "vermont",
+                                "short_label": "Vermont",
+                                "kind": "term",
+                                "description": "Vermont",
+                                "children": []
+                            },
+                            {
+                                "uuid": "aaeb2148-f73b-49c1-96aa-92000d4ae095",
+                                "label": "Virginia",
+                                "slug": "virginia",
+                                "short_label": "Virginia",
+                                "kind": "term",
+                                "description": "Virginia",
+                                "children": []
+                            },
+                            {
+                                "uuid": "9995ac26-4c2b-481d-be00-a111677a98a6",
+                                "label": "Washington",
+                                "slug": "washington",
+                                "short_label": "Washington",
+                                "kind": "term",
+                                "description": "Washington",
+                                "children": []
+                            },
+                            {
+                                "uuid": "1ace60bc-8219-4cbe-9861-c77b0a2b0719",
+                                "label": "West Virginia",
+                                "slug": "west-virginia",
+                                "short_label": "West Virginia",
+                                "kind": "term",
+                                "description": "West Virginia",
+                                "children": []
+                            },
+                            {
+                                "uuid": "d9f8ebb5-2bc5-400a-812e-ec4b93314428",
+                                "label": "Wisconsin",
+                                "slug": "wisconsin",
+                                "short_label": "Wisconsin",
+                                "kind": "term",
+                                "description": "Wisconsin",
+                                "children": []
+                            },
+                            {
+                                "uuid": "4bae3bf7-4c75-46aa-a2be-bdcf8219b1eb",
+                                "label": "Wyoming",
+                                "slug": "wyoming",
+                                "short_label": "Wyoming",
+                                "kind": "term",
+                                "description": "Wyoming",
+                                "children": []
+                            }
+                        ],
+                        "short_label": "United States",
+                        "description": "United States"
+                    },
+                    {
+                        "uuid": "70663b77-4ece-47d3-b783-7c7d07d1ebfc",
+                        "label": "Remote",
+                        "slug": "remote",
+                        "short_label": "Remote",
+                        "kind": "term",
+                        "description": "Remote",
+                        "children": []
+                    },
+                    {
+                        "uuid": "047d166e-7e56-4fd3-864c-bfc39fd33be9",
+                        "label": "International / Outside U.S.",
+                        "slug": "international-outside-us",
+                        "short_label": "International",
+                        "kind": "term",
+                        "description": "International / Outside U.S.",
+                        "children": []
+                    }
+                ],
+                "short_label": "Location",
+                "description": "Location"
+            }
+        ],
+        "short_label": "Teachers.Net",
+        "description": "Teachers.Net",
+        "uuid": "7b8c0c1f-bdec-4cfc-b215-26d41ec32a3d"
+    }
+}
