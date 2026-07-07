@@ -6379,12 +6379,12 @@ class CFM_Admin
                 : '(Unknown branch)';
               $branch_term_uuids = is_array($branch) ? CFM::collect_branch_term_uuids($branch) : [];
               $descendant_count = max(0, count($branch_term_uuids) - 1);
-              $branch_display_label = $branch_label;
+              $descendant_suffix = '';
               $action_noun = $descendant_count > 0 ? 'Branch' : 'Term';
 
               if ($descendant_count > 0) {
                 $descendant_label = $descendant_count === 1 ? 'descendant' : 'descendants';
-                $branch_display_label .= ' (+' . number_format_i18n($descendant_count) . ' ' . $descendant_label . ')';
+                $descendant_suffix = ' (+' . number_format_i18n($descendant_count) . ' ' . $descendant_label . ')';
               }
 
               $connection_sources = CFM::get_term_connection_sources([
@@ -6419,7 +6419,7 @@ class CFM_Admin
             ?>
               <tr>
                 <td style="white-space:nowrap;">
-                  <strong><?php echo esc_html($branch_display_label); ?></strong>
+                  <strong><?php echo esc_html($branch_label); ?></strong><?php echo esc_html($descendant_suffix); ?>
                 </td>
                 <td style="white-space:nowrap;"><?php echo esc_html($archived_at !== '' ? $archived_at : 'Unknown'); ?></td>
                 <td style="white-space:nowrap;"><?php echo esc_html((string) $days_archived); ?></td>
