@@ -6293,7 +6293,6 @@ class CFM_Admin
     }
 
     $archives = CFM_Framework_Repository::get_term_archives($framework_id, false, false);
-    $framework_cache = [];
     $now = current_time('timestamp');
 
     ?>
@@ -6364,32 +6363,29 @@ class CFM_Admin
           <thead>
             <tr>
               <th scope="col">Branch</th>
-              <th scope="col">Framework</th>
               <th scope="col">Archived Date</th>
               <th scope="col">Days Archived</th>
               <th scope="col">Archived By</th>
               <th scope="col">Active Connections</th>
-              <th scope="col">Restored Status</th>
-              <th scope="col">Deleted Status</th>
               <th scope="col">Action</th>
             </tr>
           </thead>
           <tbody>
             <?php foreach ($archives as $archive) :
               $archive_framework_id = (int) ($archive->framework_id ?? 0);
-
-              if (!array_key_exists($archive_framework_id, $framework_cache)) {
-                $framework_cache[$archive_framework_id] = $archive_framework_id > 0
-                  ? CFM_Framework_Repository::get_framework($archive_framework_id)
-                  : null;
-              }
-
-              $archive_framework = $framework_cache[$archive_framework_id];
               $branch = json_decode((string) ($archive->branch_json ?? ''), true);
               $branch_label = is_array($branch) && !empty($branch['label'])
                 ? (string) $branch['label']
                 : '(Unknown branch)';
               $branch_term_uuids = is_array($branch) ? CFM::collect_branch_term_uuids($branch) : [];
+              $descendant_count = max(0, count($branch_term_uuids) - 1);
+              $branch_display_label = $branch_label;
+              $action_noun = $descendant_count > 0 ? 'Branch' : 'Term';
+
+              if ($descendant_count > 0) {
+                $branch_display_label .= ' (+' . number_format_i18n($descendant_count) . ' descendants)';
+              }
+
               $connection_sources = CFM::get_term_connection_sources([
                 'framework_id' => $archive_framework_id,
                 'archive_id' => (int) ($archive->id ?? 0),
@@ -6406,11 +6402,7 @@ class CFM_Admin
               $archived_by = (int) ($archive->archived_by ?? 0);
               $archived_user = $archived_by > 0 ? get_userdata($archived_by) : false;
               $restored_at = (string) ($archive->restored_at ?? '');
-              $restored_by = (int) ($archive->restored_by ?? 0);
-              $restored_user = $restored_by > 0 ? get_userdata($restored_by) : false;
               $deleted_at = (string) ($archive->deleted_at ?? '');
-              $deleted_by = (int) ($archive->deleted_by ?? 0);
-              $deleted_user = $deleted_by > 0 ? get_userdata($deleted_by) : false;
               $can_restore = $restored_at === '' && $deleted_at === '';
               $can_delete = $restored_at === '' && $deleted_at === '';
               $recent_archive = $days_archived < 7;
@@ -6425,18 +6417,12 @@ class CFM_Admin
                 );
             ?>
               <tr>
-                <td>
-                  <strong><?php echo esc_html($branch_label); ?></strong>
-                  <?php if (!empty($archive->root_term_uuid)) : ?>
-                    <br><code><?php echo esc_html((string) $archive->root_term_uuid); ?></code>
-                  <?php endif; ?>
+                <td style="white-space:nowrap;">
+                  <strong><?php echo esc_html($branch_display_label); ?></strong>
                 </td>
-                <td>
-                  <?php echo esc_html($archive_framework ? (string) $archive_framework->name : 'Unknown framework'); ?>
-                </td>
-                <td><?php echo esc_html($archived_at !== '' ? $archived_at : 'Unknown'); ?></td>
-                <td><?php echo esc_html((string) $days_archived); ?></td>
-                <td>
+                <td style="white-space:nowrap;"><?php echo esc_html($archived_at !== '' ? $archived_at : 'Unknown'); ?></td>
+                <td style="white-space:nowrap;"><?php echo esc_html((string) $days_archived); ?></td>
+                <td style="white-space:nowrap;">
                   <?php echo esc_html($archived_user ? $archived_user->display_name : ($archived_by > 0 ? 'User #' . $archived_by : 'Unknown')); ?>
                 </td>
                 <td>
@@ -6453,42 +6439,25 @@ class CFM_Admin
                     <span class="description">None detected</span>
                   <?php endif; ?>
                 </td>
-                <td>
-                  <?php if ($restored_at !== '') : ?>
-                    Restored <?php echo esc_html($restored_at); ?>
-                    <?php if ($restored_user) : ?>
-                      <br>by <?php echo esc_html($restored_user->display_name); ?>
-                    <?php endif; ?>
-                  <?php else : ?>
-                    Not restored
-                  <?php endif; ?>
-                </td>
-                <td>
-                  <?php if ($deleted_at !== '') : ?>
-                    Deleted <?php echo esc_html($deleted_at); ?>
-                    <?php if ($deleted_user) : ?>
-                      <br>by <?php echo esc_html($deleted_user->display_name); ?>
-                    <?php endif; ?>
-                  <?php else : ?>
-                    Not deleted
-                  <?php endif; ?>
-                </td>
-                <td>
+                <td style="white-space:nowrap;">
                   <?php if ($can_restore) : ?>
-                    <form method="post">
+                    <form method="post" style="display:inline;">
                       <?php wp_nonce_field('cfm_core_terms_archive_restore', 'cfm_nonce'); ?>
                       <input type="hidden" name="cfm_action" value="core_terms_archive_restore">
                       <input type="hidden" name="archive_key" value="<?php echo esc_attr((string) $archive->archive_key); ?>">
-                      <button type="submit" class="button button-secondary">Restore Branch</button>
+                      <button type="submit" class="button-link">Restore <?php echo esc_html($action_noun); ?></button>
                     </form>
                   <?php endif; ?>
 
                   <?php if ($can_delete) : ?>
-                    <form method="post" onsubmit="return confirm(this.getAttribute('data-confirm-message'));" data-confirm-message="<?php echo esc_attr($delete_confirmation); ?>">
+                    <?php if ($can_restore) : ?>
+                      <span aria-hidden="true"> | </span>
+                    <?php endif; ?>
+                    <form method="post" style="display:inline;" onsubmit="return confirm(this.getAttribute('data-confirm-message'));" data-confirm-message="<?php echo esc_attr($delete_confirmation); ?>">
                       <?php wp_nonce_field('cfm_core_terms_archive_delete', 'cfm_nonce'); ?>
                       <input type="hidden" name="cfm_action" value="core_terms_archive_delete">
                       <input type="hidden" name="archive_key" value="<?php echo esc_attr((string) $archive->archive_key); ?>">
-                      <button type="submit" class="button button-link-delete">Delete Archive</button>
+                      <button type="submit" class="button-link button-link-delete">Delete <?php echo esc_html($action_noun); ?></button>
                     </form>
                   <?php endif; ?>
 
