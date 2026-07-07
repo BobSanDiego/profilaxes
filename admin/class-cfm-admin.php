@@ -4195,6 +4195,19 @@ class CFM_Admin
         padding: 0;
       }
 
+      .cfm-meta-group-term-selector .cfm-meta-term-toggle:focus:not(:focus-visible),
+      .cfm-meta-group-term-selector .cfm-meta-term-checkbox:focus:not(:focus-visible) {
+        box-shadow: none;
+        outline: none;
+      }
+
+      .cfm-meta-group-term-selector .cfm-meta-term-toggle:focus-visible,
+      .cfm-meta-group-term-selector .cfm-meta-term-checkbox:focus-visible {
+        box-shadow: 0 0 0 2px #2271b1;
+        outline: 2px solid transparent;
+        outline-offset: 2px;
+      }
+
       @media (max-width: 960px) {
         .cfm-meta-group-reference-grid,
         .cfm-meta-group-field-row {
