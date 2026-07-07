@@ -1,4 +1,4 @@
-# Core Terms Capability Snapshot
+# Core Terms Platform Capability Snapshot
 
 Status: Current production capability snapshot
 Plugin: Core Terms / Profilaxes
@@ -11,7 +11,11 @@ It can maintain a hierarchical Core Terms tree, assign users to terms, compile r
 
 This document answers what the plugin can do today. It is not an architecture document, roadmap, implementation note, or project history.
 
-## 2. Core Terms Editor
+## 2. Design Philosophy
+
+Core Terms is the canonical classification platform for Teachers.Net. It owns the authoritative taxonomy, compiles optimized runtime lookup tables, and manages user membership assignments. Consumer plugins reference Core Terms UUIDs and compiled APIs rather than editing the source taxonomy directly.
+
+## 3. Core Terms Editor
 
 The Core Terms Editor is the primary admin workbench for managing the active term hierarchy.
 
@@ -43,7 +47,7 @@ Current capabilities:
 - Block reorder/move actions while dirty or draft rows exist.
 - Preserve expanded tree state and editor position across supported save flows.
 
-## 3. Archives
+## 4. Archives
 
 The Archived Terms page manages branches removed from the active Core Terms tree.
 
@@ -58,7 +62,7 @@ Current capabilities:
 - Show active connection counts from registered providers.
 - Preserve archived branch data for restore/delete decisions.
 
-## 4. Data
+## 5. Data
 
 The Data page groups taxonomy data-management tools.
 
@@ -71,7 +75,7 @@ Current capabilities:
 - Access versions, snapshots, and restore flows.
 - Preserve existing import/export and restore behavior.
 
-## 5. Meta-Groups
+## 6. Meta-Groups
 
 Meta-Groups define reusable groupings of Core Terms.
 
@@ -89,7 +93,7 @@ Current capabilities:
 - Preserve checked/selected term state.
 - Use the same field guidance pattern as the Core Terms Editor.
 
-## 6. Maintenance
+## 7. Maintenance
 
 The Maintenance page contains operational tools for keeping compiled runtime data healthy.
 
@@ -100,7 +104,7 @@ Current capabilities:
 - Access compiled query debug tools.
 - Keep maintenance workflows separate from daily editing.
 
-## 7. Users
+## 8. Users
 
 Core Terms supports user membership assignment and inspection.
 
@@ -114,7 +118,7 @@ Current capabilities:
 - Display assigned Core Terms on user/profile admin surfaces where enabled.
 - Preserve Labs/user inspection tools for diagnostics and future product discovery.
 
-## 8. Extension API
+## 9. Extension API
 
 Core Terms exposes a high-level extension path for other plugins.
 
@@ -126,9 +130,13 @@ Current capabilities:
 - Include a built-in User Members provider.
 - Allow external plugins, such as Jobs, to report usage without Core Terms owning their data.
 
-## 9. Current Production Status
+## 10. Integration Model
 
-Core Terms is the current production baseline for Teachers.Net classification and user membership infrastructure.
+Core Terms owns taxonomy and compiled classification APIs. Consumer plugins own their own data and integrate through Core Terms UUIDs and public APIs. Active Connections are reported through registered providers, rather than Core Terms directly querying subscriber plugin data.
+
+## 11. Current Production Status
+
+Core Terms is now the canonical production classification platform for Teachers.Net.
 
 Current status:
 
@@ -137,9 +145,10 @@ Current status:
 - Dashboard opens the editor when a framework exists.
 - Archives, Data, Meta-Groups, and Maintenance each own their current workflow area.
 - Runtime data remains rebuildable from source taxonomy data.
+- Intended to serve as shared infrastructure for Jobs, Chatboards, Lesson Bank, and future Teachers.Net modules.
 - Internal `profilaxes`, `CFM`, and `cfm_` names remain compatibility details and should not be renamed casually.
 
-## 10. Out of Scope / Future
+## 12. Out of Scope / Future
 
 Current out-of-scope items:
 
@@ -151,6 +160,5 @@ Current out-of-scope items:
 - Subscriber-plugin-specific reporting beyond registered providers.
 - Chatboards or Lesson Plans connection providers.
 - Public frontend rendering.
-- Jobs-specific business logic.
 - Notification, recommendation, or analytics dashboards.
 - Broad admin redesign beyond the current Core Terms surfaces.
