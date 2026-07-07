@@ -4176,8 +4176,8 @@ class CFM_Admin
       }
 
       .cfm-meta-group-term-selector {
-        margin-top: 14px;
-        max-width: 980px;
+        margin: 14px 0 0 44px;
+        max-width: 936px;
       }
 
       .cfm-meta-group-term-toolbar {
@@ -4206,6 +4206,10 @@ class CFM_Admin
         .cfm-meta-group-reference-grid,
         .cfm-meta-group-field-row {
           grid-template-columns: 1fr;
+        }
+
+        .cfm-meta-group-term-selector {
+          margin-left: 0;
         }
       }
     </style>
@@ -6232,22 +6236,18 @@ class CFM_Admin
             <div class="cfm-meta-group-field">
               <label for="meta_group_label">Meta-Group Label</label>
               <input name="meta_group_label" id="meta_group_label" type="text" data-cfm-autofill-label="add-meta-group" required>
-              <p class="description">Example: STEM, New Teachers, K-5 Science</p>
             </div>
             <div class="cfm-meta-group-field">
               <label for="meta_group_slug">Slug</label>
               <input name="meta_group_slug" id="meta_group_slug" type="text" data-cfm-autofill-target="add-meta-group" data-cfm-autofill-type="slug">
-              <p class="description">Example: stem, new-teachers, k-5-science</p>
             </div>
             <div class="cfm-meta-group-field">
               <label for="meta_group_short_label">Short Label</label>
               <input name="meta_group_short_label" id="meta_group_short_label" type="text" data-cfm-autofill-target="add-meta-group" data-cfm-autofill-type="copy">
-              <p class="description">Compact display text.</p>
             </div>
             <div class="cfm-meta-group-field">
               <label for="meta_group_description">Community</label>
               <input name="meta_group_description" id="meta_group_description" type="text" data-cfm-autofill-target="add-meta-group" data-cfm-autofill-type="copy">
-              <p class="description">Community-facing context.</p>
             </div>
           </div>
 
@@ -7696,7 +7696,6 @@ class CFM_Admin
           <div class="cfm-meta-group-field">
             <label for="meta_group_slug">Slug</label>
             <input name="meta_group_slug" id="meta_group_slug" type="text" value="<?php echo esc_attr($meta_group['slug'] ?? ''); ?>" data-cfm-autofill-target="edit-meta-group" data-cfm-autofill-type="slug">
-            <p class="description">Keep stable unless API-facing references should change.</p>
           </div>
           <div class="cfm-meta-group-field">
             <label for="meta_group_short_label">Short Label</label>
