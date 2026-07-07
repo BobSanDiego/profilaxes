@@ -6383,7 +6383,8 @@ class CFM_Admin
               $action_noun = $descendant_count > 0 ? 'Branch' : 'Term';
 
               if ($descendant_count > 0) {
-                $branch_display_label .= ' (+' . number_format_i18n($descendant_count) . ' descendants)';
+                $descendant_label = $descendant_count === 1 ? 'descendant' : 'descendants';
+                $branch_display_label .= ' (+' . number_format_i18n($descendant_count) . ' ' . $descendant_label . ')';
               }
 
               $connection_sources = CFM::get_term_connection_sources([
