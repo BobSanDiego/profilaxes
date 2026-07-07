@@ -4101,6 +4101,139 @@ class CFM_Admin
     echo '</tbody></table>';
   }
 
+  private static function render_meta_group_admin_styles(): void
+  {
+  ?>
+    <style>
+      .cfm-meta-group-reference {
+        display: grid;
+        gap: 1px;
+        margin: 14px 0 12px;
+        max-width: 980px;
+      }
+
+      .cfm-meta-group-reference-title {
+        color: #1d2327;
+        font-size: 13px;
+        font-weight: 600;
+        margin-bottom: 2px;
+      }
+
+      .cfm-meta-group-reference-grid,
+      .cfm-meta-group-field-row {
+        align-items: start;
+        display: grid;
+        gap: 14px;
+        grid-template-columns: minmax(180px, 1.15fr) minmax(160px, 1fr) minmax(140px, 0.85fr) minmax(180px, 1.15fr);
+      }
+
+      .cfm-meta-group-reference-labels {
+        color: #1d2327;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+      }
+
+      .cfm-meta-group-reference-labels span[title] {
+        cursor: help;
+        outline-offset: 2px;
+      }
+
+      .cfm-meta-group-reference-labels span[title]:focus {
+        box-shadow: 0 0 0 2px #2271b1;
+      }
+
+      .cfm-meta-group-reference-example span {
+        color: #50575e;
+        font-style: italic;
+        min-height: 24px;
+        padding: 2px 0;
+      }
+
+      .cfm-meta-group-reference-divider {
+        border: 0;
+        border-top: 1px solid #c3c4c7;
+        margin: 4px 0 14px;
+        max-width: 980px;
+      }
+
+      .cfm-meta-group-field-row {
+        margin: 8px 0 18px;
+        max-width: 980px;
+      }
+
+      .cfm-meta-group-field label {
+        display: block;
+        font-weight: 600;
+        margin: 0 0 4px;
+      }
+
+      .cfm-meta-group-field input[type="text"] {
+        box-sizing: border-box;
+        max-width: 100%;
+        width: 100%;
+      }
+
+      .cfm-meta-group-term-selector {
+        margin-top: 14px;
+        max-width: 980px;
+      }
+
+      .cfm-meta-group-term-toolbar {
+        align-items: center;
+        display: flex;
+        justify-content: space-between;
+        margin: 0 0 8px;
+        max-width: 760px;
+      }
+
+      .cfm-meta-group-term-tree {
+        border: 0;
+        margin: 0;
+        max-width: 760px;
+        padding: 0;
+      }
+
+      @media (max-width: 960px) {
+        .cfm-meta-group-reference-grid,
+        .cfm-meta-group-field-row {
+          grid-template-columns: repeat(2, minmax(180px, 1fr));
+        }
+      }
+
+      @media (max-width: 640px) {
+        .cfm-meta-group-reference-grid,
+        .cfm-meta-group-field-row {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  <?php
+  }
+
+  private static function render_meta_group_reference_guide(): void
+  {
+  ?>
+    <div class="cfm-meta-group-reference" aria-label="Meta-Group field reference">
+      <div class="cfm-meta-group-reference-title">Meta-Group Format</div>
+      <div class="cfm-meta-group-reference-grid cfm-meta-group-reference-labels">
+        <span title="The administrator-facing name for this Meta-Group." tabindex="0">Label</span>
+        <span title="The stable API-friendly identifier. Use lowercase letters, numbers, and hyphens." tabindex="0">Slug</span>
+        <span title="Compact display text used where the full label is too long." tabindex="0">Short Label</span>
+        <span title="The community-facing description or audience label stored in the existing Community field." tabindex="0">Community</span>
+      </div>
+      <div class="cfm-meta-group-reference-grid cfm-meta-group-reference-example">
+        <span>STEM Teachers</span>
+        <span>stem-teachers</span>
+        <span>STEM</span>
+        <span>STEM Educators</span>
+      </div>
+    </div>
+    <hr class="cfm-meta-group-reference-divider">
+  <?php
+  }
+
   private static function render_terms_recursive(array $terms, int $depth = 0, ?int $framework_id = null, bool $show_actions = false): void
   {
     if (empty($terms)) {
@@ -4188,7 +4321,7 @@ class CFM_Admin
       echo '<div class="cfm-meta-term-row" style="display:flex; align-items:center; gap:6px; min-height:24px;">';
 
       if ($has_children) {
-        echo '<button type="button" class="button-link cfm-meta-term-toggle" aria-expanded="true" style="width:18px; text-decoration:none;">▾</button>';
+        echo '<button type="button" class="button-link cfm-meta-term-toggle" aria-expanded="false" style="width:18px; text-decoration:none;">▸</button>';
       } else {
         echo '<span style="display:inline-block; width:18px;"></span>';
       }
@@ -4202,7 +4335,7 @@ class CFM_Admin
       echo '</div>';
 
       if ($has_children) {
-        echo '<div class="cfm-meta-term-children" style="margin-left:18px;">';
+        echo '<div class="cfm-meta-term-children" style="display:none; margin-left:18px;">';
         self::render_meta_group_term_checklist($children, $depth + 1, $selected_uuids);
         echo '</div>';
       }
@@ -6035,6 +6168,8 @@ class CFM_Admin
 
   ?>
     <div class="wrap">
+      <?php self::render_meta_group_admin_styles(); ?>
+
       <h1>Core Terms Meta-Groups</h1>
 
       <p>
@@ -6091,69 +6226,48 @@ class CFM_Admin
           <input type="hidden" name="cfm_action" value="add_meta_group">
           <input type="hidden" name="framework_id" value="<?php echo esc_attr((string) $framework_id); ?>">
 
-          <table class="form-table" role="presentation">
-            <tr>
-              <th scope="row">
-                <label for="meta_group_label">Meta-Group Label</label>
-              </th>
-              <td>
-                <input name="meta_group_label" id="meta_group_label" type="text" class="regular-text" data-cfm-autofill-label="add-meta-group" required>
-                <p class="description">Example: STEM, New Teachers, K-5 Science</p>
-              </td>
-            </tr>
+          <?php self::render_meta_group_reference_guide(); ?>
 
-            <tr>
-              <th scope="row">
-                <label for="meta_group_slug">Meta-Group Slug</label>
-              </th>
-              <td>
-                <input name="meta_group_slug" id="meta_group_slug" type="text" class="regular-text" data-cfm-autofill-target="add-meta-group" data-cfm-autofill-type="slug">
-                <p class="description">Example: stem, new-teachers, k-5-science</p>
-              </td>
-            </tr>
+          <div class="cfm-meta-group-field-row">
+            <div class="cfm-meta-group-field">
+              <label for="meta_group_label">Meta-Group Label</label>
+              <input name="meta_group_label" id="meta_group_label" type="text" data-cfm-autofill-label="add-meta-group" required>
+              <p class="description">Example: STEM, New Teachers, K-5 Science</p>
+            </div>
+            <div class="cfm-meta-group-field">
+              <label for="meta_group_slug">Slug</label>
+              <input name="meta_group_slug" id="meta_group_slug" type="text" data-cfm-autofill-target="add-meta-group" data-cfm-autofill-type="slug">
+              <p class="description">Example: stem, new-teachers, k-5-science</p>
+            </div>
+            <div class="cfm-meta-group-field">
+              <label for="meta_group_short_label">Short Label</label>
+              <input name="meta_group_short_label" id="meta_group_short_label" type="text" data-cfm-autofill-target="add-meta-group" data-cfm-autofill-type="copy">
+              <p class="description">Compact display text.</p>
+            </div>
+            <div class="cfm-meta-group-field">
+              <label for="meta_group_description">Community</label>
+              <input name="meta_group_description" id="meta_group_description" type="text" data-cfm-autofill-target="add-meta-group" data-cfm-autofill-type="copy">
+              <p class="description">Community-facing context.</p>
+            </div>
+          </div>
 
-            <tr>
-              <th scope="row">
-                <label for="meta_group_short_label">Short Label</label>
-              </th>
-              <td>
-                <input name="meta_group_short_label" id="meta_group_short_label" type="text" class="regular-text" data-cfm-autofill-target="add-meta-group" data-cfm-autofill-type="copy">
-                <p class="description">Compact display text. Leave blank to use the Meta-Group label.</p>
-              </td>
-            </tr>
-
-            <tr>
-              <th scope="row">
-                <label for="meta_group_description">Community</label>
-              </th>
-              <td>
-                <input name="meta_group_description" id="meta_group_description" type="text" class="regular-text" data-cfm-autofill-target="add-meta-group" data-cfm-autofill-type="copy">
-                <p class="description">Community-facing context. Leave blank to use the Meta-Group label.</p>
-              </td>
-            </tr>
-
-            <tr>
-              <th scope="row">Included Terms</th>
-              <td>
-                <div data-cfm-meta-term-selector="1">
-                  <p class="description" style="margin-top:0;">Select existing terms only. Parent checkboxes select or clear all descendant terms.</p>
-                  <div style="display:flex; justify-content:space-between; max-width:760px; margin:0 0 8px;">
-                    <span>
-                      <a href="#" data-cfm-meta-expand="1">Expand all</a>
-                      <span aria-hidden="true"> | </span>
-                      <a href="#" data-cfm-meta-expand="0">Collapse all</a>
-                    </span>
-                    <span id="cfm-meta-selected-count" class="description">0 terms selected</span>
-                  </div>
-                  <fieldset style="max-height: 340px; overflow: auto; border: 1px solid #ccd0d4; background: #fff; padding: 10px; max-width:760px;">
-                    <legend class="screen-reader-text">Included Terms</legend>
-                    <?php self::render_meta_group_term_checklist(self::root_terms($tree)); ?>
-                  </fieldset>
-                </div>
-                <p class="description">Meta-Groups do not create new terms, move terms in the tree, or become directly assignable user values.</p>
-              </td>
-            </tr>
-          </table>
+          <div class="cfm-meta-group-term-selector" data-cfm-meta-term-selector="1">
+            <h4>Included Terms</h4>
+            <p class="description" style="margin-top:0;">Select existing terms only. Parent checkboxes select or clear all descendant terms.</p>
+            <div class="cfm-meta-group-term-toolbar">
+              <span>
+                <a href="#" data-cfm-meta-expand="1">Expand all</a>
+                <span aria-hidden="true"> | </span>
+                <a href="#" data-cfm-meta-expand="0">Collapse all</a>
+              </span>
+              <span id="cfm-meta-selected-count" class="description">0 terms selected</span>
+            </div>
+            <fieldset class="cfm-meta-group-term-tree">
+              <legend class="screen-reader-text">Included Terms</legend>
+              <?php self::render_meta_group_term_checklist(self::root_terms($tree)); ?>
+            </fieldset>
+            <p class="description">Meta-Groups do not create new terms, move terms in the tree, or become directly assignable user values.</p>
+          </div>
 
           <?php submit_button('Add Meta-Group'); ?>
         </form>
@@ -7529,6 +7643,8 @@ class CFM_Admin
 
   ?>
     <div class="wrap">
+      <?php self::render_meta_group_admin_styles(); ?>
+
       <h1>Edit Meta-Group: <?php echo esc_html($meta_group['label'] ?? ''); ?></h1>
 
       <p>
@@ -7570,64 +7686,49 @@ class CFM_Admin
         <input type="hidden" name="framework_id" value="<?php echo esc_attr($framework->id); ?>">
         <input type="hidden" name="meta_group_uuid" value="<?php echo esc_attr($meta_group['uuid'] ?? ''); ?>">
 
-        <table class="form-table" role="presentation">
-          <tr>
-            <th scope="row"><label for="meta_group_label">Meta-Group Label</label></th>
-            <td>
-              <input name="meta_group_label" id="meta_group_label" type="text" class="regular-text" value="<?php echo esc_attr($meta_group['label'] ?? ''); ?>" data-cfm-autofill-label="edit-meta-group" required>
-            </td>
-          </tr>
+        <?php self::render_meta_group_reference_guide(); ?>
 
-          <tr>
-            <th scope="row"><label for="meta_group_slug">Meta-Group Slug</label></th>
-            <td>
-              <input name="meta_group_slug" id="meta_group_slug" type="text" class="regular-text" value="<?php echo esc_attr($meta_group['slug'] ?? ''); ?>" data-cfm-autofill-target="edit-meta-group" data-cfm-autofill-type="slug">
-              <p class="description">Keep this stable unless you intentionally need to change API-facing references.</p>
-            </td>
-          </tr>
+        <div class="cfm-meta-group-field-row">
+          <div class="cfm-meta-group-field">
+            <label for="meta_group_label">Meta-Group Label</label>
+            <input name="meta_group_label" id="meta_group_label" type="text" value="<?php echo esc_attr($meta_group['label'] ?? ''); ?>" data-cfm-autofill-label="edit-meta-group" required>
+          </div>
+          <div class="cfm-meta-group-field">
+            <label for="meta_group_slug">Slug</label>
+            <input name="meta_group_slug" id="meta_group_slug" type="text" value="<?php echo esc_attr($meta_group['slug'] ?? ''); ?>" data-cfm-autofill-target="edit-meta-group" data-cfm-autofill-type="slug">
+            <p class="description">Keep stable unless API-facing references should change.</p>
+          </div>
+          <div class="cfm-meta-group-field">
+            <label for="meta_group_short_label">Short Label</label>
+            <input name="meta_group_short_label" id="meta_group_short_label" type="text" value="<?php echo esc_attr(self::display_short_label_for_node($meta_group)); ?>" data-cfm-autofill-target="edit-meta-group" data-cfm-autofill-type="copy">
+          </div>
+          <div class="cfm-meta-group-field">
+            <label for="meta_group_description">Community</label>
+            <input name="meta_group_description" id="meta_group_description" type="text" value="<?php echo esc_attr(self::display_description_for_node($meta_group)); ?>" data-cfm-autofill-target="edit-meta-group" data-cfm-autofill-type="copy">
+          </div>
+        </div>
 
-          <tr>
-            <th scope="row"><label for="meta_group_short_label">Short Label</label></th>
-            <td>
-              <input name="meta_group_short_label" id="meta_group_short_label" type="text" class="regular-text" value="<?php echo esc_attr(self::display_short_label_for_node($meta_group)); ?>" data-cfm-autofill-target="edit-meta-group" data-cfm-autofill-type="copy">
-              <p class="description">Compact display text. Leave blank to use the Meta-Group label.</p>
-            </td>
-          </tr>
-
-          <tr>
-            <th scope="row"><label for="meta_group_description">Community</label></th>
-            <td>
-              <input name="meta_group_description" id="meta_group_description" type="text" class="regular-text" value="<?php echo esc_attr(self::display_description_for_node($meta_group)); ?>" data-cfm-autofill-target="edit-meta-group" data-cfm-autofill-type="copy">
-              <p class="description">Community-facing context. Leave blank to use the Meta-Group label.</p>
-            </td>
-          </tr>
-
-          <tr>
-            <th scope="row">Included Terms</th>
-            <td>
-              <?php if (count($available_terms) < 2) : ?>
-                <p>Create at least two terms before editing Meta-Group includes.</p>
-              <?php else : ?>
-                <div data-cfm-meta-term-selector="1">
-                  <p class="description" style="margin-top:0;">Parent checkboxes select or clear all descendant terms. Child changes update parent checkbox state.</p>
-                  <div style="display:flex; justify-content:space-between; max-width:760px; margin:0 0 8px;">
-                    <span>
-                      <a href="#" data-cfm-meta-expand="1">Expand all</a>
-                      <span aria-hidden="true"> | </span>
-                      <a href="#" data-cfm-meta-expand="0">Collapse all</a>
-                    </span>
-                    <span id="cfm-meta-selected-count" class="description">0 terms selected</span>
-                  </div>
-                  <fieldset style="max-height: 340px; overflow: auto; border: 1px solid #ccd0d4; background: #fff; padding: 10px; max-width:760px;">
-                    <legend class="screen-reader-text">Included Terms</legend>
-                    <?php self::render_meta_group_term_checklist(self::root_terms($tree), 0, $selected_uuids); ?>
-                  </fieldset>
-                </div>
-                <p class="description">Meta-Groups remain non-assignable. This selector only changes the referenced terms.</p>
-              <?php endif; ?>
-            </td>
-          </tr>
-        </table>
+        <?php if (count($available_terms) < 2) : ?>
+          <p>Create at least two terms before editing Meta-Group includes.</p>
+        <?php else : ?>
+          <div class="cfm-meta-group-term-selector" data-cfm-meta-term-selector="1">
+            <h4>Included Terms</h4>
+            <p class="description" style="margin-top:0;">Parent checkboxes select or clear all descendant terms. Child changes update parent checkbox state.</p>
+            <div class="cfm-meta-group-term-toolbar">
+              <span>
+                <a href="#" data-cfm-meta-expand="1">Expand all</a>
+                <span aria-hidden="true"> | </span>
+                <a href="#" data-cfm-meta-expand="0">Collapse all</a>
+              </span>
+              <span id="cfm-meta-selected-count" class="description">0 terms selected</span>
+            </div>
+            <fieldset class="cfm-meta-group-term-tree">
+              <legend class="screen-reader-text">Included Terms</legend>
+              <?php self::render_meta_group_term_checklist(self::root_terms($tree), 0, $selected_uuids); ?>
+            </fieldset>
+            <p class="description">Meta-Groups remain non-assignable. This selector only changes the referenced terms.</p>
+          </div>
+        <?php endif; ?>
 
         <?php submit_button('Save Meta-Group'); ?>
       </form>
