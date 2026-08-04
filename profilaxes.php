@@ -20,6 +20,7 @@ define('CFM_PLUGIN_URL', plugin_dir_url(__FILE__));
 require_once CFM_PLUGIN_DIR . 'includes/class-cfm-schema.php';
 require_once CFM_PLUGIN_DIR . 'includes/class-cfm-framework-repository.php';
 require_once CFM_PLUGIN_DIR . 'includes/class-cfm-views-repository.php';
+require_once CFM_PLUGIN_DIR . 'includes/class-cfm-views-service.php';
 require_once CFM_PLUGIN_DIR . 'includes/class-cfm.php';
 require_once CFM_PLUGIN_DIR . 'includes/class-cfm-seeder.php';
 require_once CFM_PLUGIN_DIR . 'includes/class-cfm-compiler.php';
