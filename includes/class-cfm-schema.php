@@ -23,6 +23,12 @@ class CFM_Schema
         $term_archives = $wpdb->prefix . 'cfm_term_archives';
         // Dormant legacy/experimental table. Current Meta-Group source of truth is active tree_json kind=meta nodes.
         $meta_groups   = $wpdb->prefix . 'cfm_meta_groups';
+        $views          = $wpdb->prefix . 'cfm_views';
+        $view_versions  = $wpdb->prefix . 'cfm_view_versions';
+        $view_groups    = $wpdb->prefix . 'cfm_view_groups';
+        $view_entries   = $wpdb->prefix . 'cfm_view_entries';
+        $view_metadata  = $wpdb->prefix . 'cfm_view_metadata';
+        $view_audit     = $wpdb->prefix . 'cfm_view_audit';
 
         dbDelta("
             CREATE TABLE {$frameworks} (
@@ -185,6 +191,158 @@ class CFM_Schema
                 KEY framework_id (framework_id),
                 KEY slug (slug),
                 KEY status (status)
+            ) {$charset_collate};
+        ");
+
+        dbDelta("
+            CREATE TABLE {$views} (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                view_uuid CHAR(36) NOT NULL,
+                schema_version VARCHAR(20) NOT NULL DEFAULT '1.0',
+                name VARCHAR(190) NOT NULL,
+                description TEXT NULL,
+                owner_type VARCHAR(50) NOT NULL DEFAULT 'platform',
+                owner_id BIGINT UNSIGNED NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'draft',
+                visibility VARCHAR(20) NOT NULL DEFAULT 'platform',
+                current_version_id BIGINT UNSIGNED NULL,
+                extension_metadata_json LONGTEXT NULL,
+                created_by BIGINT UNSIGNED NULL,
+                updated_by BIGINT UNSIGNED NULL,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL,
+                PRIMARY KEY (id),
+                UNIQUE KEY view_uuid (view_uuid),
+                KEY status (status),
+                KEY owner (owner_type, owner_id),
+                KEY current_version_id (current_version_id)
+            ) {$charset_collate};
+        ");
+
+        dbDelta("
+            CREATE TABLE {$view_versions} (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                view_id BIGINT UNSIGNED NOT NULL,
+                version_uuid CHAR(36) NOT NULL,
+                version_number BIGINT UNSIGNED NOT NULL,
+                lineage_uuid CHAR(36) NOT NULL,
+                based_on_version_id BIGINT UNSIGNED NULL,
+                schema_version VARCHAR(20) NOT NULL DEFAULT '1.0',
+                status VARCHAR(20) NOT NULL DEFAULT 'draft',
+                content_hash CHAR(64) NULL,
+                validation_state VARCHAR(20) NOT NULL DEFAULT 'warning',
+                published_at DATETIME NULL,
+                published_by BIGINT UNSIGNED NULL,
+                retired_at DATETIME NULL,
+                retired_by BIGINT UNSIGNED NULL,
+                restore_source_version_id BIGINT UNSIGNED NULL,
+                extension_metadata_json LONGTEXT NULL,
+                created_by BIGINT UNSIGNED NULL,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL,
+                PRIMARY KEY (id),
+                UNIQUE KEY version_uuid (version_uuid),
+                UNIQUE KEY view_version_number (view_id, version_number),
+                KEY view_id (view_id),
+                KEY lineage_uuid (lineage_uuid),
+                KEY status (status),
+                KEY based_on_version_id (based_on_version_id)
+            ) {$charset_collate};
+        ");
+
+        dbDelta("
+            CREATE TABLE {$view_groups} (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                version_id BIGINT UNSIGNED NOT NULL,
+                group_uuid CHAR(36) NOT NULL,
+                parent_group_id BIGINT UNSIGNED NULL,
+                group_key VARCHAR(100) NOT NULL,
+                label VARCHAR(190) NOT NULL,
+                description TEXT NULL,
+                display_order INT UNSIGNED NOT NULL DEFAULT 0,
+                is_featured TINYINT(1) NOT NULL DEFAULT 0,
+                is_hidden TINYINT(1) NOT NULL DEFAULT 0,
+                metadata_json LONGTEXT NULL,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL,
+                PRIMARY KEY (id),
+                UNIQUE KEY group_uuid (group_uuid),
+                UNIQUE KEY version_group_key (version_id, group_key),
+                KEY version_id (version_id),
+                KEY parent_group_id (parent_group_id),
+                KEY version_order (version_id, display_order)
+            ) {$charset_collate};
+        ");
+
+        dbDelta("
+            CREATE TABLE {$view_entries} (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                version_id BIGINT UNSIGNED NOT NULL,
+                entry_uuid CHAR(36) NOT NULL,
+                term_uuid CHAR(36) NOT NULL,
+                core_terms_framework VARCHAR(190) NOT NULL,
+                group_id BIGINT UNSIGNED NULL,
+                inclusion VARCHAR(10) NOT NULL DEFAULT 'include',
+                display_order INT UNSIGNED NOT NULL DEFAULT 0,
+                display_label VARCHAR(190) NULL,
+                is_featured TINYINT(1) NOT NULL DEFAULT 0,
+                is_hidden TINYINT(1) NOT NULL DEFAULT 0,
+                include_descendants TINYINT(1) NOT NULL DEFAULT 0,
+                source VARCHAR(30) NOT NULL DEFAULT 'manual',
+                metadata_json LONGTEXT NULL,
+                term_snapshot_json LONGTEXT NULL,
+                validation_state VARCHAR(20) NOT NULL DEFAULT 'warning',
+                validation_messages_json LONGTEXT NULL,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL,
+                PRIMARY KEY (id),
+                UNIQUE KEY entry_uuid (entry_uuid),
+                UNIQUE KEY version_term_scope (version_id, term_uuid, inclusion),
+                KEY version_id (version_id),
+                KEY term_uuid (term_uuid),
+                KEY group_id (group_id),
+                KEY version_order (version_id, display_order)
+            ) {$charset_collate};
+        ");
+
+        dbDelta("
+            CREATE TABLE {$view_metadata} (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                metadata_uuid CHAR(36) NOT NULL,
+                target_type VARCHAR(30) NOT NULL,
+                target_id BIGINT UNSIGNED NOT NULL,
+                metadata_schema_version VARCHAR(20) NOT NULL DEFAULT '1.0',
+                payload_json LONGTEXT NOT NULL,
+                is_public TINYINT(1) NOT NULL DEFAULT 0,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL,
+                PRIMARY KEY (id),
+                UNIQUE KEY metadata_uuid (metadata_uuid),
+                UNIQUE KEY target_metadata (target_type, target_id),
+                KEY target_id (target_id)
+            ) {$charset_collate};
+        ");
+
+        dbDelta("
+            CREATE TABLE {$view_audit} (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                audit_uuid CHAR(36) NOT NULL,
+                target_type VARCHAR(30) NOT NULL,
+                target_id BIGINT UNSIGNED NOT NULL,
+                action VARCHAR(50) NOT NULL,
+                from_status VARCHAR(20) NULL,
+                to_status VARCHAR(20) NULL,
+                actor_type VARCHAR(30) NOT NULL DEFAULT 'system',
+                actor_id BIGINT UNSIGNED NULL,
+                reason TEXT NULL,
+                payload_hash CHAR(64) NULL,
+                correlation_id CHAR(36) NULL,
+                created_at DATETIME NOT NULL,
+                PRIMARY KEY (id),
+                UNIQUE KEY audit_uuid (audit_uuid),
+                KEY target (target_type, target_id),
+                KEY action (action),
+                KEY created_at (created_at)
             ) {$charset_collate};
         ");
 
