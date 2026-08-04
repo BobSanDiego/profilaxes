@@ -36,6 +36,11 @@ class CFM_Views_Admin
       $version_id = absint($_POST['version_id'] ?? 0);
       CFM_Views_Repository::validate_version($version_id);
       CFM_Views_Repository::publish_version($version_id);
+    } elseif ($action === 'retire') {
+      CFM_Views_Repository::retire_view(absint($_POST['view_id'] ?? 0));
+    } elseif ($action === 'restore') {
+      $view_id = absint($_POST['view_id'] ?? 0);
+      CFM_Views_Repository::restore_published_version($view_id, absint($_POST['version_id'] ?? 0));
     }
     wp_safe_redirect(wp_get_referer() ?: admin_url('admin.php?page=cfm-views'));
     exit;
@@ -61,6 +66,15 @@ class CFM_Views_Admin
         echo '<form method="post" style="display:inline">';
         wp_nonce_field('cfm_views_publish', 'cfm_views_nonce');
         echo '<input type="hidden" name="cfm_views_action" value="publish"><input type="hidden" name="version_id" value="' . esc_attr((string) $draft->id) . '"><button class="button">Validate / publish draft</button></form>';
+      }
+      if ((string) $view->status === 'published') {
+        echo '<form method="post" style="display:inline;margin-left:4px">';
+        wp_nonce_field('cfm_views_retire', 'cfm_views_nonce');
+        echo '<input type="hidden" name="cfm_views_action" value="retire"><input type="hidden" name="view_id" value="' . esc_attr((string) $view->id) . '"><button class="button">Retire</button></form>';
+      } elseif ((string) $view->status === 'retired' && $view->current_version_id) {
+        echo '<form method="post" style="display:inline;margin-left:4px">';
+        wp_nonce_field('cfm_views_restore', 'cfm_views_nonce');
+        echo '<input type="hidden" name="cfm_views_action" value="restore"><input type="hidden" name="view_id" value="' . esc_attr((string) $view->id) . '"><input type="hidden" name="version_id" value="' . esc_attr((string) $view->current_version_id) . '"><button class="button">Restore</button></form>';
       }
       echo '</td></tr>';
     }
