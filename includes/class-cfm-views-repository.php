@@ -7,9 +7,7 @@ if (!defined('ABSPATH')) {
 /**
  * Minimal persistence boundary for Durable Views.
  *
- * Lifecycle transitions, resolution, validation, and administration are
- * intentionally deferred to later tickets. Published content is not mutable
- * through this boundary.
+ * Lifecycle and deterministic Core Terms-backed resolution boundary for Views.
  */
 class CFM_Views_Repository
 {
@@ -263,6 +261,97 @@ class CFM_Views_Repository
     self::audit($wpdb, 'view', absint($view_id), 'restore', (string) $view->status, 'published', $now, $user_id);
     return self::get_view($view_id);
   }
+
+  public static function validate_version($version_id): array
+  {
+    global $wpdb;
+    $version = self::get_version($version_id);
+    if (!$version) {
+      return ['version_id' => absint($version_id), 'state' => 'invalid', 'errors' => ['View version was not found.'], 'warnings' => []];
+    }
+
+    $errors = [];
+    $warnings = [];
+    $seen = [];
+    $groups = self::groups_for_version($version->id);
+    $group_ids = array_fill_keys(array_map(static function ($group) { return (string) $group->id; }, $groups), true);
+    $entries = self::entries_for_version($version->id);
+
+    if (!$entries) {
+      $warnings[] = 'View version contains no entries.';
+    }
+    foreach ($entries as $entry) {
+      $key = (string) $entry->core_terms_framework . ':' . (string) $entry->term_uuid . ':' . (string) $entry->inclusion;
+      if (isset($seen[$key])) {
+        $errors[] = "Duplicate View entry scope: {$key}.";
+      }
+      $seen[$key] = true;
+      if (!in_array((string) $entry->inclusion, ['include', 'exclude'], true)) {
+        $errors[] = "Invalid inclusion for entry {$entry->entry_uuid}.";
+      }
+      if ($entry->group_id !== null && $entry->group_id !== '' && !isset($group_ids[(string) $entry->group_id])) {
+        $errors[] = "Entry {$entry->entry_uuid} references a missing group.";
+      }
+      $catalog = self::term_catalog((string) $entry->core_terms_framework);
+      if (!$catalog['framework']) {
+        $errors[] = "Core Terms framework is unavailable: {$entry->core_terms_framework}.";
+      } elseif (!isset($catalog['terms'][(string) $entry->term_uuid])) {
+        $errors[] = "Core Terms UUID is unavailable: {$entry->term_uuid}.";
+      }
+    }
+    $state = $errors ? 'invalid' : ($warnings ? 'warning' : 'valid');
+    if (in_array((string) $version->status, ['draft', 'review'], true)) {
+      $wpdb->update($wpdb->prefix . 'cfm_view_versions', ['validation_state' => $state, 'updated_at' => current_time('mysql')], ['id' => (int) $version->id], ['%s', '%s'], ['%d']);
+      foreach ($entries as $entry) {
+        $wpdb->update($wpdb->prefix . 'cfm_view_entries', ['validation_state' => $state, 'validation_messages_json' => wp_json_encode(['errors' => $errors, 'warnings' => $warnings]), 'updated_at' => current_time('mysql')], ['id' => (int) $entry->id], ['%s', '%s', '%s'], ['%d']);
+      }
+    }
+    return ['version_id' => (int) $version->id, 'state' => $state, 'errors' => array_values(array_unique($errors)), 'warnings' => array_values(array_unique($warnings)), 'entry_count' => count($entries)];
+  }
+
+  public static function resolve_version($version_id)
+  {
+    $version = self::get_version($version_id);
+    if (!$version) {
+      return new WP_Error('cfm_views_not_found', 'View version was not found.');
+    }
+    $validation = self::validate_version($version->id);
+    if ($validation['state'] === 'invalid') {
+      return new WP_Error('cfm_views_invalid_version', 'View version failed Core Terms validation.', $validation);
+    }
+    $view = self::get_view($version->view_id);
+    $groups = self::groups_for_version($version->id);
+    $resolved_groups = [];
+    foreach ($groups as $group) {
+      $resolved_groups[(int) $group->id] = ['group_id' => (int) $group->id, 'group_uuid' => (string) $group->group_uuid, 'group_key' => (string) $group->group_key, 'label' => (string) $group->label, 'display_order' => (int) $group->display_order, 'is_hidden' => (bool) $group->is_hidden, 'metadata' => self::decode_json($group->metadata_json), 'entries' => []];
+    }
+    $ungrouped = [];
+    foreach (self::entries_for_version($version->id) as $entry) {
+      $catalog = self::term_catalog((string) $entry->core_terms_framework);
+      $uuids = CFM_Framework_Repository::get_descendant_uuids((int) $catalog['framework']->id, (string) $entry->term_uuid, (int) $catalog['framework']->active_version_id, true);
+      if (!$entry->include_descendants) { $uuids = [(string) $entry->term_uuid]; }
+      foreach ($uuids as $uuid) {
+        $term = $catalog['terms'][(string) $uuid] ?? null;
+        if (!$term) { continue; }
+        $item = ['entry_id' => (int) $entry->id, 'entry_uuid' => (string) $entry->entry_uuid, 'term_uuid' => (string) $uuid, 'framework' => (string) $entry->core_terms_framework, 'label' => $entry->display_label ?: (string) ($term->name ?? $term->label ?? $uuid), 'display_order' => (int) $entry->display_order, 'is_featured' => (bool) $entry->is_featured, 'is_hidden' => (bool) $entry->is_hidden, 'metadata' => self::decode_json($entry->metadata_json), 'provenance' => ['source_entry_uuid' => (string) $entry->entry_uuid, 'source_term_uuid' => (string) $entry->term_uuid, 'expanded' => (string) $uuid !== (string) $entry->term_uuid]];
+        if ((string) $entry->inclusion === 'exclude') { $ungrouped['exclude:' . $entry->core_terms_framework . ':' . $uuid] = $item; continue; }
+        $ungrouped['include:' . $entry->core_terms_framework . ':' . $uuid] = $item;
+      }
+    }
+    $excluded = [];
+    foreach ($ungrouped as $key => $item) { if (str_starts_with($key, 'exclude:')) { $excluded[substr($key, 8)] = true; } }
+    $flat = [];
+    foreach ($ungrouped as $key => $item) { if (!str_starts_with($key, 'include:') || isset($excluded[$item['framework'] . ':' . $item['term_uuid']])) { continue; } $flat[] = $item; }
+    usort($flat, static function ($a, $b) { return [$a['display_order'], $a['term_uuid']] <=> [$b['display_order'], $b['term_uuid']]; });
+    foreach ($flat as $item) { $group_id = self::entry_group_id($item['entry_id'], $version->id); if ($group_id && isset($resolved_groups[$group_id])) { $resolved_groups[$group_id]['entries'][] = $item; } }
+    return ['view' => ['view_id' => (int) $view->id, 'view_uuid' => (string) $view->view_uuid, 'name' => (string) $view->name, 'status' => (string) $view->status], 'version' => ['version_id' => (int) $version->id, 'version_uuid' => (string) $version->version_uuid, 'version_number' => (int) $version->version_number, 'status' => (string) $version->status], 'validation' => $validation, 'groups' => array_values($resolved_groups), 'entries' => $flat];
+  }
+
+  private static function entries_for_version($version_id): array { global $wpdb; return $wpdb->get_results($wpdb->prepare('SELECT * FROM ' . $wpdb->prefix . 'cfm_view_entries WHERE version_id = %d ORDER BY display_order ASC, id ASC', absint($version_id))) ?: []; }
+  private static function groups_for_version($version_id): array { global $wpdb; return $wpdb->get_results($wpdb->prepare('SELECT * FROM ' . $wpdb->prefix . 'cfm_view_groups WHERE version_id = %d ORDER BY display_order ASC, id ASC', absint($version_id))) ?: []; }
+  private static function term_catalog($framework_slug): array { $framework = CFM::get_framework($framework_slug); $terms = $framework ? CFM::get_terms($framework_slug) : []; $indexed = []; foreach ($terms as $term) { $indexed[(string) $term->term_uuid] = $term; } return ['framework' => $framework, 'terms' => $indexed]; }
+  private static function entry_group_id($entry_id, $version_id) { global $wpdb; return (int) $wpdb->get_var($wpdb->prepare('SELECT group_id FROM ' . $wpdb->prefix . 'cfm_view_entries WHERE id = %d AND version_id = %d', absint($entry_id), absint($version_id))); }
+  private static function decode_json($value): array { $decoded = json_decode((string) $value, true); return is_array($decoded) ? $decoded : []; }
 
   private static function transition_version($version_id, array $allowed_from, $to_status)
   {
