@@ -36,7 +36,10 @@ class CFM_Views_Admin
       }
     } elseif ($action === 'save_entry') {
       $version_id = absint($_POST['version_id'] ?? 0);
-      CFM_Views_Repository::save_entry($version_id, ['term_uuid' => wp_unslash($_POST['term_uuid'] ?? ''), 'core_terms_framework' => wp_unslash($_POST['framework'] ?? ''), 'group_id' => absint($_POST['group_id'] ?? 0), 'inclusion' => sanitize_key(wp_unslash($_POST['inclusion'] ?? 'include')), 'display_label' => wp_unslash($_POST['display_label'] ?? ''), 'display_order' => absint($_POST['display_order'] ?? 0), 'include_descendants' => !empty($_POST['include_descendants'])]);
+      $term_parts = explode('|', sanitize_text_field(wp_unslash($_POST['term_uuid'] ?? '')), 2);
+      $framework = sanitize_key((string) ($term_parts[0] ?? ''));
+      $term_uuid = sanitize_text_field((string) ($term_parts[1] ?? ''));
+      CFM_Views_Repository::save_entry($version_id, ['term_uuid' => $term_uuid, 'core_terms_framework' => $framework, 'group_id' => absint($_POST['group_id'] ?? 0), 'inclusion' => sanitize_key(wp_unslash($_POST['inclusion'] ?? 'include')), 'display_label' => wp_unslash($_POST['display_label'] ?? ''), 'display_order' => absint($_POST['display_order'] ?? 0), 'include_descendants' => !empty($_POST['include_descendants'])]);
       $redirect_url = admin_url('admin.php?page=cfm-views&version_id=' . $version_id);
     } elseif ($action === 'save_group') {
       $version_id = absint($_POST['version_id'] ?? 0);
@@ -143,7 +146,7 @@ class CFM_Views_Admin
         if ($uuid === '') { continue; }
         $label = (string) ($term->label ?? $term->name ?? $uuid);
         $depth = max(0, (int) ($term->depth ?? 0));
-        echo '<option value="' . esc_attr($uuid) . '">' . esc_html(str_repeat('— ', $depth) . $label) . '</option>';
+        echo '<option value="' . esc_attr($slug . '|' . $uuid) . '">' . esc_html(str_repeat('— ', $depth) . $label) . '</option>';
       }
       echo '</optgroup>';
     }
