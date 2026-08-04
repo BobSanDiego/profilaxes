@@ -97,6 +97,95 @@ class CFM_Views_Repository
     return (int) $wpdb->insert_id;
   }
 
+  public static function save_group($version_id, array $data)
+  {
+    global $wpdb;
+    $version = self::get_version($version_id);
+    $label = trim((string) ($data['label'] ?? ''));
+    $key = sanitize_key((string) ($data['group_key'] ?? ''));
+    if (!$version || (string) $version->status !== 'draft') {
+      return new WP_Error('cfm_views_draft_required', 'Groups can only be edited on a draft version.');
+    }
+    if ($label === '' || $key === '') {
+      return new WP_Error('cfm_views_invalid_data', 'Group key and label are required.');
+    }
+    $now = current_time('mysql');
+    $group_id = absint($data['group_id'] ?? 0);
+    $payload = [
+      'group_key' => $key,
+      'label' => sanitize_text_field($label),
+      'description' => isset($data['description']) ? sanitize_textarea_field((string) $data['description']) : null,
+      'display_order' => max(0, (int) ($data['display_order'] ?? 0)),
+      'is_featured' => empty($data['is_featured']) ? 0 : 1,
+      'is_hidden' => empty($data['is_hidden']) ? 0 : 1,
+      'metadata_json' => wp_json_encode(is_array($data['metadata'] ?? null) ? $data['metadata'] : []),
+      'updated_at' => $now,
+    ];
+    if ($group_id) {
+      $updated = $wpdb->update($wpdb->prefix . 'cfm_view_groups', $payload, ['id' => $group_id, 'version_id' => (int) $version->id], ['%s', '%s', '%s', '%d', '%d', '%d', '%s', '%s'], ['%d', '%d']);
+      return $updated === false ? new WP_Error('cfm_views_update_failed', 'Failed to update View group.') : $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . $wpdb->prefix . 'cfm_view_groups WHERE id = %d', $group_id));
+    }
+    $payload['version_id'] = (int) $version->id;
+    $payload['group_uuid'] = wp_generate_uuid4();
+    $payload['created_at'] = $now;
+    $inserted = $wpdb->insert($wpdb->prefix . 'cfm_view_groups', $payload, ['%d', '%s', '%s', '%s', '%d', '%d', '%d', '%s', '%s', '%s', '%s']);
+    return $inserted === false ? new WP_Error('cfm_views_insert_failed', 'Failed to create View group.') : $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . $wpdb->prefix . 'cfm_view_groups WHERE id = %d', $wpdb->insert_id));
+  }
+
+  public static function save_entry($version_id, array $data)
+  {
+    global $wpdb;
+    $version = self::get_version($version_id);
+    $term_uuid = sanitize_text_field((string) ($data['term_uuid'] ?? ''));
+    $framework = sanitize_key((string) ($data['core_terms_framework'] ?? ''));
+    $inclusion = sanitize_key((string) ($data['inclusion'] ?? 'include'));
+    if (!$version || (string) $version->status !== 'draft') {
+      return new WP_Error('cfm_views_draft_required', 'Entries can only be edited on a draft version.');
+    }
+    if ($term_uuid === '' || $framework === '' || !in_array($inclusion, ['include', 'exclude'], true)) {
+      return new WP_Error('cfm_views_invalid_data', 'Entry requires a Core Terms UUID, framework, and valid inclusion.');
+    }
+    if (!self::term_catalog($framework)['framework'] || !isset(self::term_catalog($framework)['terms'][$term_uuid])) {
+      return new WP_Error('cfm_views_invalid_term', 'Entry must reference an existing Core Terms UUID.');
+    }
+    $now = current_time('mysql');
+    $entry_id = absint($data['entry_id'] ?? 0);
+    $payload = [
+      'term_uuid' => $term_uuid,
+      'core_terms_framework' => $framework,
+      'group_id' => absint($data['group_id'] ?? 0) ?: null,
+      'inclusion' => $inclusion,
+      'display_order' => max(0, (int) ($data['display_order'] ?? 0)),
+      'display_label' => isset($data['display_label']) ? sanitize_text_field((string) $data['display_label']) : null,
+      'is_featured' => empty($data['is_featured']) ? 0 : 1,
+      'is_hidden' => empty($data['is_hidden']) ? 0 : 1,
+      'include_descendants' => empty($data['include_descendants']) ? 0 : 1,
+      'source' => sanitize_key((string) ($data['source'] ?? 'manual')),
+      'metadata_json' => wp_json_encode(is_array($data['metadata'] ?? null) ? $data['metadata'] : []),
+      'validation_state' => 'warning',
+      'updated_at' => $now,
+    ];
+    if ($entry_id) {
+      $updated = $wpdb->update($wpdb->prefix . 'cfm_view_entries', $payload, ['id' => $entry_id, 'version_id' => (int) $version->id], ['%s', '%s', '%d', '%s', '%d', '%s', '%d', '%d', '%d', '%s', '%s', '%s', '%s'], ['%d', '%d']);
+      return $updated === false ? new WP_Error('cfm_views_update_failed', 'Failed to update View entry.') : $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . $wpdb->prefix . 'cfm_view_entries WHERE id = %d', $entry_id));
+    }
+    $payload['version_id'] = (int) $version->id;
+    $payload['entry_uuid'] = wp_generate_uuid4();
+    $payload['created_at'] = $now;
+    $inserted = $wpdb->insert($wpdb->prefix . 'cfm_view_entries', $payload, ['%s', '%s', '%d', '%s', '%d', '%s', '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%d', '%s', '%s']);
+    return $inserted === false ? new WP_Error('cfm_views_insert_failed', 'Failed to create View entry.') : $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . $wpdb->prefix . 'cfm_view_entries WHERE id = %d', $wpdb->insert_id));
+  }
+
+  public static function delete_entry($version_id, $entry_id)
+  {
+    global $wpdb;
+    $version = self::get_version($version_id);
+    if (!$version || (string) $version->status !== 'draft') {
+      return new WP_Error('cfm_views_draft_required', 'Entries can only be deleted from a draft version.');
+    }
+    return false !== $wpdb->delete($wpdb->prefix . 'cfm_view_entries', ['id' => absint($entry_id), 'version_id' => (int) $version->id], ['%d', '%d']);
+  }
+
   public static function get_version($version_id): ?object
   {
     global $wpdb;
@@ -345,6 +434,15 @@ class CFM_Views_Repository
     usort($flat, static function ($a, $b) { return [$a['display_order'], $a['term_uuid']] <=> [$b['display_order'], $b['term_uuid']]; });
     foreach ($flat as $item) { $group_id = self::entry_group_id($item['entry_id'], $version->id); if ($group_id && isset($resolved_groups[$group_id])) { $resolved_groups[$group_id]['entries'][] = $item; } }
     return ['view' => ['view_id' => (int) $view->id, 'view_uuid' => (string) $view->view_uuid, 'name' => (string) $view->name, 'status' => (string) $view->status], 'version' => ['version_id' => (int) $version->id, 'version_uuid' => (string) $version->version_uuid, 'version_number' => (int) $version->version_number, 'status' => (string) $version->status], 'validation' => $validation, 'groups' => array_values($resolved_groups), 'entries' => $flat];
+  }
+
+  public static function resolve_current_view($view_id)
+  {
+    $view = self::get_view($view_id);
+    if (!$view || empty($view->current_version_id) || (string) $view->status !== 'published') {
+      return new WP_Error('cfm_views_not_published', 'View does not have a published current version.');
+    }
+    return self::resolve_version((int) $view->current_version_id);
   }
 
   private static function entries_for_version($version_id): array { global $wpdb; return $wpdb->get_results($wpdb->prepare('SELECT * FROM ' . $wpdb->prefix . 'cfm_view_entries WHERE version_id = %d ORDER BY display_order ASC, id ASC', absint($version_id))) ?: []; }
