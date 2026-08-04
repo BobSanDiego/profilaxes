@@ -270,15 +270,42 @@ class CFM_Views_Repository
 
   public static function create_draft_from_version($version_id)
   {
+    global $wpdb;
     $version = self::get_version($version_id);
     if (!$version || !in_array((string) $version->status, ['published', 'deprecated'], true)) {
       return new WP_Error('cfm_views_invalid_source', 'Only published or deprecated versions can seed a new draft.');
     }
 
-    return self::create_draft_version((int) $version->view_id, [
+    $draft_id = self::create_draft_version((int) $version->view_id, [
       'based_on_version_id' => (int) $version->id,
       'lineage_uuid' => (string) $version->lineage_uuid,
     ]);
+    if (is_wp_error($draft_id)) {
+      return $draft_id;
+    }
+    $now = current_time('mysql');
+    $group_map = [];
+    foreach (self::groups_for_version($version->id) as $group) {
+      $wpdb->insert($wpdb->prefix . 'cfm_view_groups', [
+        'version_id' => $draft_id, 'group_uuid' => wp_generate_uuid4(), 'group_key' => $group->group_key,
+        'label' => $group->label, 'description' => $group->description, 'display_order' => (int) $group->display_order,
+        'is_featured' => (int) $group->is_featured, 'is_hidden' => (int) $group->is_hidden,
+        'metadata_json' => $group->metadata_json, 'created_at' => $now, 'updated_at' => $now,
+      ], ['%d', '%s', '%s', '%s', '%s', '%d', '%d', '%d', '%s', '%s', '%s']);
+      $group_map[(int) $group->id] = (int) $wpdb->insert_id;
+    }
+    foreach (self::entries_for_version($version->id) as $entry) {
+      $wpdb->insert($wpdb->prefix . 'cfm_view_entries', [
+        'version_id' => $draft_id, 'entry_uuid' => wp_generate_uuid4(), 'term_uuid' => $entry->term_uuid,
+        'core_terms_framework' => $entry->core_terms_framework, 'group_id' => $group_map[(int) $entry->group_id] ?? null,
+        'inclusion' => $entry->inclusion, 'display_order' => (int) $entry->display_order, 'display_label' => $entry->display_label,
+        'is_featured' => (int) $entry->is_featured, 'is_hidden' => (int) $entry->is_hidden,
+        'include_descendants' => (int) $entry->include_descendants, 'source' => $entry->source,
+        'metadata_json' => $entry->metadata_json, 'term_snapshot_json' => $entry->term_snapshot_json,
+        'validation_state' => 'warning', 'validation_messages_json' => null, 'created_at' => $now, 'updated_at' => $now,
+      ], ['%d', '%s', '%s', '%s', '%d', '%s', '%d', '%s', '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s']);
+    }
+    return self::get_version($draft_id);
   }
 
   public static function retire_view($view_id)
@@ -434,6 +461,15 @@ class CFM_Views_Repository
     usort($flat, static function ($a, $b) { return [$a['display_order'], $a['term_uuid']] <=> [$b['display_order'], $b['term_uuid']]; });
     foreach ($flat as $item) { $group_id = self::entry_group_id($item['entry_id'], $version->id); if ($group_id && isset($resolved_groups[$group_id])) { $resolved_groups[$group_id]['entries'][] = $item; } }
     return ['view' => ['view_id' => (int) $view->id, 'view_uuid' => (string) $view->view_uuid, 'name' => (string) $view->name, 'status' => (string) $view->status], 'version' => ['version_id' => (int) $version->id, 'version_uuid' => (string) $version->version_uuid, 'version_number' => (int) $version->version_number, 'status' => (string) $version->status], 'validation' => $validation, 'groups' => array_values($resolved_groups), 'entries' => $flat];
+  }
+
+  public static function preview_version($version_id)
+  {
+    $version = self::get_version($version_id);
+    if (!$version || !in_array((string) $version->status, ['draft', 'review', 'published'], true)) {
+      return new WP_Error('cfm_views_preview_unavailable', 'Only draft, review, or published versions can be previewed.');
+    }
+    return self::resolve_version($version->id);
   }
 
   public static function resolve_current_view($view_id)
