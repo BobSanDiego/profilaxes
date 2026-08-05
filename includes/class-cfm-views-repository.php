@@ -449,7 +449,7 @@ class CFM_Views_Repository
       foreach ($uuids as $uuid) {
         $term = $catalog['terms'][(string) $uuid] ?? null;
         if (!$term) { continue; }
-        $item = ['entry_id' => (int) $entry->id, 'entry_uuid' => (string) $entry->entry_uuid, 'term_uuid' => (string) $uuid, 'framework' => (string) $entry->core_terms_framework, 'label' => $entry->display_label ?: (string) ($term->name ?? $term->label ?? $uuid), 'display_order' => (int) $entry->display_order, 'is_featured' => (bool) $entry->is_featured, 'is_hidden' => (bool) $entry->is_hidden, 'metadata' => self::decode_json($entry->metadata_json), 'provenance' => ['source_entry_uuid' => (string) $entry->entry_uuid, 'source_term_uuid' => (string) $entry->term_uuid, 'expanded' => (string) $uuid !== (string) $entry->term_uuid]];
+        $item = ['entry_id' => (int) $entry->id, 'entry_uuid' => (string) $entry->entry_uuid, 'term_uuid' => (string) $uuid, 'framework' => (string) $entry->core_terms_framework, 'label' => $entry->display_label ?: (string) ($term->name ?? $term->label ?? $uuid), 'display_order' => (int) $entry->display_order, 'is_featured' => (bool) $entry->is_featured, 'is_hidden' => (bool) $entry->is_hidden, 'parent_uuid' => (string) ($term->parent_uuid ?? ''), 'depth' => max(0, (int) ($term->depth ?? 0)), 'path' => (string) ($term->path ?? ''), 'metadata' => self::decode_json($entry->metadata_json), 'provenance' => ['source_entry_uuid' => (string) $entry->entry_uuid, 'source_term_uuid' => (string) $entry->term_uuid, 'expanded' => (string) $uuid !== (string) $entry->term_uuid]];
         if ((string) $entry->inclusion === 'exclude') { $ungrouped['exclude:' . $entry->core_terms_framework . ':' . $uuid] = $item; continue; }
         $ungrouped['include:' . $entry->core_terms_framework . ':' . $uuid] = $item;
       }
@@ -459,7 +459,7 @@ class CFM_Views_Repository
     $flat = [];
     foreach ($ungrouped as $key => $item) { if (!str_starts_with($key, 'include:') || isset($excluded[$item['framework'] . ':' . $item['term_uuid']])) { continue; } $flat[] = $item; }
     usort($flat, static function ($a, $b) { return [$a['display_order'], $a['term_uuid']] <=> [$b['display_order'], $b['term_uuid']]; });
-    foreach ($flat as $item) { $group_id = self::entry_group_id($item['entry_id'], $version->id); if ($group_id && isset($resolved_groups[$group_id])) { $resolved_groups[$group_id]['entries'][] = $item; } }
+    foreach ($flat as $item) { $group_id = self::entry_group_id($item['entry_id'], $version->id); if ($group_id && isset($resolved_groups[$group_id])) { $item['group_id'] = $group_id; $resolved_groups[$group_id]['entries'][] = $item; } }
     return ['view' => ['view_id' => (int) $view->id, 'view_uuid' => (string) $view->view_uuid, 'name' => (string) $view->name, 'status' => (string) $view->status], 'version' => ['version_id' => (int) $version->id, 'version_uuid' => (string) $version->version_uuid, 'version_number' => (int) $version->version_number, 'status' => (string) $version->status], 'validation' => $validation, 'groups' => array_values($resolved_groups), 'entries' => $flat];
   }
 
