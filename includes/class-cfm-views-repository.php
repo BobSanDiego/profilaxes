@@ -176,6 +176,38 @@ class CFM_Views_Repository
     return $inserted === false ? new WP_Error('cfm_views_insert_failed', 'Failed to create View entry.') : $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . $wpdb->prefix . 'cfm_view_entries WHERE id = %d', $wpdb->insert_id));
   }
 
+  public static function add_selected_entries($version_id, array $selections)
+  {
+    $version = self::get_version($version_id);
+    if (!$version || (string) $version->status !== 'draft') {
+      return new WP_Error('cfm_views_draft_required', 'Entries can only be added to a draft version.');
+    }
+    $existing = self::entries_for_version($version_id);
+    $existing_keys = [];
+    foreach ((array) $existing as $entry) {
+      $existing_keys[(string) $entry->core_terms_framework . '|' . (string) $entry->term_uuid] = true;
+    }
+    $added = 0;
+    $skipped = 0;
+    foreach ($selections as $selection) {
+      $parts = explode('|', sanitize_text_field((string) $selection), 2);
+      $framework = sanitize_key((string) ($parts[0] ?? ''));
+      $term_uuid = sanitize_text_field((string) ($parts[1] ?? ''));
+      $key = $framework . '|' . $term_uuid;
+      if ($framework === '' || $term_uuid === '' || isset($existing_keys[$key])) {
+        $skipped++;
+        continue;
+      }
+      $result = self::save_entry($version_id, ['term_uuid' => $term_uuid, 'core_terms_framework' => $framework, 'inclusion' => 'include', 'display_label' => '', 'display_order' => count($existing) + $added, 'source' => 'canonical_browser_batch']);
+      if (is_wp_error($result)) {
+        return $result;
+      }
+      $existing_keys[$key] = true;
+      $added++;
+    }
+    return ['added' => $added, 'skipped' => $skipped];
+  }
+
   public static function delete_entry($version_id, $entry_id)
   {
     global $wpdb;
