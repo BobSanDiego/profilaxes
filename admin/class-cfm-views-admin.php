@@ -130,7 +130,10 @@ class CFM_Views_Admin
     foreach (array_merge((array) ($validation['errors'] ?? []), (array) ($validation['warnings'] ?? [])) as $message) { echo '<p>' . esc_html($message) . '</p>'; }
     echo '</div><p><a class="button" href="' . esc_url(admin_url('admin.php?page=cfm-views&version_id=' . $version_id . '&preview=1')) . '">Preview draft</a></p>';
     if (!empty($_GET['preview'])) { self::render_preview($version_id); }
-    echo '<h3>Groups</h3><form method="post"><input type="hidden" name="cfm_views_action" value="save_group"><input type="hidden" name="version_id" value="' . esc_attr((string) $version_id) . '">';
+    echo '<div class="cfm-views-workbench" data-cfm-views-workbench><section class="cfm-views-source" aria-labelledby="cfm-views-source-title"><h3 id="cfm-views-source-title">Canonical terms</h3><p class="description">Browse Core Terms read-only. Add to Draft prepares the existing draft form; it does not edit Core Terms.</p>';
+    self::render_canonical_browser($frameworks, $terms_by_framework);
+    echo '</section><section class="cfm-views-composition" aria-labelledby="cfm-views-composition-title"><h3 id="cfm-views-composition-title">Draft composition</h3>';
+    echo '<h4>Groups</h4><form method="post"><input type="hidden" name="cfm_views_action" value="save_group"><input type="hidden" name="version_id" value="' . esc_attr((string) $version_id) . '">';
     wp_nonce_field('cfm_views_save_group', 'cfm_views_nonce');
     echo '<p><label>Key <input name="group_key" type="text" required pattern="[A-Za-z0-9_-]+"></label> <label>Label <input name="label" type="text" required></label> <label>Description <input name="description" type="text"></label> <label>Order <input name="display_order" type="number" min="0" value="0"></label> <button class="button">Add group</button></p></form>';
     echo '<ul>'; foreach ((array) $groups as $group) { echo '<li><strong>' . esc_html($group->label) . '</strong> <code>' . esc_html($group->group_key) . '</code> (order ' . esc_html((string) $group->display_order) . ')</li>'; } if (!$groups) { echo '<li>No groups added; entries remain ungrouped.</li>'; } echo '</ul>';
@@ -159,7 +162,49 @@ class CFM_Views_Admin
       echo '<input type="hidden" name="cfm_views_action" value="delete_entry"><input type="hidden" name="version_id" value="' . esc_attr((string) $version_id) . '"><input type="hidden" name="entry_id" value="' . esc_attr((string) $entry->id) . '"><button class="button-link-delete" type="submit">Remove</button></form></td></tr>';
     }
     if (!$entries) { echo '<tr><td colspan="8">No terms added to this draft yet.</td></tr>'; }
-    echo '</tbody></table>';
+    echo '</tbody></table></section></div>';
+    self::render_workbench_assets();
+  }
+
+  private static function render_canonical_browser(array $frameworks, array $terms_by_framework): void
+  {
+    $selected_slug = sanitize_key(wp_unslash($_GET['cfm_framework'] ?? ''));
+    if ($selected_slug === '' && !empty($frameworks[0]->slug)) {
+      $selected_slug = sanitize_key((string) $frameworks[0]->slug);
+    }
+    echo '<div class="cfm-views-discovery-controls"><label for="cfm-views-framework">Framework</label><select id="cfm-views-framework" data-cfm-views-framework>'; 
+    foreach ($frameworks as $framework) {
+      $slug = sanitize_key((string) ($framework->slug ?? ''));
+      if ($slug === '') { continue; }
+      echo '<option value="' . esc_attr($slug) . '"' . selected($selected_slug, $slug, false) . '>' . esc_html((string) ($framework->name ?? $slug)) . '</option>';
+    }
+    echo '</select><label for="cfm-views-term-search">Search terms</label><input id="cfm-views-term-search" type="search" placeholder="Search canonical terms" data-cfm-views-search><span class="description" data-cfm-views-result-count aria-live="polite"></span></div>';
+    foreach ($terms_by_framework as $slug => $terms) {
+      echo '<div class="cfm-views-term-tree" data-cfm-views-tree data-framework="' . esc_attr($slug) . '"' . ($slug === $selected_slug ? '' : ' hidden') . ' role="tree">';
+      foreach ((array) $terms as $term) {
+        $uuid = sanitize_text_field((string) ($term->term_uuid ?? ''));
+        $parent = sanitize_text_field((string) ($term->parent_uuid ?? ''));
+        $label = (string) ($term->label ?? $term->name ?? $uuid);
+        $depth = max(0, (int) ($term->depth ?? 0));
+        $has_children = false;
+        foreach ((array) $terms as $candidate) {
+          if ((string) ($candidate->parent_uuid ?? '') === $uuid) { $has_children = true; break; }
+        }
+        echo '<div class="cfm-views-term-row" data-cfm-views-term data-label="' . esc_attr(strtolower($label)) . '" data-uuid="' . esc_attr($uuid) . '" data-parent="' . esc_attr($parent) . '" data-depth="' . esc_attr((string) $depth) . '" role="treeitem" aria-level="' . esc_attr((string) ($depth + 1)) . '" aria-label="' . esc_attr($label) . '">';
+        if ($has_children) {
+          echo '<button type="button" class="button-link cfm-views-toggle" data-cfm-views-toggle aria-expanded="true" aria-label="Expand or collapse ' . esc_attr($label) . '">−</button>';
+        } else { echo '<span class="cfm-views-toggle-spacer" aria-hidden="true"></span>'; }
+        echo '<span class="cfm-views-term-label" style="--cfm-views-depth:' . esc_attr((string) $depth) . '">' . esc_html($label) . '</span><span class="description cfm-views-term-context">' . esc_html((string) ($term->short_label ?? '')) . '</span><button type="button" class="button button-small" data-cfm-views-add="' . esc_attr($slug . '|' . $uuid) . '">Add to Draft</button></div>';
+      }
+      echo '</div>';
+    }
+    if (!$terms_by_framework) { echo '<p class="notice notice-warning">No active canonical terms are available.</p>'; }
+  }
+
+  private static function render_workbench_assets(): void
+  {
+    echo '<style id="cfm-views-workbench-styles">.cfm-views-workbench{display:grid;grid-template-columns:minmax(260px,1fr) minmax(420px,2fr);gap:24px;align-items:start;margin-top:18px}.cfm-views-source,.cfm-views-composition{background:#fff;border:1px solid #dcdcde;padding:16px;min-width:0}.cfm-views-discovery-controls{display:grid;gap:6px;margin-bottom:12px}.cfm-views-discovery-controls select,.cfm-views-discovery-controls input{max-width:none}.cfm-views-term-tree{border:1px solid #dcdcde;max-height:520px;overflow:auto;padding:8px}.cfm-views-term-row{display:grid;grid-template-columns:24px minmax(0,1fr) auto auto;gap:8px;align-items:center;min-height:36px;padding:4px 0;border-bottom:1px solid #f0f0f1}.cfm-views-term-row:last-child{border-bottom:0}.cfm-views-term-label{padding-left:calc(var(--cfm-views-depth) * 18px);font-weight:500;min-width:0}.cfm-views-term-context{white-space:nowrap}.cfm-views-toggle{font-size:18px;text-decoration:none}.cfm-views-toggle-spacer{width:24px}.cfm-views-term-row[data-cfm-views-hidden="true"]{display:none}.cfm-views-term-row[data-cfm-views-match="false"]{display:none}@media (max-width:900px){.cfm-views-workbench{grid-template-columns:1fr}.cfm-views-term-tree{max-height:360px}.cfm-views-term-row{grid-template-columns:24px minmax(0,1fr) auto}.cfm-views-term-context{display:none}}@media (max-width:480px){.cfm-views-term-row{grid-template-columns:24px 1fr}.cfm-views-term-row [data-cfm-views-add]{grid-column:2;justify-self:start}}</style>';
+    echo '<script id="cfm-views-workbench-script">(function(){"use strict";var root=document.querySelector("[data-cfm-views-workbench]");if(!root){return;}var framework=root.querySelector("[data-cfm-views-framework]"),search=root.querySelector("[data-cfm-views-search]"),count=root.querySelector("[data-cfm-views-result-count]"),trees=[].slice.call(root.querySelectorAll("[data-cfm-views-tree]"));function activeTree(){return trees.find(function(tree){return tree.dataset.framework===framework.value;});}function refresh(){var tree=activeTree(),needle=(search.value||"").toLowerCase().trim(),visible=0;if(!tree){return;}trees.forEach(function(item){item.hidden=item!==tree;});[].slice.call(tree.querySelectorAll("[data-cfm-views-term]")).forEach(function(row){var match=!needle||row.dataset.label.indexOf(needle)!==-1;row.dataset.cfmViewsMatch=match?"true":"false";if(match){visible++;}row.dataset.cfmViewsHidden="false";});if(count){count.textContent=visible+" canonical term"+(visible===1?"":"s");}}framework.addEventListener("change",function(){search.value="";refresh();});search.addEventListener("input",refresh);root.addEventListener("click",function(event){var add=event.target.closest("[data-cfm-views-add]");if(add){var select=document.querySelector("#cfm-view-term");if(select){select.value=add.dataset.cfmViewsAdd;select.dispatchEvent(new Event("change",{bubbles:true}));select.focus();}}var toggle=event.target.closest("[data-cfm-views-toggle]");if(toggle){var row=toggle.closest("[data-cfm-views-term]"),tree=row.closest("[data-cfm-views-tree]"),depth=Number(row.dataset.depth),collapsed=toggle.getAttribute("aria-expanded")==="true";toggle.setAttribute("aria-expanded",collapsed?"false":"true");toggle.textContent=collapsed?"+":"−";var hide=collapsed;[].slice.call(tree.querySelectorAll("[data-cfm-views-term]")).forEach(function(candidate){if(candidate===row){return;}var parent=candidate.dataset.parent;var ancestor=row.dataset.uuid;while(parent){if(parent===ancestor){candidate.dataset.cfmViewsHidden=hide?"true":"false";if(hide){return;}ancestor=parent;var parentRow=tree.querySelector("[data-uuid=\""+CSS.escape(parent)+"\"]");parent=parentRow?parentRow.dataset.parent:"";break;}var parentRow=tree.querySelector("[data-uuid=\""+CSS.escape(parent)+"\"]");parent=parentRow?parentRow.dataset.parent:"";}});}});refresh();})();</script>';
   }
 
   private static function render_preview(int $version_id): void
