@@ -186,6 +186,30 @@ class CFM_Views_Repository
     return false !== $wpdb->delete($wpdb->prefix . 'cfm_view_entries', ['id' => absint($entry_id), 'version_id' => (int) $version->id], ['%d', '%d']);
   }
 
+  public static function move_entry($version_id, $entry_id, $direction)
+  {
+    global $wpdb;
+    $version = self::get_version($version_id);
+    if (!$version || (string) $version->status !== 'draft') {
+      return new WP_Error('cfm_views_draft_required', 'Entries can only be reordered on a draft version.');
+    }
+    if (!in_array($direction, ['up', 'down'], true)) {
+      return new WP_Error('cfm_views_invalid_direction', 'Entry order direction is invalid.');
+    }
+    $entry = $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . $wpdb->prefix . 'cfm_view_entries WHERE id = %d AND version_id = %d', absint($entry_id), (int) $version->id));
+    if (!$entry) { return new WP_Error('cfm_views_entry_not_found', 'View entry was not found.'); }
+    $siblings = $wpdb->get_results($wpdb->prepare('SELECT * FROM ' . $wpdb->prefix . 'cfm_view_entries WHERE version_id = %d ORDER BY display_order ASC, id ASC', (int) $version->id));
+    $siblings = array_values(array_filter((array) $siblings, static function ($candidate) use ($entry) { return (string) ($candidate->group_id ?? '') === (string) ($entry->group_id ?? ''); }));
+    $index = array_search((int) $entry->id, array_map('intval', array_column($siblings, 'id')), true);
+    $neighbor_index = $direction === 'up' ? $index - 1 : $index + 1;
+    $neighbor = ($index !== false && isset($siblings[$neighbor_index])) ? $siblings[$neighbor_index] : null;
+    if (!$neighbor) { return true; }
+    $table = $wpdb->prefix . 'cfm_view_entries';
+    $wpdb->update($table, ['display_order' => (int) $neighbor->display_order, 'updated_at' => current_time('mysql')], ['id' => (int) $entry->id, 'version_id' => (int) $version->id], ['%d', '%s'], ['%d', '%d']);
+    $wpdb->update($table, ['display_order' => (int) $entry->display_order, 'updated_at' => current_time('mysql')], ['id' => (int) $neighbor->id, 'version_id' => (int) $version->id], ['%d', '%s'], ['%d', '%d']);
+    return true;
+  }
+
   public static function get_version($version_id): ?object
   {
     global $wpdb;
