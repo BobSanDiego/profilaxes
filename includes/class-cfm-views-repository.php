@@ -242,6 +242,51 @@ class CFM_Views_Repository
     return true;
   }
 
+  public static function reorder_entry($version_id, $entry_id, $target_index)
+  {
+    global $wpdb;
+    $version = self::get_version($version_id);
+    if (!$version || (string) $version->status !== 'draft') {
+      return new WP_Error('cfm_views_draft_required', 'Entries can only be reordered on a draft version.');
+    }
+    $entry = $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . $wpdb->prefix . 'cfm_view_entries WHERE id = %d AND version_id = %d', absint($entry_id), (int) $version->id));
+    if (!$entry) { return new WP_Error('cfm_views_entry_not_found', 'View entry was not found.'); }
+    $all = $wpdb->get_results($wpdb->prepare('SELECT * FROM ' . $wpdb->prefix . 'cfm_view_entries WHERE version_id = %d ORDER BY display_order ASC, id ASC', (int) $version->id));
+    $siblings = array_values(array_filter((array) $all, static function ($candidate) use ($entry) { return (string) ($candidate->group_id ?? '') === (string) ($entry->group_id ?? ''); }));
+    $target_index = max(0, min(absint($target_index), count($siblings) - 1));
+    $ordered = array_values(array_filter($siblings, static function ($candidate) use ($entry) { return (int) $candidate->id !== (int) $entry->id; }));
+    array_splice($ordered, $target_index, 0, [$entry]);
+    return self::persist_order($wpdb, $ordered, $version->id);
+  }
+
+  public static function reorder_group($version_id, $group_id, $target_index)
+  {
+    global $wpdb;
+    $version = self::get_version($version_id);
+    if (!$version || (string) $version->status !== 'draft') {
+      return new WP_Error('cfm_views_draft_required', 'Groups can only be reordered on a draft version.');
+    }
+    $groups = $wpdb->get_results($wpdb->prepare('SELECT * FROM ' . $wpdb->prefix . 'cfm_view_groups WHERE version_id = %d ORDER BY display_order ASC, id ASC', (int) $version->id));
+    $group = null;
+    foreach ((array) $groups as $candidate) { if ((int) $candidate->id === absint($group_id)) { $group = $candidate; break; } }
+    if (!$group) { return new WP_Error('cfm_views_group_not_found', 'View group was not found.'); }
+    $target_index = max(0, min(absint($target_index), count($groups) - 1));
+    $ordered = array_values(array_filter((array) $groups, static function ($candidate) use ($group) { return (int) $candidate->id !== (int) $group->id; }));
+    array_splice($ordered, $target_index, 0, [$group]);
+    return self::persist_order($wpdb, $ordered, $version->id, true);
+  }
+
+  private static function persist_order($wpdb, array $ordered, $version_id, $groups = false)
+  {
+    $table = $wpdb->prefix . ($groups ? 'cfm_view_groups' : 'cfm_view_entries');
+    foreach ($ordered as $index => $item) {
+      if (false === $wpdb->update($table, ['display_order' => $index, 'updated_at' => current_time('mysql')], ['id' => (int) $item->id, 'version_id' => (int) $version_id], ['%d', '%s'], ['%d', '%d'])) {
+        return new WP_Error('cfm_views_order_failed', 'Failed to persist View ordering.');
+      }
+    }
+    return true;
+  }
+
   public static function get_version($version_id): ?object
   {
     global $wpdb;
