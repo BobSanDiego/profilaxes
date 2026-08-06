@@ -66,6 +66,13 @@ class CFM_Views_Repository
     }
 
     $table = $wpdb->prefix . 'cfm_view_versions';
+    $existing_draft = $wpdb->get_var($wpdb->prepare(
+      "SELECT id FROM {$table} WHERE view_id = %d AND status = 'draft' ORDER BY id DESC LIMIT 1",
+      $view_id
+    ));
+    if ($existing_draft) {
+      return new WP_Error('cfm_views_draft_exists', 'An active draft already exists for this View.', ['version_id' => (int) $existing_draft]);
+    }
     $next_version = (int) $wpdb->get_var($wpdb->prepare(
       "SELECT COALESCE(MAX(version_number), 0) + 1 FROM {$table} WHERE view_id = %d",
       $view_id
@@ -218,6 +225,22 @@ class CFM_Views_Repository
     return false !== $wpdb->delete($wpdb->prefix . 'cfm_view_entries', ['id' => absint($entry_id), 'version_id' => (int) $version->id], ['%d', '%d']);
   }
 
+  public static function delete_entries($version_id, array $entry_ids)
+  {
+    global $wpdb;
+    $version = self::get_version($version_id);
+    if (!$version || (string) $version->status !== 'draft') {
+      return new WP_Error('cfm_views_draft_required', 'Entries can only be deleted from a draft version.');
+    }
+    $deleted = 0;
+    foreach (array_unique(array_map('absint', $entry_ids)) as $entry_id) {
+      if ($entry_id && false !== $wpdb->delete($wpdb->prefix . 'cfm_view_entries', ['id' => $entry_id, 'version_id' => (int) $version->id], ['%d', '%d'])) {
+        $deleted++;
+      }
+    }
+    return $deleted;
+  }
+
   public static function move_entry($version_id, $entry_id, $direction)
   {
     global $wpdb;
@@ -297,6 +320,29 @@ class CFM_Views_Repository
 
     $table = $wpdb->prefix . 'cfm_view_versions';
     return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE id = %d", $version_id)) ?: null;
+  }
+
+  public static function delete_draft($version_id)
+  {
+    global $wpdb;
+    $version = self::get_version($version_id);
+    if (!$version || (string) $version->status !== 'draft') {
+      return new WP_Error('cfm_views_draft_required', 'Only the active draft can be deleted.');
+    }
+    $wpdb->query('START TRANSACTION');
+    $where = ['version_id' => (int) $version->id];
+    foreach (['cfm_view_entries', 'cfm_view_groups'] as $child) {
+      if (false === $wpdb->delete($wpdb->prefix . $child, $where, ['%d'])) {
+        $wpdb->query('ROLLBACK');
+        return new WP_Error('cfm_views_delete_failed', 'Failed to delete draft composition.', ['last_error' => $wpdb->last_error]);
+      }
+    }
+    if (false === $wpdb->delete($wpdb->prefix . 'cfm_view_versions', ['id' => (int) $version->id, 'status' => 'draft'], ['%d', '%s'])) {
+      $wpdb->query('ROLLBACK');
+      return new WP_Error('cfm_views_delete_failed', 'Failed to delete draft.', ['last_error' => $wpdb->last_error]);
+    }
+    $wpdb->query('COMMIT');
+    return true;
   }
 
   public static function submit_for_review($version_id)
