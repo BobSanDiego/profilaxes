@@ -215,13 +215,12 @@ class CFM_Views_Admin
     if ($selected_slug === '' && !empty($frameworks[0]->slug)) {
       $selected_slug = sanitize_key((string) $frameworks[0]->slug);
     }
-    echo '<div class="cfm-views-discovery-controls"><label for="cfm-views-framework">Framework</label><select id="cfm-views-framework" data-cfm-views-framework>'; 
-    foreach ($frameworks as $framework) {
-      $slug = sanitize_key((string) ($framework->slug ?? ''));
-      if ($slug === '') { continue; }
-      echo '<option value="' . esc_attr($slug) . '"' . selected($selected_slug, $slug, false) . '>' . esc_html((string) ($framework->name ?? $slug)) . '</option>';
+    if (true) {
+      echo '<select id="cfm-views-framework" data-cfm-views-framework' . (count($frameworks) <= 1 ? ' hidden aria-hidden="true"' : '') . '><option value="' . esc_attr($selected_slug) . '">' . esc_html($selected_slug) . '</option>';
+      foreach ($frameworks as $framework) { $slug = sanitize_key((string) ($framework->slug ?? '')); if ($slug === '') { continue; } echo '<option value="' . esc_attr($slug) . '"' . selected($selected_slug, $slug, false) . '>' . esc_html((string) ($framework->name ?? $slug)) . '</option>'; }
+      echo '</select>';
     }
-    echo '</select><label for="cfm-views-term-search">Search terms</label><input id="cfm-views-term-search" type="search" placeholder="Search canonical terms" data-cfm-views-search><span class="description" data-cfm-views-result-count aria-live="polite"></span><span class="description" data-cfm-views-selected-count aria-live="polite">0 selected</span><button type="button" class="button button-small" data-cfm-views-select-visible>Select All Visible</button><button type="button" class="button button-small" data-cfm-views-clear-selection>Clear Selection</button></div><form method="post" class="cfm-views-batch-form">';
+    echo '<div class="cfm-views-discovery-controls"><label for="cfm-views-term-search">Search terms</label><input id="cfm-views-term-search" type="search" placeholder="Search canonical terms" data-cfm-views-search><span class="description" data-cfm-views-result-count aria-live="polite"></span><span class="description" data-cfm-views-selected-count aria-live="polite">0 selected</span><button type="button" class="button button-small" data-cfm-views-shuttle-all>Shuttle All Terms</button><button type="button" class="button button-small" data-cfm-views-shuttle-selected hidden>Shuttle Selected</button><button type="button" class="button button-small" data-cfm-views-clear-selection hidden>Clear Selection</button></div><form method="post" class="cfm-views-batch-form">';
     wp_nonce_field('cfm_views_add_selected', 'cfm_views_nonce');
     echo '<input type="hidden" name="cfm_views_action" value="add_selected"><input type="hidden" name="version_id" value="' . esc_attr((string) absint($_GET['version_id'] ?? 0)) . '">';
     foreach ($terms_by_framework as $slug => $terms) {
@@ -240,11 +239,11 @@ class CFM_Views_Admin
         if ($has_children) {
           echo '<button type="button" class="button-link cfm-views-toggle" data-cfm-views-toggle aria-expanded="false" aria-label="Expand or collapse ' . esc_attr($label) . '">+</button>';
         } else { echo '<span class="cfm-views-toggle-spacer" aria-hidden="true"></span>'; }
-        echo '<input type="checkbox" name="term_uuids[]" value="' . esc_attr($slug . '|' . $uuid) . '" data-cfm-views-select aria-label="Select ' . esc_attr($label) . '"><span class="cfm-views-term-label" style="--cfm-views-depth:' . esc_attr((string) $depth) . '">' . esc_html($label) . '</span><span class="description cfm-views-term-context">' . esc_html((string) ($term->short_label ?? '')) . '</span><span class="cfm-views-representation-state" title="' . esc_attr($represented ? 'Represented in this View' : 'Not represented in this View') . '">' . ($represented ? 'Represented' : 'Not represented') . '</span><button type="button" class="button button-small" data-cfm-views-add="' . esc_attr($slug . '|' . $uuid) . '">Add to Draft</button></div>';
+        echo ($depth > 0 ? '<input type="checkbox" name="term_uuids[]" value="' . esc_attr($slug . '|' . $uuid) . '" data-cfm-views-select aria-label="Select ' . esc_attr($label) . '"' . ($represented ? ' disabled' : '') . '>' : '<span class="cfm-views-top-level-marker" aria-hidden="true"></span>') . '<span class="cfm-views-term-label" data-cfm-views-term-name style="--cfm-views-depth:' . esc_attr((string) $depth) . '">' . esc_html($label) . '</span></div>';
       }
       echo '</div>';
     }
-    echo '<p class="cfm-views-shuttle"><button class="button button-primary" type="submit">Add selected to View →</button></p></form>';
+    echo '<p class="cfm-views-shuttle"><button class="button button-primary" type="submit" data-cfm-views-submit-shuttle hidden>Shuttle Selected →</button></p></form>';
     if (!$terms_by_framework) { echo '<p class="notice notice-warning">No active canonical terms are available.</p>'; }
   }
 
