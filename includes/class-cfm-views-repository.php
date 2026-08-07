@@ -247,8 +247,30 @@ class CFM_Views_Repository
     if (!$version || (string) $version->status !== 'draft') {
       return new WP_Error('cfm_views_draft_required', 'Entries can only be deleted from a draft version.');
     }
-    $deleted = 0;
+    $entries = self::entries_for_version((int) $version->id);
+    $entries_by_id = [];
+    foreach ($entries as $entry) { $entries_by_id[(int) $entry->id] = $entry; }
+    $deletion_ids = [];
     foreach (array_unique(array_map('absint', $entry_ids)) as $entry_id) {
+      $entry = $entries_by_id[$entry_id] ?? null;
+      if (!$entry) { continue; }
+      $deletion_ids[$entry_id] = true;
+      if ((string) $entry->inclusion !== 'include') { continue; }
+      $catalog = self::term_catalog((string) $entry->core_terms_framework);
+      if (!$catalog['framework']) { continue; }
+      $parent_by_uuid = [];
+      foreach ($catalog['terms'] as $term) { $parent_by_uuid[(string) $term->term_uuid] = (string) ($term->parent_uuid ?? ''); }
+      foreach ($entries as $candidate) {
+        if ((string) $candidate->core_terms_framework !== (string) $entry->core_terms_framework || (string) $candidate->inclusion !== 'include') { continue; }
+        $cursor = (string) $candidate->term_uuid;
+        while ($cursor !== '' && isset($parent_by_uuid[$cursor])) {
+          $cursor = $parent_by_uuid[$cursor];
+          if ($cursor === (string) $entry->term_uuid) { $deletion_ids[(int) $candidate->id] = true; break; }
+        }
+      }
+    }
+    $deleted = 0;
+    foreach (array_keys($deletion_ids) as $entry_id) {
       if ($entry_id && false !== $wpdb->delete($wpdb->prefix . 'cfm_view_entries', ['id' => $entry_id, 'version_id' => (int) $version->id], ['%d', '%d'])) {
         $deleted++;
       }
