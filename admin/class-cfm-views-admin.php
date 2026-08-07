@@ -151,6 +151,7 @@ class CFM_Views_Admin
       return;
     }
     global $wpdb;
+    CFM_Views_Repository::normalize_structural_ancestors($version_id);
     $view = CFM_Views_Repository::get_view((int) $version->view_id);
     $frameworks = CFM_Framework_Repository::get_frameworks();
     $terms_by_framework = [];

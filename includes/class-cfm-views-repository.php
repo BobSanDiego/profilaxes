@@ -275,6 +275,46 @@ class CFM_Views_Repository
         $deleted++;
       }
     }
+    $deleted += self::normalize_structural_ancestors((int) $version->id);
+    return $deleted;
+  }
+
+  public static function normalize_structural_ancestors($version_id): int
+  {
+    global $wpdb;
+    $version = self::get_version($version_id);
+    if (!$version || (string) $version->status !== 'draft') { return 0; }
+    $entries = self::entries_for_version((int) $version->id);
+    usort($entries, static function ($left, $right) use ($version) {
+      $left_term = self::term_catalog((string) $left->core_terms_framework)['terms'][(string) $left->term_uuid] ?? null;
+      $right_term = self::term_catalog((string) $right->core_terms_framework)['terms'][(string) $right->term_uuid] ?? null;
+      return ((int) ($right_term->depth ?? 0)) <=> ((int) ($left_term->depth ?? 0));
+    });
+    $remove = [];
+    foreach ($entries as $entry) {
+      if ((string) $entry->inclusion !== 'include') { continue; }
+      $catalog = self::term_catalog((string) $entry->core_terms_framework);
+      $term = $catalog['terms'][(string) $entry->term_uuid] ?? null;
+      $parent_by_uuid = [];
+      foreach ($catalog['terms'] as $candidate_term) { $parent_by_uuid[(string) $candidate_term->term_uuid] = (string) ($candidate_term->parent_uuid ?? ''); }
+      $has_descendant = false;
+      foreach ($entries as $candidate) {
+        if (isset($remove[(int) $candidate->id]) || (int) $candidate->id === (int) $entry->id || (string) $candidate->core_terms_framework !== (string) $entry->core_terms_framework || (string) $candidate->inclusion !== 'include') { continue; }
+        $cursor = (string) $candidate->term_uuid;
+        while ($cursor !== '' && isset($parent_by_uuid[$cursor])) {
+          $cursor = $parent_by_uuid[$cursor];
+          if ($cursor === (string) $entry->term_uuid) { $has_descendant = true; break 2; }
+        }
+      }
+      $has_canonical_child = in_array((string) $entry->term_uuid, array_values($parent_by_uuid), true);
+      // Ancestors are presence-driven: a non-leaf term with no included
+      // descendant is structural residue and must not persist alone.
+      if ($has_canonical_child && !$has_descendant) { $remove[(int) $entry->id] = true; }
+    }
+    $deleted = 0;
+    foreach (array_keys($remove) as $entry_id) {
+      if (false !== $wpdb->delete($wpdb->prefix . 'cfm_view_entries', ['id' => $entry_id, 'version_id' => (int) $version->id], ['%d', '%d'])) { $deleted++; }
+    }
     return $deleted;
   }
 
