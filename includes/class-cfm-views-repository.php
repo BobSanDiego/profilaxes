@@ -196,7 +196,22 @@ class CFM_Views_Repository
     }
     $added = 0;
     $skipped = 0;
+    $expanded_selections = [];
     foreach ($selections as $selection) {
+      $parts = explode('|', sanitize_text_field((string) $selection), 2);
+      $framework = sanitize_key((string) ($parts[0] ?? ''));
+      $term_uuid = sanitize_text_field((string) ($parts[1] ?? ''));
+      $catalog = self::term_catalog($framework);
+      $term = $catalog['terms'][$term_uuid] ?? null;
+      if ($catalog['framework'] && $term) {
+        $ancestors = CFM_Framework_Repository::get_ancestor_uuids((int) $catalog['framework']->id, $term_uuid, (int) $catalog['framework']->active_version_id, false);
+        foreach ($ancestors as $ancestor_uuid) {
+          $expanded_selections[] = $framework . '|' . (string) $ancestor_uuid;
+        }
+      }
+      $expanded_selections[] = $framework . '|' . $term_uuid;
+    }
+    foreach ($expanded_selections as $selection) {
       $parts = explode('|', sanitize_text_field((string) $selection), 2);
       $framework = sanitize_key((string) ($parts[0] ?? ''));
       $term_uuid = sanitize_text_field((string) ($parts[1] ?? ''));
