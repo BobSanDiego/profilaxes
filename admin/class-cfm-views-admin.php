@@ -197,6 +197,11 @@ class CFM_Views_Admin
       }
       echo '<article class="cfm-views-group-card" role="treeitem" aria-level="1" data-cfm-views-group data-group-id="' . esc_attr((string) $group_id) . '" draggable="' . ($group ? 'true' : 'false') . '"><header><div>' . ($group ? '<span class="cfm-views-drag-handle" title="Drag presentation container" aria-hidden="true">⠿</span>' : '') . '<h5>' . esc_html($group ? $group->label : 'Current View') . '</h5>' . ($group && $group->description ? '<p>' . esc_html($group->description) . '</p>' : '') . '</div>' . ($group ? '<button type="button" class="button-link cfm-views-container-toggle" data-cfm-views-container-toggle aria-expanded="false" aria-label="Expand or collapse presentation container">+</button>' : '') . '<span class="description">' . esc_html((string) count($group_entries)) . ' entr' . (count($group_entries) === 1 ? 'y' : 'ies') . '</span>' . ($group ? '<form method="post" class="cfm-views-reorder-form" data-cfm-views-reorder-group><input type="hidden" name="cfm_views_action" value="reorder_group"><input type="hidden" name="version_id" value="' . esc_attr((string) $version_id) . '"><input type="hidden" name="group_id" value="' . esc_attr((string) $group_id) . '"><input type="hidden" name="target_index" value="0" data-cfm-views-target-index>' . wp_nonce_field('cfm_views_reorder_group', 'cfm_views_nonce', true, false) . '</form>' : '') . '</header><div class="cfm-views-group-entries" role="group"' . ($group ? ' hidden' : '') . '>';
       if (!$group_entries) { echo '<p class="cfm-views-empty">No entries here yet. Use <strong>Add to Draft</strong> in the canonical browser, then choose this group before saving.</p>'; }
+      if (!$group && $group_entries) {
+        self::render_current_tree_entries($group_entries, $terms_by_framework);
+        echo '</div></article>';
+        continue;
+      }
       foreach ($group_entries as $entry) {
         $canonical_label = (string) $entry->term_uuid;
         foreach ((array) ($terms_by_framework[$entry->core_terms_framework] ?? []) as $term) { if ((string) ($term->term_uuid ?? '') === (string) $entry->term_uuid) { $canonical_label = (string) ($term->label ?? $canonical_label); break; } }
@@ -329,6 +334,41 @@ class CFM_Views_Admin
     echo '<script id="cfm-views-dv-ux013-bulk-script">(function(){"use strict";var root=document.querySelector("[data-cfm-views-workbench]");if(!root){return;}function descendants(tree,top){return [].slice.call(tree.querySelectorAll("[data-cfm-views-term]")).filter(function(row){if(row===top||row.dataset.depth==="0"){return false;}var parent=row.dataset.parent;while(parent){if(parent===top.dataset.uuid){return true;}var ancestor=tree.querySelector("[data-uuid=\""+CSS.escape(parent)+"\"]");if(!ancestor){break;}parent=ancestor.dataset.parent;}return false;});}function sync(tree){tree.querySelectorAll("[data-cfm-views-term][data-depth=\"0\"]").forEach(function(top){var control=top.querySelector("[data-cfm-views-top-level-bulk]"),available=descendants(tree,top).filter(function(row){return row.dataset.represented!=="true"&&row.querySelector("[data-cfm-views-select]");}),checked=available.filter(function(row){return row.querySelector("[data-cfm-views-select]").checked;});if(!control){return;}control.hidden=available.length===0;control.textContent=available.length>0&&checked.length===available.length?"−":"+";control.setAttribute("aria-label","Check/uncheck all descendants");control.title="Check/uncheck all descendants";});}root.addEventListener("change",function(event){if(event.target.matches("[data-cfm-views-select]")){var tree=event.target.closest("[data-cfm-views-tree]");if(tree){sync(tree);}}});root.addEventListener("click",function(event){var control=event.target.closest("[data-cfm-views-top-level-bulk]");if(!control){return;}var top=control.closest("[data-cfm-views-term]"),tree=control.closest("[data-cfm-views-tree]"),available=descendants(tree,top).filter(function(row){return row.dataset.represented!=="true"&&row.querySelector("[data-cfm-views-select]");}),allChecked=available.length>0&&available.every(function(row){return row.querySelector("[data-cfm-views-select]").checked;}),next=!allChecked;available.forEach(function(row){var box=row.querySelector("[data-cfm-views-select]");box.checked=next;box.dispatchEvent(new Event("change",{bubbles:true}));});sync(tree);});root.querySelectorAll("[data-cfm-views-tree]").forEach(sync);})();</script>';
     echo '<style id="cfm-views-dv-fix001-removal-styles">.cfm-views-current-term-row[data-cfm-views-inherited-removal="true"]{opacity:.58;text-decoration:line-through}.cfm-views-current-term-row[data-cfm-views-inherited-removal="true"] input{cursor:not-allowed}</style>';
     echo '<script id="cfm-views-dv-fix001-removal-script">(function(){"use strict";var root=document.querySelector("[data-cfm-views-workbench]"),form=document.querySelector("#cfm-views-remove-form");if(!root||!form){return;}var roots=new Set();function rows(){return [].slice.call(root.querySelectorAll("[data-cfm-views-current-term]"));}function descendants(parent){return rows().filter(function(row){var cursor=row.dataset.parent;while(cursor){if(cursor===parent.dataset.uuid){return true;}var ancestor=rows().find(function(candidate){return candidate.dataset.uuid===cursor;});if(!ancestor){break;}cursor=ancestor.dataset.parent;}return false;});}function sync(){var all=rows();all.forEach(function(row){var box=row.querySelector("[data-cfm-views-entry-select]");if(box&&box.dataset.cfmViewsInherited==="true"){box.checked=false;}row.removeAttribute("data-cfm-views-inherited-removal");if(box){box.disabled=false;box.removeAttribute("data-cfm-views-inherited");}});roots.forEach(function(id){var parent=all.find(function(row){return row.querySelector("[data-cfm-views-entry-select]")?.value===id;});if(!parent){return;}descendants(parent).forEach(function(row){var box=row.querySelector("[data-cfm-views-entry-select]");if(!box||roots.has(box.value)){return;}box.checked=true;box.disabled=true;box.dataset.cfmViewsInherited="true";row.dataset.cfmViewsInheritedRemoval="true";});});form.querySelectorAll("[data-cfm-views-inherited-payload]").forEach(function(input){input.remove();});all.filter(function(row){return row.querySelector("[data-cfm-views-entry-select]")?.dataset.cfmViewsInherited==="true";}).forEach(function(row){var input=document.createElement("input");input.type="hidden";input.name="entry_ids[]";input.value=row.querySelector("[data-cfm-views-entry-select]").value;input.dataset.cfmViewsInheritedPayload="true";form.appendChild(input);});}root.addEventListener("change",function(event){var box=event.target.closest("[data-cfm-views-entry-select]");if(!box){return;}if(box.dataset.cfmViewsInherited!=="true"){if(box.checked){roots.add(box.value);}else{roots.delete(box.value);}}sync();});var clear=root.querySelector("[data-cfm-views-clear-current]");if(clear){clear.addEventListener("click",function(){roots.clear();rows().forEach(function(row){var box=row.querySelector("[data-cfm-views-entry-select]");if(box){box.checked=false;}});sync();});}sync();})();</script>';
+  }
+
+  private static function render_current_tree_entries(array $entries, array $terms_by_framework): void
+  {
+    $by_uuid = [];
+    $children = [];
+    foreach ($entries as $entry) {
+      $framework = (string) $entry->core_terms_framework;
+      $uuid = (string) $entry->term_uuid;
+      $term = null;
+      foreach ((array) ($terms_by_framework[$framework] ?? []) as $candidate) {
+        if ((string) ($candidate->term_uuid ?? '') === $uuid) { $term = $candidate; break; }
+      }
+      $parent = (string) ($term->parent_uuid ?? '');
+      $by_uuid[$framework . '|' . $uuid] = ['entry' => $entry, 'term' => $term, 'parent' => $parent];
+      $children[$framework . '|' . $parent][] = $framework . '|' . $uuid;
+    }
+    $render = function (string $key) use (&$render, $by_uuid, $children): void {
+      if (!isset($by_uuid[$key])) { return; }
+      $item = $by_uuid[$key];
+      $entry = $item['entry'];
+      $term = $item['term'];
+      $framework = (string) $entry->core_terms_framework;
+      $uuid = (string) $entry->term_uuid;
+      $label = (string) ($term->label ?? $uuid);
+      $descendant_keys = array_values(array_filter($children[$framework . '|' . $uuid] ?? [], static function ($child) use ($by_uuid) { return isset($by_uuid[$child]); }));
+      $depth = max(0, (int) ($term->depth ?? 0));
+      echo '<div class="cfm-views-term-row cfm-views-current-term-row" data-cfm-views-term data-cfm-views-current-term data-uuid="' . esc_attr($uuid) . '" data-parent="' . esc_attr((string) $item['parent']) . '" data-depth="' . esc_attr((string) $depth) . '">' . ($descendant_keys ? '<button type="button" class="button-link cfm-views-toggle cfm-views-current-toggle" data-cfm-views-toggle data-cfm-views-current-toggle aria-expanded="true" aria-label="Expand or collapse ' . esc_attr($label) . '">▾</button>' : '<span class="cfm-views-toggle-spacer cfm-views-current-toggle-spacer" aria-hidden="true"></span>') . '<label class="cfm-views-current-selection-slot"><input type="checkbox" form="cfm-views-remove-form" name="entry_ids[]" value="' . esc_attr((string) $entry->id) . '" data-cfm-views-entry-select aria-label="Select ' . esc_attr($label) . ' for removal"></label><span class="cfm-views-term-name cfm-views-current-label"><strong>' . esc_html($label) . '</strong></span></div>';
+      foreach ($descendant_keys as $child) { $render($child); }
+    };
+    foreach (array_keys($by_uuid) as $key) {
+      $item = $by_uuid[$key];
+      $root_key = (string) $item['entry']->core_terms_framework . '|' . (string) $item['parent'];
+      if (!isset($by_uuid[$root_key])) { $render($key); }
+    }
   }
 
   private static function render_preview(int $version_id): void
