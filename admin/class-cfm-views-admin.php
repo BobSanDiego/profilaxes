@@ -129,7 +129,7 @@ class CFM_Views_Admin
     if ($version_id) {
       $editing_version = CFM_Views_Repository::get_version($version_id);
       $editing_view = $editing_version ? CFM_Views_Repository::get_view((int) $editing_version->view_id) : null;
-      $is_preview_context = !empty($_GET['preview']) || ($editing_version && in_array((string) $editing_version->status, ['review', 'published'], true));
+      $is_preview_context = !empty($_GET['preview']) || ($editing_version && in_array((string) $editing_version->status, ['review', 'published'], true) && empty($_GET['inspect']));
       echo '<div class="cfm-views-editing-context"><div><span class="description">' . ($is_preview_context ? 'Previewing View version' : 'Editing current View') . '</span><h2>' . esc_html($editing_view ? $editing_view->name : 'View') . '</h2><p>Version ' . esc_html((string) ($editing_version->version_number ?? '')) . ' · Status: ' . esc_html((string) ($editing_version->status ?? '')) . '</p></div><a class="button" href="' . esc_url(admin_url('admin.php?page=cfm-views')) . '">Back to Views</a></div>';
     } else {
       echo '<div class="cfm-views-manager-heading"><div><h2>Operational Views</h2><p class="description">Manage active drafts, published versions, and subscriber bindings.</p></div><button type="button" class="button button-primary" data-cfm-views-show-create>Create View</button></div><form method="post" class="cfm-views-create-form" data-cfm-views-create hidden>';
@@ -233,7 +233,7 @@ class CFM_Views_Admin
     if ($version_id) {
       $requested_version = CFM_Views_Repository::get_version($version_id);
       if (!empty($_GET['inspect']) && $requested_version && (string) $requested_version->status === 'published') {
-        self::render_draft_editor($version_id, true);
+        self::render_published_view($version_id);
       } elseif (!empty($_GET['preview']) && $requested_version && in_array((string) $requested_version->status, ['draft', 'review', 'published'], true)) {
         self::render_preview($version_id);
       } elseif ($requested_version && in_array((string) $requested_version->status, ['review', 'published'], true)) {
@@ -249,6 +249,53 @@ class CFM_Views_Admin
       echo '<script id="cfm-views-manager-script">(function(){document.querySelectorAll(".cfm-views-see-all").forEach(function(button){button.addEventListener("click",function(){var expanded=button.getAttribute("aria-expanded")==="true";var table=button.closest("table");table.querySelectorAll("[data-cfm-views-history]").forEach(function(row){row.style.display=expanded?"none":"table-row";});button.setAttribute("aria-expanded",expanded?"false":"true");button.textContent=expanded?"See all versions":"Hide older versions";});});document.querySelectorAll("[data-cfm-views-show-unused]").forEach(function(button){button.addEventListener("click",function(){var list=button.nextElementSibling,show=list.hasAttribute("hidden");if(show){list.removeAttribute("hidden");}else{list.setAttribute("hidden","hidden");}button.textContent=(show?"Hide":"Show")+" unused Views ("+button.getAttribute("data-unused-count")+")";});});var show=document.querySelector("[data-cfm-views-show-create]"),form=document.querySelector("[data-cfm-views-create]"),hide=document.querySelector("[data-cfm-views-hide-create]");if(show&&form){show.addEventListener("click",function(){form.removeAttribute("hidden");show.setAttribute("hidden","hidden");});}if(hide&&form){hide.addEventListener("click",function(){form.setAttribute("hidden","hidden");if(show){show.removeAttribute("hidden");}});}})();</script>';
     }
     echo '</div>';
+  }
+
+  private static function render_published_view(int $version_id): void
+  {
+    global $wpdb;
+    $version = CFM_Views_Repository::get_version($version_id);
+    if (!$version || (string) $version->status !== 'published') {
+      echo '<div class="notice notice-warning"><p>This inspection surface is available only for a published View version.</p></div>';
+      return;
+    }
+    $view = CFM_Views_Repository::get_view((int) $version->view_id);
+    $groups = $wpdb->get_results($wpdb->prepare('SELECT * FROM ' . $wpdb->prefix . 'cfm_view_groups WHERE version_id = %d ORDER BY display_order ASC, id ASC', $version_id));
+    $entries = $wpdb->get_results($wpdb->prepare('SELECT * FROM ' . $wpdb->prefix . 'cfm_view_entries WHERE version_id = %d ORDER BY display_order ASC, id ASC', $version_id));
+    $frameworks = CFM_Framework_Repository::get_frameworks();
+    $terms_by_framework = [];
+    foreach ((array) $frameworks as $framework) {
+      $slug = (string) ($framework->slug ?? '');
+      if ($slug !== '') { $terms_by_framework[$slug] = CFM::get_terms($slug); }
+    }
+    $labels = [];
+    $depths = [];
+    foreach ($terms_by_framework as $slug => $terms) {
+      foreach ((array) $terms as $term) { $key = $slug . '|' . (string) ($term->term_uuid ?? ''); $labels[$key] = (string) ($term->label ?? $term->name ?? $term->term_uuid); $depths[$key] = max(0, (int) ($term->depth ?? 0)); }
+    }
+    $bindings = $wpdb->get_results($wpdb->prepare('SELECT label, field_key FROM ' . $wpdb->prefix . 'tnet_jobs_form_fields WHERE durable_view_version_id = %d AND is_active = 1', $version_id));
+    $entries_by_group = [];
+    foreach ($entries as $entry) { $entries_by_group[(int) ($entry->group_id ?: 0)][] = $entry; }
+    $visible_term_count = count($entries);
+    $visible_group_count = count($groups);
+    echo '<div class="cfm-published-view" data-cfm-published-view><header class="cfm-published-view-header"><div><span class="description">Published View · Read-only</span><h2>' . esc_html($view ? $view->name : 'View') . '</h2><p>Version ' . esc_html((string) $version->version_number) . ' · Published' . ($bindings ? ' · Subscriber: ' . esc_html(implode(', ', array_map(static fn($binding): string => (string) $binding->label, $bindings))) : '') . '</p></div><nav class="cfm-published-view-actions" aria-label="Published View actions"><form method="post" class="cfm-views-inline-form">' . wp_nonce_field('cfm_views_edit_from', 'cfm_views_nonce', true, false) . '<input type="hidden" name="cfm_views_action" value="edit_from"><input type="hidden" name="version_id" value="' . (int) $version_id . '"><button class="button button-primary">Edit from</button></form> <a class="button" href="' . esc_url(admin_url('admin.php?page=cfm-views&version_id=' . $version_id . '&preview=1')) . '">Preview</a> <a class="button" href="' . esc_url(admin_url('admin.php?page=cfm-views')) . '">Back to Views</a></nav></header>';
+    echo '<div class="cfm-published-view-summary"><span>Stored entries: <strong>' . (int) count($entries) . '</strong></span><span>Stored groups: <strong>' . (int) count($groups) . '</strong></span><span>Visible term rows: <strong>' . (int) $visible_term_count . '</strong></span><span>Visible groups: <strong>' . (int) $visible_group_count . '</strong></span></div><main class="cfm-published-view-tree" aria-label="Published View composition">';
+    if (!$entries && !$groups) {
+      echo '<p class="cfm-published-view-empty">This published View contains no terms.</p>';
+    }
+    foreach ($groups as $group) {
+      echo '<section class="cfm-published-view-group"><h3>' . esc_html((string) $group->label) . '</h3>' . ($group->description ? '<p class="description">' . esc_html((string) $group->description) . '</p>' : '') . '<div class="cfm-published-view-entries">';
+      foreach ($entries_by_group[(int) $group->id] ?? [] as $entry) {
+        $key = (string) $entry->core_terms_framework . '|' . (string) $entry->term_uuid;
+        echo '<div class="cfm-published-view-term" style="--cfm-view-depth:' . esc_attr((string) ($depths[$key] ?? 0)) . '"><strong>' . esc_html($labels[$key] ?? (string) $entry->term_uuid) . '</strong><span class="description">' . esc_html((string) $entry->inclusion) . '</span></div>';
+      }
+      echo '</div></section>';
+    }
+    foreach ($entries_by_group[0] ?? [] as $entry) {
+      $key = (string) $entry->core_terms_framework . '|' . (string) $entry->term_uuid;
+      echo '<div class="cfm-published-view-term cfm-published-view-ungrouped" style="--cfm-view-depth:' . esc_attr((string) ($depths[$key] ?? 0)) . '"><strong>' . esc_html($labels[$key] ?? (string) $entry->term_uuid) . '</strong><span class="description">' . esc_html((string) $entry->inclusion) . '</span></div>';
+    }
+    echo '</main></div><style id="cfm-published-view-styles">.cfm-published-view{max-width:1100px;margin:18px 0}.cfm-published-view-header{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;border-bottom:1px solid #dcdcde;padding-bottom:16px}.cfm-published-view-header h2{margin:4px 0}.cfm-published-view-header p{margin:0;color:#646970}.cfm-published-view-actions{white-space:nowrap}.cfm-published-view-summary{display:flex;gap:22px;padding:14px 0;color:#50575e}.cfm-published-view-tree{background:#fff;border:1px solid #dcdcde;padding:22px 28px}.cfm-published-view-group{margin:0 0 22px}.cfm-published-view-group:last-child{margin-bottom:0}.cfm-published-view-group h3{margin:0 0 4px}.cfm-published-view-entries{margin-top:10px}.cfm-published-view-term{padding:8px 10px 8px calc(10px + (var(--cfm-view-depth, 0) * 24px));border-top:1px solid #f0f0f1;display:flex;gap:12px;align-items:center}.cfm-published-view-term .description{color:#646970}.cfm-published-view-empty{margin:0}.cfm-published-view-ungrouped{margin-top:10px}</style>';
   }
 
   private static function render_draft_editor(int $version_id, bool $read_only = false): void
