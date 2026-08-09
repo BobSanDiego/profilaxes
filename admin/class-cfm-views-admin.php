@@ -99,11 +99,18 @@ class CFM_Views_Admin
     global $wpdb;
     $views = $wpdb->get_results('SELECT * FROM ' . $wpdb->prefix . 'cfm_views ORDER BY updated_at DESC, id DESC');
     $version_id = absint($_GET['version_id'] ?? 0);
+    if ($version_id) {
+      $requested_version = CFM_Views_Repository::get_version($version_id);
+      if (!$requested_version) {
+        $version_id = 0;
+      }
+    }
     echo '<div class="wrap' . ($version_id ? ' cfm-views-editor-wrap' : '') . '"><h1>Durable Views</h1><p>Platform-owned presentation models referencing canonical Core Terms UUIDs.</p>';
     if ($version_id) {
       $editing_version = CFM_Views_Repository::get_version($version_id);
       $editing_view = $editing_version ? CFM_Views_Repository::get_view((int) $editing_version->view_id) : null;
-      echo '<div class="cfm-views-editing-context"><div><span class="description">Editing current View</span><h2>' . esc_html($editing_view ? $editing_view->name : 'View') . '</h2><p>Draft version ' . esc_html((string) ($editing_version->version_number ?? '')) . ' · Status: ' . esc_html((string) ($editing_version->status ?? '')) . '</p></div><a class="button" href="' . esc_url(admin_url('admin.php?page=cfm-views')) . '">Back to Views</a></div>';
+      $is_preview_context = !empty($_GET['preview']) || ($editing_version && in_array((string) $editing_version->status, ['review', 'published'], true));
+      echo '<div class="cfm-views-editing-context"><div><span class="description">' . ($is_preview_context ? 'Previewing View version' : 'Editing current View') . '</span><h2>' . esc_html($editing_view ? $editing_view->name : 'View') . '</h2><p>Version ' . esc_html((string) ($editing_version->version_number ?? '')) . ' · Status: ' . esc_html((string) ($editing_version->status ?? '')) . '</p></div><a class="button" href="' . esc_url(admin_url('admin.php?page=cfm-views')) . '">Back to Views</a></div>';
     } else {
       echo '<h2>Create View</h2><form method="post">';
       wp_nonce_field('cfm_views_create_view', 'cfm_views_nonce');
@@ -113,7 +120,9 @@ class CFM_Views_Admin
     foreach ($views as $view) {
       $draft = $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . $wpdb->prefix . 'cfm_view_versions WHERE view_id = %d AND status IN (\'draft\', \'review\') ORDER BY version_number DESC LIMIT 1', (int) $view->id));
       $view_link_version = $draft ? (int) $draft->id : (int) ($view->current_version_id ?: 0);
-      echo '<tr><td>' . ($view_link_version ? '<a href="' . esc_url(admin_url('admin.php?page=cfm-views&version_id=' . $view_link_version . ($draft ? '' : '&preview=1'))) . '"><strong>' . esc_html($view->name) . '</strong></a>' : '<strong>' . esc_html($view->name) . '</strong>') . '</td><td>' . esc_html($view->status) . '</td><td>' . esc_html((string) ($view->current_version_id ?: 'Draft only')) . '</td><td>';
+      $current_version = $view->current_version_id ? CFM_Views_Repository::get_version((int) $view->current_version_id) : null;
+      $version_status = $draft ? (string) $draft->status : (string) ($current_version->status ?? 'none');
+      echo '<tr><td>' . ($view_link_version ? '<a href="' . esc_url(admin_url('admin.php?page=cfm-views&version_id=' . $view_link_version . ($draft ? '' : '&preview=1'))) . '"><strong>' . esc_html($view->name) . '</strong></a>' : '<strong>' . esc_html($view->name) . '</strong>') . '</td><td>' . esc_html($view->status) . '</td><td>' . esc_html((string) ($view->current_version_id ?: 'None')) . ' (' . esc_html($version_status) . ')</td><td>';
       if ($draft) {
         echo '<form method="post" style="display:inline;margin-left:4px" data-cfm-views-manager-delete-draft onsubmit="return window.confirm(\'Delete this draft? The published version will remain unchanged.\');">';
         wp_nonce_field('cfm_views_delete_draft', 'cfm_views_nonce');
@@ -138,7 +147,16 @@ class CFM_Views_Admin
       echo '</tbody></table>';
     }
     if ($version_id) {
-      self::render_draft_editor($version_id);
+      $requested_version = CFM_Views_Repository::get_version($version_id);
+      if (!empty($_GET['preview']) && $requested_version && in_array((string) $requested_version->status, ['draft', 'review', 'published'], true)) {
+        self::render_preview($version_id);
+      } elseif ($requested_version && in_array((string) $requested_version->status, ['review', 'published'], true)) {
+        self::render_preview($version_id, true);
+      } else {
+        self::render_draft_editor($version_id);
+      }
+    } elseif (!empty($_GET['version_id'])) {
+      echo '<div class="notice notice-error"><p>That View version is no longer available. Return to <a href="' . esc_url(admin_url('admin.php?page=cfm-views')) . '">View Manager</a>.</p></div>';
     }
     echo '</div>';
   }
@@ -389,10 +407,11 @@ class CFM_Views_Admin
     }
   }
 
-  private static function render_preview(int $version_id): void
+  private static function render_preview(int $version_id, bool $normalize_url = false): void
   {
     $preview = CFM_Views_Repository::preview_version($version_id);
     if (is_wp_error($preview)) { echo '<div class="notice notice-error"><p>' . esc_html($preview->get_error_message()) . '</p></div>'; return; }
-    echo '<h3>Resolved draft preview</h3><ol>'; foreach ((array) ($preview['entries'] ?? []) as $entry) { echo '<li>' . esc_html($entry['label']) . ' <code>' . esc_html($entry['framework'] . ':' . $entry['term_uuid']) . '</code></li>'; } if (empty($preview['entries'])) { echo '<li>No included entries resolve for this draft.</li>'; } echo '</ol>';
+    echo '<section class="cfm-views-preview" aria-label="Resolved View preview"><h3>Resolved ' . esc_html(ucfirst((string) ($preview['version']['status'] ?? 'View'))) . ' preview</h3><ol>'; foreach ((array) ($preview['entries'] ?? []) as $entry) { echo '<li>' . esc_html($entry['label']) . ' <code>' . esc_html($entry['framework'] . ':' . $entry['term_uuid']) . '</code></li>'; } if (empty($preview['entries'])) { echo '<li>No included entries resolve for this View version.</li>'; } echo '</ol></section>';
+    if ($normalize_url) { echo '<script>if (window.history && window.history.replaceState) { var u = new URL(window.location.href); u.searchParams.set("preview", "1"); window.history.replaceState({}, "", u.toString()); }</script>'; }
   }
 }
