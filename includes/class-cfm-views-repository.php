@@ -196,6 +196,17 @@ class CFM_Views_Repository
     }
     $added = 0;
     $skipped = 0;
+    $default_group_id = null;
+    foreach ((array) $existing as $existing_entry) {
+      if (!empty($existing_entry->group_id)) {
+        $default_group_id = (int) $existing_entry->group_id;
+        break;
+      }
+    }
+    if (!$default_group_id) {
+      global $wpdb;
+      $default_group_id = (int) $wpdb->get_var($wpdb->prepare('SELECT id FROM ' . $wpdb->prefix . 'cfm_view_groups WHERE version_id = %d ORDER BY display_order ASC, id ASC LIMIT 1', (int) $version_id));
+    }
     $expanded_selections = [];
     foreach ($selections as $selection) {
       $parts = explode('|', sanitize_text_field((string) $selection), 2);
@@ -220,7 +231,7 @@ class CFM_Views_Repository
         $skipped++;
         continue;
       }
-      $result = self::save_entry($version_id, ['term_uuid' => $term_uuid, 'core_terms_framework' => $framework, 'inclusion' => 'include', 'display_label' => '', 'display_order' => count($existing) + $added, 'source' => 'canonical_browser_batch']);
+      $result = self::save_entry($version_id, ['term_uuid' => $term_uuid, 'group_id' => $default_group_id, 'core_terms_framework' => $framework, 'inclusion' => 'include', 'display_label' => '', 'display_order' => count($existing) + $added, 'source' => 'canonical_browser_batch']);
       if (is_wp_error($result)) {
         return $result;
       }

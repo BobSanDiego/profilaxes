@@ -130,7 +130,9 @@ class CFM_Views_Admin
       $editing_version = CFM_Views_Repository::get_version($version_id);
       $editing_view = $editing_version ? CFM_Views_Repository::get_view((int) $editing_version->view_id) : null;
       $is_preview_context = !empty($_GET['preview']) || ($editing_version && in_array((string) $editing_version->status, ['review', 'published'], true) && empty($_GET['inspect']));
-      echo '<div class="cfm-views-editing-context"><div><span class="description">' . ($is_preview_context ? 'Previewing View version' : 'Editing current View') . '</span><h2>' . esc_html($editing_view ? $editing_view->name : 'View') . '</h2><p>Version ' . esc_html((string) ($editing_version->version_number ?? '')) . ' · Status: ' . esc_html((string) ($editing_version->status ?? '')) . '</p></div><a class="button" href="' . esc_url(admin_url('admin.php?page=cfm-views')) . '">Back to Views</a></div>';
+      if (empty($_GET['inspect']) || !$editing_version || (string) $editing_version->status !== 'published') {
+        echo '<div class="cfm-views-editing-context"><div><span class="description">' . ($is_preview_context ? 'Previewing View version' : 'Editing current View') . '</span><h2>' . esc_html($editing_view ? $editing_view->name : 'View') . '</h2><p>Version ' . esc_html((string) ($editing_version->version_number ?? '')) . ' · Status: ' . esc_html((string) ($editing_version->status ?? '')) . '</p></div><a class="button" href="' . esc_url(admin_url('admin.php?page=cfm-views')) . '">Back to Views</a></div>';
+      }
     } else {
       echo '<div class="cfm-views-manager-heading"><div><h2>Operational Views</h2><p class="description">Manage active drafts, published versions, and subscriber bindings.</p></div><button type="button" class="button button-primary" data-cfm-views-show-create>Create View</button></div><form method="post" class="cfm-views-create-form" data-cfm-views-create hidden>';
       wp_nonce_field('cfm_views_create_view', 'cfm_views_nonce');
@@ -276,10 +278,8 @@ class CFM_Views_Admin
     $bindings = $wpdb->get_results($wpdb->prepare('SELECT label, field_key FROM ' . $wpdb->prefix . 'tnet_jobs_form_fields WHERE durable_view_version_id = %d AND is_active = 1', $version_id));
     $entries_by_group = [];
     foreach ($entries as $entry) { $entries_by_group[(int) ($entry->group_id ?: 0)][] = $entry; }
-    $visible_term_count = count($entries);
-    $visible_group_count = count($groups);
     echo '<div class="cfm-published-view" data-cfm-published-view><header class="cfm-published-view-header"><div><span class="description">Published View · Read-only</span><h2>' . esc_html($view ? $view->name : 'View') . '</h2><p>Version ' . esc_html((string) $version->version_number) . ' · Published' . ($bindings ? ' · Subscriber: ' . esc_html(implode(', ', array_map(static fn($binding): string => (string) $binding->label, $bindings))) : '') . '</p></div><nav class="cfm-published-view-actions" aria-label="Published View actions"><form method="post" class="cfm-views-inline-form">' . wp_nonce_field('cfm_views_edit_from', 'cfm_views_nonce', true, false) . '<input type="hidden" name="cfm_views_action" value="edit_from"><input type="hidden" name="version_id" value="' . (int) $version_id . '"><button class="button button-primary">Edit from</button></form> <a class="button" href="' . esc_url(admin_url('admin.php?page=cfm-views&version_id=' . $version_id . '&preview=1')) . '">Preview</a> <a class="button" href="' . esc_url(admin_url('admin.php?page=cfm-views')) . '">Back to Views</a></nav></header>';
-    echo '<div class="cfm-published-view-summary"><span>Stored entries: <strong>' . (int) count($entries) . '</strong></span><span>Stored groups: <strong>' . (int) count($groups) . '</strong></span><span>Visible term rows: <strong>' . (int) $visible_term_count . '</strong></span><span>Visible groups: <strong>' . (int) $visible_group_count . '</strong></span></div><main class="cfm-published-view-tree" aria-label="Published View composition">';
+    echo '<main class="cfm-published-view-tree" aria-label="Published View composition">';
     if (!$entries && !$groups) {
       echo '<p class="cfm-published-view-empty">This published View contains no terms.</p>';
     }
