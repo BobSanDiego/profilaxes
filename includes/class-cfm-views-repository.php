@@ -573,6 +573,44 @@ class CFM_Views_Repository
     return self::get_version($draft_id);
   }
 
+  public static function get_active_draft_version($view_id): ?object
+  {
+    global $wpdb;
+    return $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . $wpdb->prefix . 'cfm_view_versions WHERE view_id = %d AND status = %s ORDER BY id DESC LIMIT 1', absint($view_id), 'draft')) ?: null;
+  }
+
+  public static function replace_draft_from_version($version_id)
+  {
+    global $wpdb;
+    $source = self::get_version($version_id);
+    if (!$source || (string) $source->status !== 'published') {
+      return new WP_Error('cfm_views_invalid_source', 'Only a published version can replace the active draft.');
+    }
+    $draft = self::get_active_draft_version((int) $source->view_id);
+    if (!$draft) {
+      return self::create_draft_from_version($version_id);
+    }
+    $wpdb->query('START TRANSACTION');
+    foreach (['cfm_view_entries', 'cfm_view_groups'] as $child) {
+      if (false === $wpdb->delete($wpdb->prefix . $child, ['version_id' => (int) $draft->id], ['%d'])) {
+        $wpdb->query('ROLLBACK');
+        return new WP_Error('cfm_views_replace_failed', 'Failed to clear the active draft.', ['last_error' => $wpdb->last_error]);
+      }
+    }
+    $now = current_time('mysql');
+    $wpdb->update($wpdb->prefix . 'cfm_view_versions', ['based_on_version_id' => (int) $source->id, 'lineage_uuid' => (string) $source->lineage_uuid, 'updated_at' => $now], ['id' => (int) $draft->id], ['%d', '%s', '%s'], ['%d']);
+    $group_map = [];
+    foreach (self::groups_for_version($source->id) as $group) {
+      $wpdb->insert($wpdb->prefix . 'cfm_view_groups', ['version_id' => (int) $draft->id, 'group_uuid' => wp_generate_uuid4(), 'group_key' => $group->group_key, 'label' => $group->label, 'description' => $group->description, 'display_order' => (int) $group->display_order, 'is_featured' => (int) $group->is_featured, 'is_hidden' => (int) $group->is_hidden, 'metadata_json' => $group->metadata_json, 'created_at' => $now, 'updated_at' => $now], ['%d', '%s', '%s', '%s', '%s', '%d', '%d', '%d', '%s', '%s', '%s']);
+      $group_map[(int) $group->id] = (int) $wpdb->insert_id;
+    }
+    foreach (self::entries_for_version($source->id) as $entry) {
+      $wpdb->insert($wpdb->prefix . 'cfm_view_entries', ['version_id' => (int) $draft->id, 'entry_uuid' => wp_generate_uuid4(), 'term_uuid' => $entry->term_uuid, 'core_terms_framework' => $entry->core_terms_framework, 'group_id' => $group_map[(int) $entry->group_id] ?? null, 'inclusion' => $entry->inclusion, 'display_order' => (int) $entry->display_order, 'display_label' => $entry->display_label, 'is_featured' => (int) $entry->is_featured, 'is_hidden' => (int) $entry->is_hidden, 'include_descendants' => (int) $entry->include_descendants, 'source' => $entry->source, 'metadata_json' => $entry->metadata_json, 'term_snapshot_json' => $entry->term_snapshot_json, 'validation_state' => 'warning', 'validation_messages_json' => null, 'created_at' => $now, 'updated_at' => $now], ['%d', '%s', '%s', '%s', '%d', '%s', '%d', '%s', '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s']);
+    }
+    $wpdb->query('COMMIT');
+    return self::get_version($draft->id);
+  }
+
   public static function retire_view($view_id)
   {
     global $wpdb;
