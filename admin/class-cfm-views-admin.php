@@ -116,13 +116,69 @@ class CFM_Views_Admin
       wp_nonce_field('cfm_views_create_view', 'cfm_views_nonce');
       echo '<input type="hidden" name="cfm_views_action" value="create_view">';
       echo '<p><label>Name <input name="name" type="text" required></label> <label>Description <textarea name="description"></textarea></label> <button class="button button-primary">Create draft</button></p></form>';
-      echo '<h2>Existing Views</h2><table class="widefat striped"><thead><tr><th>Name</th><th>Status</th><th>Current version</th><th>Actions</th></tr></thead><tbody>';
+      echo '<h2>Existing Views</h2><p class="description">Versions are grouped beneath each stable View. The default list shows the current draft, latest published version, and published versions used by subscribers. Older history is available on demand.</p><table class="widefat striped cfm-views-manager"><thead><tr><th>View</th><th>Operational versions</th><th>Actions</th></tr></thead><tbody>';
     foreach ($views as $view) {
-      $draft = $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . $wpdb->prefix . 'cfm_view_versions WHERE view_id = %d AND status IN (\'draft\', \'review\') ORDER BY version_number DESC LIMIT 1', (int) $view->id));
-      $view_link_version = $draft ? (int) $draft->id : (int) ($view->current_version_id ?: 0);
+      $versions = $wpdb->get_results($wpdb->prepare('SELECT * FROM ' . $wpdb->prefix . 'cfm_view_versions WHERE view_id = %d ORDER BY version_number DESC, id DESC', (int) $view->id));
+      $draft = null;
+      $latest_published = null;
+      $subscribers_by_version = [];
+      $subscriber_labels_by_version = [];
+      foreach ($versions as $candidate) {
+        if (!$draft && in_array((string) $candidate->status, ['draft', 'review'], true)) {
+          $draft = $candidate;
+        }
+        if (!$latest_published && (string) $candidate->status === 'published') {
+          $latest_published = $candidate;
+        }
+      }
+      if ($versions) {
+        $version_ids = array_map(static fn($candidate): int => (int) $candidate->id, $versions);
+        $placeholders = implode(',', array_fill(0, count($version_ids), '%d'));
+        $bindings = $wpdb->get_results($wpdb->prepare('SELECT durable_view_version_id, label, field_key FROM ' . $wpdb->prefix . 'tnet_jobs_form_fields WHERE durable_view_version_id IN (' . $placeholders . ') AND is_active = 1', ...$version_ids));
+        foreach ($bindings as $binding) {
+          $binding_version_id = (int) $binding->durable_view_version_id;
+          $subscribers_by_version[$binding_version_id] = ($subscribers_by_version[$binding_version_id] ?? 0) + 1;
+          $subscriber_labels_by_version[$binding_version_id][] = 'Job Center — ' . (string) $binding->label;
+        }
+      }
+      $visible_ids = [];
+      foreach ([$draft, $latest_published] as $meaningful) {
+        if ($meaningful) {
+          $visible_ids[(int) $meaningful->id] = true;
+        }
+      }
+      foreach ($subscribers_by_version as $subscribed_version_id => $count) {
+        $visible_ids[$subscribed_version_id] = true;
+      }
+      $view_link_version = $draft ? (int) $draft->id : (int) ($latest_published->id ?? 0);
       $current_version = $view->current_version_id ? CFM_Views_Repository::get_version((int) $view->current_version_id) : null;
       $version_status = $draft ? (string) $draft->status : (string) ($current_version->status ?? 'none');
-      echo '<tr><td>' . ($view_link_version ? '<a href="' . esc_url(admin_url('admin.php?page=cfm-views&version_id=' . $view_link_version . ($draft ? '' : '&preview=1'))) . '"><strong>' . esc_html($view->name) . '</strong></a>' : '<strong>' . esc_html($view->name) . '</strong>') . '</td><td>' . esc_html($view->status) . '</td><td>' . esc_html((string) ($view->current_version_id ?: 'None')) . ' (' . esc_html($version_status) . ')</td><td>';
+      $total_subscribers = array_sum($subscribers_by_version);
+      $summary = $draft ? 'Draft v' . (int) $draft->version_number : ($latest_published ? 'Published v' . (int) $latest_published->version_number : 'No active versions');
+      if ($latest_published && $draft) {
+        $summary .= ' · Latest published v' . (int) $latest_published->version_number;
+      }
+      $summary .= $total_subscribers ? ' · ' . $total_subscribers . ' subscriber' . ($total_subscribers === 1 ? '' : 's') . ' across ' . count($subscribers_by_version) . ' version' . (count($subscribers_by_version) === 1 ? '' : 's') : ' · No subscribers';
+      echo '<tr class="cfm-views-manager-view" data-view-id="' . esc_attr((string) $view->id) . '"><td><strong>' . ($view_link_version ? '<a href="' . esc_url(admin_url('admin.php?page=cfm-views&version_id=' . $view_link_version . ($draft ? '' : '&preview=1'))) . '">' . esc_html($view->name) . '</a>' : esc_html($view->name)) . '</strong><p class="description">' . esc_html($summary) . '</p></td><td><div class="cfm-views-manager-versions">';
+      foreach ($versions as $version) {
+        $version_is_visible = isset($visible_ids[(int) $version->id]);
+        $version_is_subscribed = isset($subscribers_by_version[(int) $version->id]);
+        $version_label = ((string) $version->status === 'draft' ? 'Draft' : ucfirst((string) $version->status)) . ' v' . (int) $version->version_number;
+        if ($version === $latest_published) {
+          $version_label .= ' · Latest published';
+        }
+        $subscriber_count = (int) ($subscribers_by_version[(int) $version->id] ?? 0);
+        if ($subscriber_count) {
+          $version_label .= ' · ' . $subscriber_count . ' subscriber' . ($subscriber_count === 1 ? '' : 's');
+        }
+        $version_link = admin_url('admin.php?page=cfm-views&version_id=' . (int) $version->id . ((string) $version->status === 'published' ? '&preview=1' : ''));
+        $subscriber_detail = $subscriber_labels_by_version[(int) $version->id] ?? [];
+        echo '<div class="cfm-views-manager-version" data-version-id="' . esc_attr((string) $version->id) . '" data-subscribed="' . ($version_is_subscribed ? 'true' : 'false') . '"' . ($version_is_visible ? '' : ' data-cfm-views-history="true" style="display:none"') . '><a href="' . esc_url($version_link) . '">' . esc_html($version_label) . '</a>' . ($subscriber_detail ? ' <span class="description">(' . esc_html(implode(', ', $subscriber_detail)) . ')</span>' : '') . '</div>';
+      }
+      if (count($versions) > count($visible_ids)) {
+        echo '<button type="button" class="button-link cfm-views-see-all" aria-expanded="false">See all versions</button>';
+      }
+      echo '</div></td><td>';
       if ($draft) {
         echo '<form method="post" style="display:inline;margin-left:4px" data-cfm-views-manager-delete-draft onsubmit="return window.confirm(\'Delete this draft? The published version will remain unchanged.\');">';
         wp_nonce_field('cfm_views_delete_draft', 'cfm_views_nonce');
@@ -157,6 +213,10 @@ class CFM_Views_Admin
       }
     } elseif (!empty($_GET['version_id'])) {
       echo '<div class="notice notice-error"><p>That View version is no longer available. Return to <a href="' . esc_url(admin_url('admin.php?page=cfm-views')) . '">View Manager</a>.</p></div>';
+    }
+    if (!$version_id) {
+      echo '<style id="cfm-views-manager-styles">.cfm-views-manager .cfm-views-manager-view>td{vertical-align:top}.cfm-views-manager-versions{display:grid;gap:5px}.cfm-views-manager-version{padding:5px 8px;border-left:3px solid #dcdcde;background:#f6f7f7}.cfm-views-manager-version[data-subscribed="true"]{border-left-color:#2271b1;background:#f0f6fc}.cfm-views-manager-version .description{font-size:12px}.cfm-views-see-all{margin-top:6px}</style>';
+      echo '<script id="cfm-views-manager-script">document.querySelectorAll(".cfm-views-see-all").forEach(function(button){button.addEventListener("click",function(){var expanded=button.getAttribute("aria-expanded")==="true";button.closest(".cfm-views-manager-versions").querySelectorAll("[data-cfm-views-history]").forEach(function(row){row.style.display=expanded?"none":"block";});button.setAttribute("aria-expanded",expanded?"false":"true");button.textContent=expanded?"See all versions":"Hide older versions";});});</script>';
     }
     echo '</div>';
   }
