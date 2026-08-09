@@ -422,6 +422,47 @@ class CFM_Views_Repository
     return true;
   }
 
+  public static function empty_view_delete_check($view_id): array
+  {
+    global $wpdb;
+    $view_id = absint($view_id);
+    if (!$view_id || !self::get_view($view_id)) {
+      return ['eligible' => false, 'reasons' => ['View identity was not found.']];
+    }
+    $reasons = [];
+    $version_count = (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $wpdb->prefix . 'cfm_view_versions WHERE view_id = %d', $view_id));
+    if ($version_count) { $reasons[] = 'historical version exists'; }
+    $entry_count = (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $wpdb->prefix . 'cfm_view_entries e INNER JOIN ' . $wpdb->prefix . 'cfm_view_versions v ON v.id = e.version_id WHERE v.view_id = %d', $view_id));
+    if ($entry_count) { $reasons[] = 'stored composition exists'; }
+    $group_count = (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $wpdb->prefix . 'cfm_view_groups g INNER JOIN ' . $wpdb->prefix . 'cfm_view_versions v ON v.id = g.version_id WHERE v.view_id = %d', $view_id));
+    if ($group_count) { $reasons[] = 'stored View groups exist'; }
+    $metadata_count = (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $wpdb->prefix . 'cfm_view_metadata WHERE target_type = %s AND target_id = %d', 'view', $view_id));
+    if ($metadata_count) { $reasons[] = 'View metadata exists'; }
+    $audit_count = (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $wpdb->prefix . 'cfm_view_audit WHERE target_type = %s AND target_id = %d', 'view', $view_id));
+    if ($audit_count) { $reasons[] = 'View audit history exists'; }
+    $bindings_table = $wpdb->prefix . 'tnet_jobs_form_fields';
+    if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $bindings_table)) === $bindings_table) {
+      $binding_count = (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $bindings_table . ' WHERE durable_view_id = %d OR durable_view_version_id IN (SELECT id FROM ' . $wpdb->prefix . 'cfm_view_versions WHERE view_id = %d)', $view_id, $view_id));
+      if ($binding_count) { $reasons[] = 'consumer binding exists'; }
+    }
+    return ['eligible' => !$reasons, 'reasons' => $reasons];
+  }
+
+  public static function delete_empty_view($view_id)
+  {
+    global $wpdb;
+    $view = self::get_view($view_id);
+    $check = self::empty_view_delete_check($view_id);
+    if (!$view || !$check['eligible']) {
+      return new WP_Error('cfm_views_delete_not_safe', 'This View is not an empty shell that can be deleted.', ['reasons' => $check['reasons']]);
+    }
+    $deleted = $wpdb->delete($wpdb->prefix . 'cfm_views', ['id' => (int) $view_id], ['%d']);
+    if ($deleted !== 1) {
+      return new WP_Error('cfm_views_delete_failed', 'The empty View could not be deleted.', ['last_error' => $wpdb->last_error]);
+    }
+    return true;
+  }
+
   public static function submit_for_review($version_id)
   {
     return self::transition_version($version_id, ['draft'], 'review');

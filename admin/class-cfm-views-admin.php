@@ -65,6 +65,10 @@ class CFM_Views_Admin
       $view_id = $version ? (int) $version->view_id : 0;
       CFM_Views_Repository::delete_draft($version_id);
       $redirect_url = admin_url('admin.php?page=cfm-views' . ($view_id ? '&deleted_draft=1' : ''));
+    } elseif ($action === 'delete_view') {
+      $view_id = absint($_POST['view_id'] ?? 0);
+      CFM_Views_Repository::delete_empty_view($view_id);
+      $redirect_url = admin_url('admin.php?page=cfm-views&deleted_view=' . $view_id);
     } elseif ($action === 'move_entry') {
       $version_id = absint($_POST['version_id'] ?? 0);
       CFM_Views_Repository::move_entry($version_id, absint($_POST['entry_id'] ?? 0), sanitize_key(wp_unslash($_POST['direction'] ?? '')));
@@ -174,7 +178,14 @@ class CFM_Views_Admin
       echo '</div></td></tr>';
     }
       echo '</tbody></table><div class="cfm-views-unused"><button type="button" class="button-link" data-cfm-views-show-unused>Unused Views (' . count($unused_views) . ')</button><div data-cfm-views-unused-list hidden>';
-      foreach ($unused_views as $unused) { echo '<div class="cfm-views-unused-row"><strong>' . esc_html($unused->name) . '</strong><span>No drafts, published versions, or subscribers</span></div>'; }
+      foreach ($unused_views as $unused) {
+        $delete_check = CFM_Views_Repository::empty_view_delete_check((int) $unused->id);
+        echo '<div class="cfm-views-unused-row"><div><strong>' . esc_html($unused->name) . '</strong><span class="cfm-views-unused-id">View ID ' . esc_html((string) $unused->id) . '</span></div><span>' . ($delete_check['eligible'] ? 'No versions, composition, metadata, audit history, or bindings' : 'Cannot delete — ' . esc_html(implode('; ', $delete_check['reasons']))) . '</span>';
+        if ($delete_check['eligible']) {
+          echo '<form method="post" class="cfm-views-inline-form" onsubmit="return window.confirm(' . esc_attr(wp_json_encode('Delete “' . $unused->name . '” (View ' . (int) $unused->id . ')? This empty View identity will be permanently removed.')) . ');">' . wp_nonce_field('cfm_views_delete_view', 'cfm_views_nonce', true, false) . '<input type="hidden" name="cfm_views_action" value="delete_view"><input type="hidden" name="view_id" value="' . esc_attr((string) $unused->id) . '"><button class="button button-small button-link-delete">Delete View</button></form>';
+        }
+        echo '</div>';
+      }
       echo '</div></div>';
     }
     if ($version_id) {
