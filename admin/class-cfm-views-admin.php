@@ -112,11 +112,11 @@ class CFM_Views_Admin
       $is_preview_context = !empty($_GET['preview']) || ($editing_version && in_array((string) $editing_version->status, ['review', 'published'], true));
       echo '<div class="cfm-views-editing-context"><div><span class="description">' . ($is_preview_context ? 'Previewing View version' : 'Editing current View') . '</span><h2>' . esc_html($editing_view ? $editing_view->name : 'View') . '</h2><p>Version ' . esc_html((string) ($editing_version->version_number ?? '')) . ' · Status: ' . esc_html((string) ($editing_version->status ?? '')) . '</p></div><a class="button" href="' . esc_url(admin_url('admin.php?page=cfm-views')) . '">Back to Views</a></div>';
     } else {
-      echo '<h2>Create View</h2><form method="post">';
+      echo '<div class="cfm-views-manager-heading"><div><h2>Operational Views</h2><p class="description">Manage active drafts, published versions, and subscriber bindings.</p></div><button type="button" class="button button-primary" data-cfm-views-show-create>Create View</button></div><form method="post" class="cfm-views-create-form" data-cfm-views-create hidden>';
       wp_nonce_field('cfm_views_create_view', 'cfm_views_nonce');
-      echo '<input type="hidden" name="cfm_views_action" value="create_view">';
-      echo '<p><label>Name <input name="name" type="text" required></label> <label>Description <textarea name="description"></textarea></label> <button class="button button-primary">Create draft</button></p></form>';
-      echo '<h2>Existing Views</h2><p class="description">Versions are grouped beneath each stable View. The default list shows the current draft, latest published version, and published versions used by subscribers. Older history is available on demand.</p><table class="widefat striped cfm-views-manager"><thead><tr><th>View</th><th>Operational versions</th><th>Actions</th></tr></thead><tbody>';
+      echo '<input type="hidden" name="cfm_views_action" value="create_view"><p><label>Name <input name="name" type="text" required></label> <label>Description <textarea name="description"></textarea></label> <button class="button button-primary">Create draft</button> <button type="button" class="button" data-cfm-views-hide-create>Cancel</button></p></form>';
+      echo '<table class="widefat striped cfm-views-manager"><thead><tr><th>Name</th><th>Release</th><th>Version</th><th>Terms</th><th>Subscribers</th><th>Actions</th></tr></thead><tbody>';
+    $unused_views = [];
     foreach ($views as $view) {
       $versions = $wpdb->get_results($wpdb->prepare('SELECT * FROM ' . $wpdb->prefix . 'cfm_view_versions WHERE view_id = %d ORDER BY version_number DESC, id DESC', (int) $view->id));
       $draft = null;
@@ -150,57 +150,32 @@ class CFM_Views_Admin
       foreach ($subscribers_by_version as $subscribed_version_id => $count) {
         $visible_ids[$subscribed_version_id] = true;
       }
-      $view_link_version = $draft ? (int) $draft->id : (int) ($latest_published->id ?? 0);
-      $current_version = $view->current_version_id ? CFM_Views_Repository::get_version((int) $view->current_version_id) : null;
-      $version_status = $draft ? (string) $draft->status : (string) ($current_version->status ?? 'none');
-      $total_subscribers = array_sum($subscribers_by_version);
-      $summary = $draft ? 'Draft v' . (int) $draft->version_number : ($latest_published ? 'Published v' . (int) $latest_published->version_number : 'No active versions');
-      if ($latest_published && $draft) {
-        $summary .= ' · Latest published v' . (int) $latest_published->version_number;
+      if (!$visible_ids) {
+        $unused_views[] = $view;
+        continue;
       }
-      $summary .= $total_subscribers ? ' · ' . $total_subscribers . ' subscriber' . ($total_subscribers === 1 ? '' : 's') . ' across ' . count($subscribers_by_version) . ' version' . (count($subscribers_by_version) === 1 ? '' : 's') : ' · No subscribers';
-      echo '<tr class="cfm-views-manager-view" data-view-id="' . esc_attr((string) $view->id) . '"><td><strong>' . ($view_link_version ? '<a href="' . esc_url(admin_url('admin.php?page=cfm-views&version_id=' . $view_link_version . ($draft ? '' : '&preview=1'))) . '">' . esc_html($view->name) . '</a>' : esc_html($view->name)) . '</strong><p class="description">' . esc_html($summary) . '</p></td><td><div class="cfm-views-manager-versions">';
+      $view_link_version = $draft ? (int) $draft->id : (int) ($latest_published->id ?? 0);
+      echo '<tr class="cfm-views-manager-view" data-view-id="' . esc_attr((string) $view->id) . '"><td class="cfm-views-manager-name"><strong>' . ($view_link_version ? '<a href="' . esc_url(admin_url('admin.php?page=cfm-views&version_id=' . $view_link_version . ($draft ? '' : '&preview=1'))) . '">' . esc_html($view->name) . '</a>' : esc_html($view->name)) . '</strong></td><td colspan="5"><div class="cfm-views-manager-group"><div class="cfm-views-manager-summary">' . esc_html(count($versions) . ' version' . (count($versions) === 1 ? '' : 's') . ' · ' . array_sum($subscribers_by_version) . ' subscriber' . (array_sum($subscribers_by_version) === 1 ? '' : 's')) . '</div><table class="cfm-views-version-table"><tbody>';
       foreach ($versions as $version) {
         $version_is_visible = isset($visible_ids[(int) $version->id]);
-        $version_is_subscribed = isset($subscribers_by_version[(int) $version->id]);
-        $version_label = ((string) $version->status === 'draft' ? 'Draft' : ucfirst((string) $version->status)) . ' v' . (int) $version->version_number;
-        if ($version === $latest_published) {
-          $version_label .= ' · Latest published';
-        }
+        $version_is_draft = in_array((string) $version->status, ['draft', 'review'], true);
         $subscriber_count = (int) ($subscribers_by_version[(int) $version->id] ?? 0);
-        if ($subscriber_count) {
-          $version_label .= ' · ' . $subscriber_count . ' subscriber' . ($subscriber_count === 1 ? '' : 's');
-        }
         $version_link = admin_url('admin.php?page=cfm-views&version_id=' . (int) $version->id . ((string) $version->status === 'published' ? '&preview=1' : ''));
         $subscriber_detail = $subscriber_labels_by_version[(int) $version->id] ?? [];
-        echo '<div class="cfm-views-manager-version" data-version-id="' . esc_attr((string) $version->id) . '" data-subscribed="' . ($version_is_subscribed ? 'true' : 'false') . '"' . ($version_is_visible ? '' : ' data-cfm-views-history="true" style="display:none"') . '><a href="' . esc_url($version_link) . '">' . esc_html($version_label) . '</a>' . ($subscriber_detail ? ' <span class="description">(' . esc_html(implode(', ', $subscriber_detail)) . ')</span>' : '') . '</div>';
+        $term_count = (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . $wpdb->prefix . 'cfm_view_entries WHERE version_id = %d', (int) $version->id));
+        $release = $version_is_draft ? 'Draft' : 'Published' . ($version === $latest_published ? ' · Latest' : '');
+        $actions = $version_is_draft ? '<a class="button button-small" href="' . esc_url($version_link) . '">Edit</a> <a class="button button-small" href="' . esc_url($version_link . '&preview=1') . '">Preview</a>' : '<a class="button button-small" href="' . esc_url($version_link) . '">Preview</a>';
+        if ($version_is_draft) { $actions .= ' <form method="post" class="cfm-views-inline-form">' . wp_nonce_field('cfm_views_publish', 'cfm_views_nonce', true, false) . '<input type="hidden" name="cfm_views_action" value="publish"><input type="hidden" name="version_id" value="' . esc_attr((string) $version->id) . '"><button class="button button-small button-primary">Publish</button></form>'; }
+        if (!$version_is_draft && $version === $latest_published && (string) $view->status === 'published') { $actions .= ' <form method="post" class="cfm-views-inline-form">' . wp_nonce_field('cfm_views_retire', 'cfm_views_nonce', true, false) . '<input type="hidden" name="cfm_views_action" value="retire"><input type="hidden" name="view_id" value="' . esc_attr((string) $view->id) . '"><button class="button button-small">Retire</button></form>'; }
+        echo '<tr class="cfm-views-manager-version" data-version-id="' . esc_attr((string) $version->id) . '" data-subscribed="' . ($subscriber_count ? 'true' : 'false') . '"' . ($version_is_visible ? '' : ' data-cfm-views-history="true" style="display:none"') . '><td>' . ($version_is_draft ? '<em>Draft</em>' : '<strong>Version ' . (int) $version->version_number . '</strong>') . '</td><td>' . esc_html($release) . '</td><td>' . esc_html((string) $version->version_number) . '</td><td>' . esc_html((string) $term_count) . '</td><td>' . ($subscriber_detail ? esc_html(implode(', ', $subscriber_detail)) : ($subscriber_count ? esc_html($subscriber_count . ' subscriber' . ($subscriber_count === 1 ? '' : 's')) : '—')) . '</td><td class="cfm-views-manager-actions">' . $actions . '</td></tr>';
       }
-      if (count($versions) > count($visible_ids)) {
-        echo '<button type="button" class="button-link cfm-views-see-all" aria-expanded="false">See all versions</button>';
-      }
-      echo '</div></td><td>';
-      if ($draft) {
-        echo '<form method="post" style="display:inline;margin-left:4px" data-cfm-views-manager-delete-draft onsubmit="return window.confirm(\'Delete this draft? The published version will remain unchanged.\');">';
-        wp_nonce_field('cfm_views_delete_draft', 'cfm_views_nonce');
-        echo '<input type="hidden" name="cfm_views_action" value="delete_draft"><input type="hidden" name="version_id" value="' . esc_attr((string) $draft->id) . '"><button class="button-link-delete">Delete draft</button></form> ';
-        echo '<a class="button" href="' . esc_url(admin_url('admin.php?page=cfm-views&version_id=' . (int) $draft->id)) . '">Edit draft</a> ';
-        echo '<form method="post" style="display:inline">';
-        wp_nonce_field('cfm_views_publish', 'cfm_views_nonce');
-        echo '<input type="hidden" name="cfm_views_action" value="publish"><input type="hidden" name="version_id" value="' . esc_attr((string) $draft->id) . '"><button class="button">Validate / publish draft</button></form>';
-      }
-      if ((string) $view->status === 'published') {
-        echo '<form method="post" style="display:inline;margin-left:4px">';
-        wp_nonce_field('cfm_views_retire', 'cfm_views_nonce');
-        echo '<input type="hidden" name="cfm_views_action" value="retire"><input type="hidden" name="view_id" value="' . esc_attr((string) $view->id) . '"><button class="button">Retire</button></form>';
-      } elseif ((string) $view->status === 'retired' && $view->current_version_id) {
-        echo '<form method="post" style="display:inline;margin-left:4px">';
-        wp_nonce_field('cfm_views_restore', 'cfm_views_nonce');
-        echo '<input type="hidden" name="cfm_views_action" value="restore"><input type="hidden" name="view_id" value="' . esc_attr((string) $view->id) . '"><input type="hidden" name="version_id" value="' . esc_attr((string) $view->current_version_id) . '"><button class="button">Restore</button></form>';
-      }
-      echo '</td></tr>';
-    }
-      if (!$views) { echo '<tr><td colspan="4">No Views exist yet.</td></tr>'; }
       echo '</tbody></table>';
+      if (count($versions) > count($visible_ids)) { echo '<button type="button" class="button-link cfm-views-see-all" aria-expanded="false">See all versions</button>'; }
+      echo '</div></td></tr>';
+    }
+      echo '</tbody></table><div class="cfm-views-unused"><button type="button" class="button-link" data-cfm-views-show-unused>Unused Views (' . count($unused_views) . ')</button><div data-cfm-views-unused-list hidden>';
+      foreach ($unused_views as $unused) { echo '<div class="cfm-views-unused-row"><strong>' . esc_html($unused->name) . '</strong><span>No drafts, published versions, or subscribers</span></div>'; }
+      echo '</div></div>';
     }
     if ($version_id) {
       $requested_version = CFM_Views_Repository::get_version($version_id);
@@ -215,8 +190,8 @@ class CFM_Views_Admin
       echo '<div class="notice notice-error"><p>That View version is no longer available. Return to <a href="' . esc_url(admin_url('admin.php?page=cfm-views')) . '">View Manager</a>.</p></div>';
     }
     if (!$version_id) {
-      echo '<style id="cfm-views-manager-styles">.cfm-views-manager .cfm-views-manager-view>td{vertical-align:top}.cfm-views-manager-versions{display:grid;gap:5px}.cfm-views-manager-version{padding:5px 8px;border-left:3px solid #dcdcde;background:#f6f7f7}.cfm-views-manager-version[data-subscribed="true"]{border-left-color:#2271b1;background:#f0f6fc}.cfm-views-manager-version .description{font-size:12px}.cfm-views-see-all{margin-top:6px}</style>';
-      echo '<script id="cfm-views-manager-script">document.querySelectorAll(".cfm-views-see-all").forEach(function(button){button.addEventListener("click",function(){var expanded=button.getAttribute("aria-expanded")==="true";button.closest(".cfm-views-manager-versions").querySelectorAll("[data-cfm-views-history]").forEach(function(row){row.style.display=expanded?"none":"block";});button.setAttribute("aria-expanded",expanded?"false":"true");button.textContent=expanded?"See all versions":"Hide older versions";});});</script>';
+      echo '<style id="cfm-views-manager-styles">.cfm-views-manager-heading{display:flex;justify-content:space-between;align-items:flex-start;margin:18px 0 10px}.cfm-views-manager-heading h2{margin:0 0 3px}.cfm-views-manager{table-layout:auto}.cfm-views-manager>thead th{white-space:nowrap}.cfm-views-manager-view>td{padding:0;border-top:1px solid #dcdcde}.cfm-views-manager-name{width:175px;padding:18px 12px!important;vertical-align:top!important}.cfm-views-manager-group{padding:0 0 7px}.cfm-views-manager-summary{font-size:12px;color:#646970;padding:10px 10px 6px}.cfm-views-version-table{width:100%;border-collapse:collapse}.cfm-views-version-table td{padding:8px 10px;border-top:1px solid #f0f0f1;vertical-align:middle;white-space:nowrap}.cfm-views-version-table td:nth-child(5){white-space:normal;min-width:150px}.cfm-views-manager-version[data-subscribed="true"]{background:#f0f6fc}.cfm-views-manager-actions{min-width:190px}.cfm-views-inline-form{display:inline;margin:0}.cfm-views-see-all{margin:7px 10px 0}.cfm-views-unused{margin-top:12px;border:1px solid #dcdcde;background:#fff;padding:12px}.cfm-views-unused-row{display:flex;justify-content:space-between;border-top:1px solid #f0f0f1;padding:8px 0;color:#50575e}.cfm-views-unused-row span{color:#646970}.cfm-views-create-form{background:#fff;border:1px solid #dcdcde;padding:12px;margin:0 0 14px}.cfm-views-create-form label{margin-right:12px}</style>';
+      echo '<script id="cfm-views-manager-script">(function(){document.querySelectorAll(".cfm-views-see-all").forEach(function(button){button.addEventListener("click",function(){var expanded=button.getAttribute("aria-expanded")==="true";button.closest(".cfm-views-manager-group").querySelectorAll("[data-cfm-views-history]").forEach(function(row){row.style.display=expanded?"none":"table-row";});button.setAttribute("aria-expanded",expanded?"false":"true");button.textContent=expanded?"See all versions":"Hide older versions";});});document.querySelectorAll("[data-cfm-views-show-unused]").forEach(function(button){button.addEventListener("click",function(){var list=button.nextElementSibling,show=list.hasAttribute("hidden");if(show){list.removeAttribute("hidden");}else{list.setAttribute("hidden","hidden");}button.textContent=(show?"Hide":"Show")+" unused Views ("+list.children.length+")";});});var show=document.querySelector("[data-cfm-views-show-create]"),form=document.querySelector("[data-cfm-views-create]"),hide=document.querySelector("[data-cfm-views-hide-create]");if(show&&form){show.addEventListener("click",function(){form.removeAttribute("hidden");show.setAttribute("hidden","hidden");});}if(hide&&form){hide.addEventListener("click",function(){form.setAttribute("hidden","hidden");if(show){show.removeAttribute("hidden");}});}})();</script>';
     }
     echo '</div>';
   }
