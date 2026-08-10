@@ -351,6 +351,11 @@ class CFM_Views_Admin
       }
       echo '<article class="cfm-views-group-card" role="treeitem" aria-level="1" data-cfm-views-group data-group-id="' . esc_attr((string) $group_id) . '" draggable="' . ($group ? 'true' : 'false') . '"><header><div>' . ($group ? '<span class="cfm-views-drag-handle" title="Drag presentation container" aria-hidden="true">⠿</span>' : '') . '<h5>' . esc_html($group ? $group->label : 'Current View') . '</h5>' . ($group && $group->description ? '<p>' . esc_html($group->description) . '</p>' : '') . '</div>' . ($group ? '<button type="button" class="button-link cfm-views-container-toggle" data-cfm-views-container-toggle aria-expanded="false" aria-label="Expand or collapse presentation container">+</button>' : '') . '<span class="description">' . esc_html((string) count($group_entries)) . ' entr' . (count($group_entries) === 1 ? 'y' : 'ies') . '</span>' . ($group ? '<form method="post" class="cfm-views-reorder-form" data-cfm-views-reorder-group><input type="hidden" name="cfm_views_action" value="reorder_group"><input type="hidden" name="version_id" value="' . esc_attr((string) $version_id) . '"><input type="hidden" name="group_id" value="' . esc_attr((string) $group_id) . '"><input type="hidden" name="target_index" value="0" data-cfm-views-target-index>' . wp_nonce_field('cfm_views_reorder_group', 'cfm_views_nonce', true, false) . '</form>' : '') . '</header><div class="cfm-views-group-entries" role="group"' . ($group ? ' hidden' : '') . '>';
       if (!$group_entries && $group) { echo '<p class="cfm-views-empty">No entries here yet.</p>'; }
+      if (!$read_only) {
+        self::render_current_tree_entries($group_entries, $terms_by_framework);
+        echo '</div></article>';
+        continue;
+      }
       if (!$group && $group_entries) {
         if ($read_only) {
           foreach ($group_entries as $entry) { echo '<div class="cfm-views-current-term-row cfm-views-read-only-item"><span class="cfm-views-current-label"><strong>' . esc_html((string) $entry->term_uuid) . '</strong></span></div>'; }
