@@ -139,6 +139,28 @@ class CFM_Views_Repository
     return $inserted === false ? new WP_Error('cfm_views_insert_failed', 'Failed to create View group.') : $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . $wpdb->prefix . 'cfm_view_groups WHERE id = %d', $wpdb->insert_id));
   }
 
+  public static function remove_group($version_id, $group_id)
+  {
+    global $wpdb;
+    $version = self::get_version($version_id);
+    if (!$version || (string) $version->status !== 'draft') {
+      return new WP_Error('cfm_views_draft_required', 'Groups can only be removed from a draft version.');
+    }
+    $group_id = absint($group_id);
+    if (!$group_id) { return new WP_Error('cfm_views_group_required', 'A presentation group is required.'); }
+    $wpdb->query('START TRANSACTION');
+    if (false === $wpdb->update($wpdb->prefix . 'cfm_view_entries', ['group_id' => null], ['version_id' => (int) $version->id, 'group_id' => $group_id], ['%d'], ['%d', '%d'])) {
+      $wpdb->query('ROLLBACK');
+      return new WP_Error('cfm_views_group_remove_failed', 'Failed to ungroup draft entries.');
+    }
+    if (false === $wpdb->delete($wpdb->prefix . 'cfm_view_groups', ['id' => $group_id, 'version_id' => (int) $version->id], ['%d', '%d'])) {
+      $wpdb->query('ROLLBACK');
+      return new WP_Error('cfm_views_group_remove_failed', 'Failed to remove the draft presentation group.');
+    }
+    $wpdb->query('COMMIT');
+    return true;
+  }
+
   public static function save_entry($version_id, array $data)
   {
     global $wpdb;
