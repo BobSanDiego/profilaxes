@@ -1,1966 +1,1966 @@
 {
-    "export_type": "profilaxes_profile_taxonomy",
-    "export_schema_version": 2,
-    "exported_at": "2026-09-08 13:00:52",
-    "preservation_ticket": "CTJ006",
-    "preservation_note": "Teachers.Net approved compact display labels applied to Core Terms short labels.",
-    "site_url": "https://teachers-net.ddev.site",
-    "plugin": {
-        "name": "Core Terms",
-        "version": "0.6.1"
-    },
-    "framework": {
-        "id": 1,
-        "uuid": "7b8c0c1f-bdec-4cfc-b215-26d41ec32a3d",
-        "name": "Teachers.Net",
-        "slug": "teachers-net",
-        "description": "Minimal local Core Terms framework for Teachers.Net Jobs discovery.",
-        "active_version_id": 1
-    },
-    "active_version": {
-        "id": 1,
-        "version_number": 1,
-        "status": "active",
-        "compiled_at": "2026-09-08 19:59:32",
-        "created_by": null,
-        "created_at": "2026-09-08 19:59:32"
-    },
-    "source_of_truth": {
-        "canonical_data": "framework_versions.tree_json",
-        "runtime_tables": [
-            "cfm_terms_compiled",
-            "cfm_term_closure",
-            "cfm_term_relationships"
-        ],
-        "runtime_tables_rebuildable": true,
-        "assignment_storage": "cfm_user_terms stores user assignments by stable term UUID",
-        "active_runtime_tree": "wp_cfm_framework_versions.tree_json for framework 1 active_version_id 1",
-        "runtime_authority_file": "/home/bobreap/projects/teachers-net-live/.ddev/runtime-authority.json"
-    },
-    "tree": {
-        "label": "Teachers.Net",
-        "slug": "teachers-net",
-        "kind": "framework",
+  "export_type": "profilaxes_profile_taxonomy",
+  "export_schema_version": 2,
+  "exported_at": "2026-09-08 14:08:34",
+  "preservation_ticket": "COMMUNITY3-RAIL-PARENT-LISTS001",
+  "preservation_note": "Approved compact display labels and canonical C3 Rail Parent List data applied to the local Core Terms runtime.",
+  "site_url": "https://teachers-net.ddev.site",
+  "plugin": {
+    "name": "Core Terms",
+    "version": "0.6.1"
+  },
+  "framework": {
+    "id": 1,
+    "uuid": "7b8c0c1f-bdec-4cfc-b215-26d41ec32a3d",
+    "name": "Teachers.Net",
+    "slug": "teachers-net",
+    "description": "Minimal local Core Terms framework for Teachers.Net Jobs discovery.",
+    "active_version_id": 1
+  },
+  "active_version": {
+    "id": 1,
+    "version_number": 1,
+    "status": "active",
+    "compiled_at": "2026-09-08 14:08:34",
+    "created_by": null,
+    "created_at": "2026-09-08 19:59:32"
+  },
+  "source_of_truth": {
+    "canonical_data": "framework_versions.tree_json",
+    "runtime_tables": [
+      "cfm_terms_compiled",
+      "cfm_term_closure",
+      "cfm_term_relationships"
+    ],
+    "runtime_tables_rebuildable": true,
+    "assignment_storage": "cfm_user_terms stores user assignments by stable term UUID",
+    "active_runtime_tree": "wp_cfm_framework_versions.tree_json for framework 1 active_version_id 1",
+    "runtime_authority_file": "/home/bobreap/projects/teachers-net-live/.ddev/runtime-authority.json"
+  },
+  "tree": {
+    "label": "Teachers.Net",
+    "slug": "teachers-net",
+    "kind": "framework",
+    "children": [
+      {
+        "uuid": "2c09a868-532a-4e67-a99d-4a8aa44c084c",
+        "label": "Grade Level",
+        "slug": "grade-level",
+        "kind": "term",
         "children": [
-            {
-                "uuid": "2c09a868-532a-4e67-a99d-4a8aa44c084c",
-                "label": "Grade Level",
-                "slug": "grade-level",
+          {
+            "uuid": "c39cfa9b-8f5a-4017-b6dc-eb75d1aa333d",
+            "label": "Early Childhood",
+            "slug": "early-childhood",
+            "short_label": "EC",
+            "kind": "term",
+            "description": "Early Childhood Teachers",
+            "children": [
+              {
+                "uuid": "c857bef6-d5d1-448c-8cdc-a918940fdf59",
+                "label": "Early Learners",
+                "slug": "early-learners",
+                "short_label": "Early Learners",
                 "kind": "term",
-                "children": [
-                    {
-                        "uuid": "c39cfa9b-8f5a-4017-b6dc-eb75d1aa333d",
-                        "label": "Early Childhood",
-                        "slug": "early-childhood",
-                        "short_label": "EC",
-                        "kind": "term",
-                        "description": "Early Childhood Teachers",
-                        "children": [
-                            {
-                                "uuid": "c857bef6-d5d1-448c-8cdc-a918940fdf59",
-                                "label": "Early Learners",
-                                "slug": "early-learners",
-                                "short_label": "Early Learners",
-                                "kind": "term",
-                                "description": "Early Learning Teachers",
-                                "children": []
-                            },
-                            {
-                                "uuid": "55de542b-860e-4efb-be29-d6c397565f15",
-                                "label": "Pre-K",
-                                "slug": "pre-k",
-                                "kind": "term",
-                                "children": [],
-                                "short_label": "Pre-K",
-                                "description": "Pre-K Teachers"
-                            },
-                            {
-                                "uuid": "a022460c-8979-4e52-b3a8-fbab727554bd",
-                                "label": "Transitional Kindergarten",
-                                "slug": "transitional-kindergarten",
-                                "short_label": "TK",
-                                "kind": "term",
-                                "description": "Transitional Kindergarten Teachers",
-                                "children": []
-                            },
-                            {
-                                "uuid": "d6925081-bbe4-4225-ba57-745292e48ddf",
-                                "label": "Kindergarten",
-                                "slug": "kindergarten",
-                                "short_label": "K",
-                                "kind": "term",
-                                "description": "Kindergarten Teachers",
-                                "children": []
-                            }
-                        ]
-                    },
-                    {
-                        "uuid": "2563bfe4-1ba6-4c22-b36e-7779ca6ecbc9",
-                        "label": "Elementary",
-                        "slug": "elementary",
-                        "short_label": "Elem",
-                        "kind": "term",
-                        "description": "Elementary Teachers",
-                        "children": [
-                            {
-                                "uuid": "768511ef-a7e1-44a6-bb9d-304b09a6b1a9",
-                                "label": "Grade 1",
-                                "slug": "grade-1",
-                                "short_label": "Gr 1",
-                                "kind": "term",
-                                "description": "Grade 1",
-                                "children": []
-                            },
-                            {
-                                "uuid": "7f248d0d-e897-4d6a-ab04-000fb82f2cf5",
-                                "label": "Grade 2",
-                                "slug": "grade-2",
-                                "short_label": "Gr 2",
-                                "kind": "term",
-                                "description": "Grade 2",
-                                "children": []
-                            },
-                            {
-                                "uuid": "64d72915-437a-4f55-9c47-c01001441c18",
-                                "label": "Grade 3",
-                                "slug": "grade-3",
-                                "short_label": "Gr 3",
-                                "kind": "term",
-                                "description": "Grade 3",
-                                "children": []
-                            },
-                            {
-                                "uuid": "073dd227-e6ba-4dda-8159-2e6067519250",
-                                "label": "Grade 4",
-                                "slug": "grade-4",
-                                "short_label": "Gr 4",
-                                "kind": "term",
-                                "description": "Grade 4",
-                                "children": []
-                            },
-                            {
-                                "uuid": "3061b243-835f-4f56-8b11-40ae9c8249b2",
-                                "label": "Grade 5",
-                                "slug": "grade-5",
-                                "short_label": "Gr 5",
-                                "kind": "term",
-                                "description": "Grade 5",
-                                "children": []
-                            }
-                        ]
-                    },
-                    {
-                        "uuid": "e449211f-95bb-4287-90d3-0c451a81ef4c",
-                        "label": "Middle School",
-                        "slug": "middle-school",
-                        "short_label": "MS",
-                        "kind": "term",
-                        "description": "Middle School Teachers",
-                        "children": [
-                            {
-                                "uuid": "f167d17f-6d99-4341-9a77-7dda8cc76fd5",
-                                "label": "Grade 6",
-                                "slug": "grade-6",
-                                "short_label": "Gr 6",
-                                "kind": "term",
-                                "description": "Grade 6",
-                                "children": []
-                            },
-                            {
-                                "uuid": "5d189ff1-f372-4eec-9ead-82ebf14c24ac",
-                                "label": "Grade 7",
-                                "slug": "grade-7",
-                                "short_label": "Gr 7",
-                                "kind": "term",
-                                "description": "Grade 7",
-                                "children": []
-                            },
-                            {
-                                "uuid": "1bd6b70d-d58a-4bd9-afae-7826fe738ee0",
-                                "label": "Grade 8",
-                                "slug": "grade-8",
-                                "short_label": "Gr 8",
-                                "kind": "term",
-                                "description": "Grade 8",
-                                "children": []
-                            }
-                        ]
-                    },
-                    {
-                        "uuid": "3993cd02-964b-4d67-ad3d-267dcb0a6a04",
-                        "label": "High School",
-                        "slug": "high-school",
-                        "short_label": "HS",
-                        "kind": "term",
-                        "description": "High School Teachers",
-                        "children": [
-                            {
-                                "uuid": "e33d88d1-19bf-4380-b55a-561c37005f18",
-                                "label": "Grade 9",
-                                "slug": "grade-9",
-                                "short_label": "Gr 9",
-                                "kind": "term",
-                                "description": "Grade 9 Teachers",
-                                "children": []
-                            },
-                            {
-                                "uuid": "50b7c944-7432-4e1b-bbbb-5d2261466aeb",
-                                "label": "Grade 10",
-                                "slug": "grade-10",
-                                "short_label": "Gr 10",
-                                "kind": "term",
-                                "description": "Grade 10 Teachers",
-                                "children": []
-                            },
-                            {
-                                "uuid": "2bd5ced9-81e7-4b2a-b1e7-74f43ee7a69f",
-                                "label": "Grade 11",
-                                "slug": "grade-11",
-                                "short_label": "Gr 11",
-                                "kind": "term",
-                                "description": "Grade 11",
-                                "children": []
-                            },
-                            {
-                                "uuid": "f190288d-7878-448e-85d0-ce3d431078f7",
-                                "label": "Grade 12",
-                                "slug": "grade-12",
-                                "short_label": "Gr 12",
-                                "kind": "term",
-                                "description": "Grade 12",
-                                "children": []
-                            }
-                        ]
-                    },
-                    {
-                        "uuid": "213b627b-f788-4df2-9719-c7822481c750",
-                        "label": "Adult Education",
-                        "slug": "adult-education",
-                        "short_label": "Adult Ed",
-                        "kind": "term",
-                        "description": "Adult Educators",
-                        "children": []
-                    },
-                    {
-                        "uuid": "7f650a7a-0541-4830-bf10-e1f4ccd1eadf",
-                        "label": "Higher Education",
-                        "slug": "higher-education",
-                        "kind": "term",
-                        "children": [],
-                        "short_label": "Higher Ed",
-                        "description": "Higher Education Instructors"
-                    }
-                ],
-                "short_label": "Grades",
-                "description": "Grade Level Teachers"
-            },
-            {
-                "uuid": "8b7ec968-acba-4edd-894c-495e4f30e1cd",
-                "label": "Subject Area",
-                "slug": "subject-area",
+                "description": "Early Learning Teachers",
+                "children": []
+              },
+              {
+                "uuid": "55de542b-860e-4efb-be29-d6c397565f15",
+                "label": "Pre-K",
+                "slug": "pre-k",
                 "kind": "term",
-                "children": [
-                    {
-                        "uuid": "ad2d902b-9f30-4356-b814-229fc60df450",
-                        "label": "English Language Arts",
-                        "slug": "english-language-arts",
-                        "kind": "term",
-                        "children": [
-                            {
-                                "uuid": "52479565-8e1e-4e91-ab96-3c48d05c71b2",
-                                "label": "Reading & Literacy",
-                                "slug": "reading-literacy",
-                                "short_label": "Reading/Lit",
-                                "kind": "term",
-                                "description": "Reading & Literacy Teachers",
-                                "children": [
-                                    {
-                                        "uuid": "fb2a3729-a4d7-42b5-818b-3afaf60ad13e",
-                                        "label": "Vocabulary",
-                                        "slug": "vocabulary",
-                                        "short_label": "Vocabulary",
-                                        "description": "Vocabulary Teachers",
-                                        "kind": "term",
-                                        "children": []
-                                    },
-                                    {
-                                        "uuid": "d00055bf-3b6d-4b15-a81d-7e8267b65f5e",
-                                        "label": "Phonics",
-                                        "slug": "phonics",
-                                        "short_label": "Phonics",
-                                        "description": "Phonics Teachers",
-                                        "kind": "term",
-                                        "children": []
-                                    }
-                                ]
-                            },
-                            {
-                                "uuid": "050a8313-fa36-4be8-afe1-b64a3ee96999",
-                                "label": "Literature",
-                                "slug": "literature",
-                                "short_label": "Literature",
-                                "description": "Literature Teachers",
-                                "kind": "term",
-                                "children": []
-                            },
-                            {
-                                "uuid": "8e2b6f00-fb3b-4501-b5ca-0574a76e9107",
-                                "label": "Writing",
-                                "slug": "writing",
-                                "short_label": "Writing",
-                                "description": "Writing Teachers",
-                                "kind": "term",
-                                "children": [
-                                    {
-                                        "uuid": "e8f9f329-69ff-462a-9333-1158b7fd63db",
-                                        "label": "Composition",
-                                        "slug": "composition",
-                                        "short_label": "Composition",
-                                        "description": "Composition Teachers",
-                                        "kind": "term",
-                                        "children": []
-                                    },
-                                    {
-                                        "uuid": "aacade9e-a9c6-4648-8d17-e6b044e953d8",
-                                        "label": "Creative Writing",
-                                        "slug": "creative-writing",
-                                        "short_label": "Creative Writing",
-                                        "description": "Creative Writing Teachers",
-                                        "kind": "term",
-                                        "children": []
-                                    },
-                                    {
-                                        "uuid": "9e5bda47-a60b-4e8e-9ece-4da4379600ee",
-                                        "label": "Journalism",
-                                        "slug": "journalism",
-                                        "short_label": "Journalism",
-                                        "description": "Journalism Teachers",
-                                        "kind": "term",
-                                        "children": []
-                                    }
-                                ]
-                            },
-                            {
-                                "uuid": "5a6ca473-bd6d-409e-b979-90fa06230839",
-                                "label": "Language",
-                                "slug": "language",
-                                "short_label": "Language",
-                                "description": "Language Teachers",
-                                "kind": "term",
-                                "children": [
-                                    {
-                                        "uuid": "231d75bd-6add-4548-95cc-c5cfdd12f255",
-                                        "label": "Grammar",
-                                        "slug": "grammar",
-                                        "short_label": "Grammar",
-                                        "description": "Grammar Teachers",
-                                        "kind": "term",
-                                        "children": []
-                                    },
-                                    {
-                                        "uuid": "e74ab809-af53-45bb-9394-1008d3ae46a9",
-                                        "label": "Spelling",
-                                        "slug": "spelling",
-                                        "short_label": "Spelling",
-                                        "description": "Spelling Teachers",
-                                        "kind": "term",
-                                        "children": []
-                                    }
-                                ]
-                            },
-                            {
-                                "uuid": "f12c0968-b65b-4a42-b61a-1c6388dc8ec3",
-                                "label": "Speech & Communication",
-                                "slug": "speech-communication",
-                                "short_label": "Speech/Comm",
-                                "description": "Speech & Communication Teachers",
-                                "kind": "term",
-                                "children": [
-                                    {
-                                        "uuid": "54dd8dc4-dce3-4281-b63a-0d0ab317db9e",
-                                        "label": "Public Speaking",
-                                        "slug": "public-speaking",
-                                        "short_label": "Public Speaking",
-                                        "description": "Public Speaking Teachers",
-                                        "kind": "term",
-                                        "children": []
-                                    },
-                                    {
-                                        "uuid": "1bea3a54-390b-4b1c-a39b-98a9df9dcb43",
-                                        "label": "Debate",
-                                        "slug": "debate",
-                                        "short_label": "Debate",
-                                        "description": "Debate Teachers",
-                                        "kind": "term",
-                                        "children": []
-                                    }
-                                ]
-                            },
-                            {
-                                "uuid": "25f56ec5-06b6-4956-8728-531d4cb62b47",
-                                "label": "Media Literacy",
-                                "slug": "media-literacy",
-                                "short_label": "Media Lit",
-                                "description": "Media Literacy Teachers",
-                                "kind": "term",
-                                "children": []
-                            },
-                            {
-                                "uuid": "380dd99a-95e2-490d-ac79-b14ef959854a",
-                                "label": "English as a Second Language (ESL)",
-                                "slug": "english-as-a-second-language-esl",
-                                "kind": "term",
-                                "children": [],
-                                "short_label": "ESL",
-                                "description": "English as a Second Language (ESL) Teachers"
-                            }
-                        ],
-                        "short_label": "ELA",
-                        "description": "English Language Arts Teachers"
-                    },
-                    {
-                        "uuid": "69294fa2-c0c4-4a2f-9864-211848c1c00a",
-                        "label": "Mathematics",
-                        "slug": "mathematics",
-                        "kind": "term",
-                        "children": [
-                            {
-                                "uuid": "9d0ac9a3-767c-412a-9bd2-7f49db764826",
-                                "label": "Algebra",
-                                "slug": "algebra",
-                                "short_label": "Algebra",
-                                "kind": "term",
-                                "description": "Algebra Teachers",
-                                "children": []
-                            },
-                            {
-                                "uuid": "0f793276-073a-44b0-8a06-3206335cdf76",
-                                "label": "Geometry",
-                                "slug": "geometry",
-                                "short_label": "Geometry",
-                                "description": "Geometry Teachers",
-                                "kind": "term",
-                                "children": []
-                            },
-                            {
-                                "uuid": "c42d2c67-e5c7-4bd9-ad76-03b1c173296c",
-                                "label": "Trigonometry",
-                                "slug": "trigonometry",
-                                "short_label": "Trigonometry",
-                                "description": "Trigonometry Teachers",
-                                "kind": "term",
-                                "children": []
-                            },
-                            {
-                                "uuid": "700ee075-25b7-4fe9-b3e1-74f46e3dabde",
-                                "label": "Calculus",
-                                "slug": "calculus",
-                                "short_label": "Calculus",
-                                "description": "Calculus Teachers",
-                                "kind": "term",
-                                "children": []
-                            },
-                            {
-                                "uuid": "34e7130e-1e38-4804-a50d-7b3994c6c54b",
-                                "label": "Statistics",
-                                "slug": "statistics",
-                                "short_label": "Statistics",
-                                "description": "Statistics Teachers",
-                                "kind": "term",
-                                "children": []
-                            }
-                        ],
-                        "short_label": "Math",
-                        "description": "Mathematics Teachers"
-                    },
-                    {
-                        "uuid": "8f2243d1-8ea7-4547-b44b-88a5456d318b",
-                        "label": "Science",
-                        "slug": "science",
-                        "kind": "term",
-                        "children": [
-                            {
-                                "uuid": "4586519a-09ca-4d86-97c3-40af5d008502",
-                                "label": "Biology",
-                                "slug": "biology",
-                                "short_label": "Biology",
-                                "kind": "term",
-                                "description": "Biology Teachers",
-                                "children": []
-                            },
-                            {
-                                "uuid": "24d177d3-c0d7-470b-9384-2816b3e56b1a",
-                                "label": "Chemistry",
-                                "slug": "chemistry",
-                                "short_label": "Chemistry",
-                                "description": "Chemistry Teachers",
-                                "kind": "term",
-                                "children": []
-                            },
-                            {
-                                "uuid": "c2784df2-3451-4e62-bffe-fad8c9b6e778",
-                                "label": "Physics",
-                                "slug": "physics",
-                                "short_label": "Physics",
-                                "description": "Physics Teachers",
-                                "kind": "term",
-                                "children": []
-                            },
-                            {
-                                "uuid": "250cf881-ca05-49cf-afed-1c8ea9b39d51",
-                                "label": "Earth Science",
-                                "slug": "earth-science",
-                                "short_label": "Earth Science",
-                                "description": "Earth Science Teachers",
-                                "kind": "term",
-                                "children": []
-                            },
-                            {
-                                "uuid": "678c6cbf-ac86-4349-861f-75740075559b",
-                                "label": "Environmental Science",
-                                "slug": "environmental-science",
-                                "short_label": "Env Sci",
-                                "description": "Environmental Science Teachers",
-                                "kind": "term",
-                                "children": []
-                            }
-                        ],
-                        "short_label": "Science",
-                        "description": "Science"
-                    },
-                    {
-                        "uuid": "bce06bd1-8a54-4526-a93e-8b5643b17fcd",
-                        "label": "Social Studies",
-                        "slug": "social-studies",
-                        "kind": "term",
-                        "children": [
-                            {
-                                "uuid": "20a6b1c0-8435-437f-849f-cf17d221e1e3",
-                                "label": "History",
-                                "slug": "history",
-                                "short_label": "History",
-                                "kind": "term",
-                                "description": "History Teachers",
-                                "children": []
-                            },
-                            {
-                                "uuid": "55a06416-0fd6-433a-85fe-cc164a3f0d3e",
-                                "label": "Geography",
-                                "slug": "geography",
-                                "short_label": "Geography",
-                                "description": "Geography Teachers",
-                                "kind": "term",
-                                "children": []
-                            },
-                            {
-                                "uuid": "18cf916a-cd53-4125-b2c9-ea47cbd671e2",
-                                "label": "Civics & Government",
-                                "slug": "civics-government",
-                                "short_label": "Civics/Gov",
-                                "description": "Civics & Government Teachers",
-                                "kind": "term",
-                                "children": []
-                            },
-                            {
-                                "uuid": "d71e9476-802b-4834-a016-a76a0293dbd9",
-                                "label": "Economics",
-                                "slug": "economics",
-                                "short_label": "Economics",
-                                "description": "Economics Teachers",
-                                "kind": "term",
-                                "children": []
-                            },
-                            {
-                                "uuid": "d574e5e9-90e0-41d1-bddf-85d926340c28",
-                                "label": "Psychology",
-                                "slug": "psychology",
-                                "short_label": "Psychology",
-                                "description": "Psychology Teachers",
-                                "kind": "term",
-                                "children": []
-                            },
-                            {
-                                "uuid": "924802b9-bd73-4e2d-ad52-c7e630b2e139",
-                                "label": "Sociology",
-                                "slug": "sociology",
-                                "short_label": "Sociology",
-                                "description": "Sociology Teachers",
-                                "kind": "term",
-                                "children": []
-                            },
-                            {
-                                "uuid": "68744946-ff91-4ba1-a093-8a6092560904",
-                                "label": "Anthropology",
-                                "slug": "anthropology",
-                                "short_label": "Anthropology",
-                                "description": "Anthropology Teachers",
-                                "kind": "term",
-                                "children": []
-                            },
-                            {
-                                "uuid": "2728f00a-90ba-4a32-806c-62adea436abb",
-                                "label": "Global Studies",
-                                "slug": "global-studies",
-                                "short_label": "Global Studies",
-                                "description": "Global Studies Teachers",
-                                "kind": "term",
-                                "children": []
-                            }
-                        ],
-                        "short_label": "Social Studies",
-                        "description": "Social Studies"
-                    },
-                    {
-                        "uuid": "6d407f6b-80a5-4f69-b334-9bf8d0c9b40e",
-                        "label": "Art",
-                        "slug": "art",
-                        "kind": "term",
-                        "children": [
-                            {
-                                "uuid": "27cc235e-a032-4126-a889-38742c117d24",
-                                "label": "Arts & Crafts",
-                                "slug": "arts-crafts",
-                                "short_label": "Arts/Crafts",
-                                "description": "Arts & Crafts Teachers",
-                                "kind": "term",
-                                "children": []
-                            },
-                            {
-                                "uuid": "e3e79176-40f0-4e8c-8a89-7cd3245123e5",
-                                "label": "Art History",
-                                "slug": "art-history",
-                                "short_label": "Art History",
-                                "description": "Art History Teachers",
-                                "kind": "term",
-                                "children": []
-                            },
-                            {
-                                "uuid": "7b97545d-58b7-4c03-8e06-e22dd2e06271",
-                                "label": "Dance",
-                                "slug": "dance",
-                                "short_label": "Dance",
-                                "description": "Dance Teachers",
-                                "kind": "term",
-                                "children": []
-                            },
-                            {
-                                "uuid": "2b5a65ab-1013-4bde-9ee1-10f6db891ef0",
-                                "label": "Theater / Drama",
-                                "slug": "theater-drama",
-                                "short_label": "Theater/Drama",
-                                "description": "Theater / Drama Teachers",
-                                "kind": "term",
-                                "children": []
-                            },
-                            {
-                                "uuid": "a323e85c-4a34-440c-8df4-80ec5d185bee",
-                                "label": "Music",
-                                "slug": "music",
-                                "kind": "term",
-                                "children": [],
-                                "short_label": "Music",
-                                "description": "Music"
-                            }
-                        ],
-                        "short_label": "Art",
-                        "description": "Art"
-                    },
-                    {
-                        "uuid": "019e13ed-b304-4897-8029-b4116d11989d",
-                        "label": "World Languages",
-                        "slug": "world-languages",
-                        "kind": "term",
-                        "children": [
-                            {
-                                "uuid": "ee999b0b-0ea5-46e8-ac81-f0828de37f59",
-                                "label": "Spanish",
-                                "slug": "spanish",
-                                "short_label": "Spanish",
-                                "kind": "term",
-                                "description": "Spanish Teachers",
-                                "children": []
-                            },
-                            {
-                                "uuid": "0985e47c-f98e-4c0b-81ad-a52898a79049",
-                                "label": "French",
-                                "slug": "french",
-                                "short_label": "French",
-                                "description": "French Teachers",
-                                "kind": "term",
-                                "children": []
-                            },
-                            {
-                                "uuid": "6472d20f-933a-47a7-bdc7-1b3d5352c2fb",
-                                "label": "Latin",
-                                "slug": "latin",
-                                "short_label": "Latin",
-                                "description": "Latin Teachers",
-                                "kind": "term",
-                                "children": []
-                            },
-                            {
-                                "uuid": "b2c2b6e9-4a80-4df5-9ed8-8eb642664688",
-                                "label": "American Sign Language",
-                                "slug": "american-sign-language",
-                                "short_label": "ASL",
-                                "description": "American Sign Language Teachers",
-                                "kind": "term",
-                                "children": []
-                            }
-                        ],
-                        "short_label": "Lang",
-                        "description": "World Languages"
-                    },
-                    {
-                        "uuid": "8a619941-e623-4eec-9545-3678f5798830",
-                        "label": "Technology",
-                        "slug": "technology",
-                        "kind": "term",
-                        "children": [
-                            {
-                                "uuid": "f2c2c7e6-0220-4314-8837-9971f29d35f5",
-                                "label": "Computer Science",
-                                "slug": "computer-science",
-                                "short_label": "Comp Sci",
-                                "kind": "term",
-                                "description": "Computer Science Teachers",
-                                "children": []
-                            },
-                            {
-                                "uuid": "9ff7b756-0ef9-4e19-9ea5-6f55b49b1ee2",
-                                "label": "Programming",
-                                "slug": "programming",
-                                "short_label": "Programming",
-                                "description": "Programming Teachers",
-                                "kind": "term",
-                                "children": []
-                            },
-                            {
-                                "uuid": "02fcfcca-58fd-4a57-b7c4-d34071b3585c",
-                                "label": "Artificial Intelligence",
-                                "slug": "artificial-intelligence",
-                                "short_label": "AI",
-                                "description": "Artificial Intelligence Teachers",
-                                "kind": "term",
-                                "children": []
-                            },
-                            {
-                                "uuid": "9dbe93f0-db84-4f20-a63b-bb260ab07749",
-                                "label": "Web Development",
-                                "slug": "web-development",
-                                "short_label": "Web Dev",
-                                "description": "Web Development Teachers",
-                                "kind": "term",
-                                "children": []
-                            },
-                            {
-                                "uuid": "185edf66-f456-4cba-be94-fd2c45af7f33",
-                                "label": "Information Technology",
-                                "slug": "information-technology",
-                                "short_label": "IT",
-                                "description": "Information Technology Teachers",
-                                "kind": "term",
-                                "children": []
-                            },
-                            {
-                                "uuid": "4d9916a1-b528-456b-b415-72267f79796a",
-                                "label": "Digital Media",
-                                "slug": "digital-media",
-                                "short_label": "Digital Media",
-                                "description": "Digital Media Teachers",
-                                "kind": "term",
-                                "children": []
-                            },
-                            {
-                                "uuid": "1bbb7492-6b04-4bf1-9f8c-0c8289e01e09",
-                                "label": "AI in Education",
-                                "slug": "ai-in-education",
-                                "short_label": "AI in Education",
-                                "kind": "term",
-                                "description": "Teachers.Net AI in Education discussion term.",
-                                "children": []
-                            }
-                        ],
-                        "short_label": "Tech",
-                        "description": "Technology"
-                    },
-                    {
-                        "uuid": "7160ba2a-aac6-4770-9450-d5e122de6762",
-                        "label": "Career Technical Education",
-                        "slug": "career-technical-education",
-                        "kind": "term",
-                        "children": [
-                            {
-                                "uuid": "a8110e17-d13a-4b1a-be35-6c82230385c9",
-                                "label": "Business Education",
-                                "slug": "business-education",
-                                "short_label": "Business Ed",
-                                "description": "Business Education Teachers",
-                                "kind": "term",
-                                "children": [
-                                    {
-                                        "uuid": "aa4ebb10-d3b4-45f8-a1ec-5966570fe55d",
-                                        "label": "Accounting",
-                                        "slug": "accounting",
-                                        "short_label": "Accounting",
-                                        "description": "Accounting Teachers",
-                                        "kind": "term",
-                                        "children": []
-                                    }
-                                ]
-                            },
-                            {
-                                "uuid": "8b93d614-8c53-47a1-8573-c1653152d2f7",
-                                "label": "Automotive Technology",
-                                "slug": "automotive-technology",
-                                "short_label": "Auto Tech",
-                                "description": "Automotive Technology Teachers",
-                                "kind": "term",
-                                "children": []
-                            },
-                            {
-                                "uuid": "6d0295cd-803c-4f27-b8c8-c9dcab5ad8a0",
-                                "label": "Construction Trades",
-                                "slug": "construction-trades",
-                                "short_label": "Construction Trades",
-                                "description": "Construction Trades Teachers",
-                                "kind": "term",
-                                "children": []
-                            },
-                            {
-                                "uuid": "0ec4962b-a71c-4515-886f-ff98818e5c9b",
-                                "label": "Culinary Arts",
-                                "slug": "culinary-arts",
-                                "short_label": "Culinary Arts",
-                                "description": "Culinary Arts Teachers",
-                                "kind": "term",
-                                "children": []
-                            },
-                            {
-                                "uuid": "68e291d7-d346-4e71-bb00-e0e261206ac6",
-                                "label": "Nutrition & Food Science",
-                                "slug": "nutrition-food-science",
-                                "short_label": "Nutrition/Food Sci",
-                                "description": "Nutrition & Food Science Teachers",
-                                "kind": "term",
-                                "children": []
-                            }
-                        ],
-                        "short_label": "CTE",
-                        "description": "Career Technical Education Teachers"
-                    },
-                    {
-                        "uuid": "c8baf6ee-ecc7-437a-84fd-ab1952df4696",
-                        "label": "Physical Education & Health",
-                        "slug": "physical-education-health",
-                        "kind": "term",
-                        "children": [
-                            {
-                                "uuid": "05d58b3a-7462-4738-a62d-3152ccc85eea",
-                                "label": "Physical Education",
-                                "slug": "physical-education",
-                                "short_label": "Physical Education",
-                                "description": "Physical Education Teachers",
-                                "kind": "term",
-                                "children": []
-                            },
-                            {
-                                "uuid": "8b84093a-2061-49b8-9058-fef276ddc68a",
-                                "label": "Health Education",
-                                "slug": "health-education",
-                                "short_label": "Health Education",
-                                "description": "Health Education Teachers",
-                                "kind": "term",
-                                "children": []
-                            },
-                            {
-                                "uuid": "2c2d1572-8184-488b-958e-c553dfbcf63f",
-                                "label": "Driver & Safety Education",
-                                "slug": "driver-safety-education",
-                                "short_label": "Driver/Safety Ed",
-                                "description": "Driver & Safety Education Teachers",
-                                "kind": "term",
-                                "children": []
-                            }
-                        ],
-                        "short_label": "PE/Health",
-                        "description": "Physical Education & Health Teachers"
-                    },
-                    {
-                        "uuid": "fb819186-6e6e-4586-9e68-65abb2638d53",
-                        "label": "Religious Studies",
-                        "slug": "religious-studies",
-                        "short_label": "Religious Studies",
-                        "description": "Religious Studies Teachers",
-                        "kind": "term",
-                        "children": []
-                    },
-                    {
-                        "uuid": "a2990cb3-d1c7-4cdf-9f92-dde31d521e5d",
-                        "label": "General / Multiple Subjects",
-                        "slug": "general-multiple-subjects",
-                        "short_label": "Gen/Mult Subj",
-                        "kind": "term",
-                        "description": "General / Multiple Subjects",
-                        "children": []
-                    },
-                    {
-                        "uuid": "5395981b-4c01-46ba-9b2f-c16ba6fd78f2",
-                        "label": "Special Education",
-                        "slug": "special-education",
-                        "kind": "term",
-                        "children": [],
-                        "short_label": "SPED",
-                        "description": "Special Education"
-                    },
-                    {
-                        "uuid": "2e0ea2f5-8d10-4bfb-8f3e-6cd1cfa146c8",
-                        "label": "Counseling",
-                        "slug": "counseling",
-                        "short_label": "Counseling",
-                        "kind": "term",
-                        "description": "Counseling Professionals",
-                        "children": []
-                    },
-                    {
-                        "uuid": "816599cb-c627-4ad8-a3b2-ae5f2fb590c8",
-                        "label": "Library / Media",
-                        "slug": "library-media",
-                        "short_label": "Library/Media",
-                        "kind": "term",
-                        "description": "School Librarians",
-                        "children": []
-                    }
-                ],
-                "short_label": "Subject",
-                "description": "Subject Area"
-            },
-            {
-                "uuid": "0e7fe983-68df-4026-95a3-c66575cd9dbe",
-                "label": "Location",
-                "slug": "location",
+                "children": [],
+                "short_label": "Pre-K",
+                "description": "Pre-K Teachers"
+              },
+              {
+                "uuid": "a022460c-8979-4e52-b3a8-fbab727554bd",
+                "label": "Transitional Kindergarten",
+                "slug": "transitional-kindergarten",
+                "short_label": "TK",
                 "kind": "term",
-                "children": [
-                    {
-                        "uuid": "87b032ce-70d5-4bab-a56f-35bf59acb5a4",
-                        "label": "United States",
-                        "slug": "united-states",
-                        "kind": "term",
-                        "children": [
-                            {
-                                "uuid": "3877d049-1e0f-40e5-a2e4-43d412643cb0",
-                                "label": "Alabama",
-                                "slug": "alabama",
-                                "short_label": "AL",
-                                "kind": "term",
-                                "description": "Alabama",
-                                "children": []
-                            },
-                            {
-                                "uuid": "4a7a89db-9850-4f2d-87df-fa7d6ac5daae",
-                                "label": "Alaska",
-                                "slug": "alaska",
-                                "short_label": "AK",
-                                "kind": "term",
-                                "description": "Alaska",
-                                "children": []
-                            },
-                            {
-                                "uuid": "5c23adfd-4e7c-4235-a4ea-5a300170cad6",
-                                "label": "Arizona",
-                                "slug": "arizona",
-                                "short_label": "AZ",
-                                "kind": "term",
-                                "description": "Arizona",
-                                "children": []
-                            },
-                            {
-                                "uuid": "93a04f6d-2ccc-4dab-b50a-b5be8ad2ea9c",
-                                "label": "Arkansas",
-                                "slug": "arkansas",
-                                "short_label": "AR",
-                                "kind": "term",
-                                "description": "Arkansas",
-                                "children": []
-                            },
-                            {
-                                "uuid": "e6fa1ab0-d216-4982-9c14-44cab36bfab0",
-                                "label": "California",
-                                "slug": "california",
-                                "short_label": "CA",
-                                "kind": "term",
-                                "description": "California",
-                                "children": []
-                            },
-                            {
-                                "uuid": "a9f6d2f1-d19e-421c-a959-b421738bb14b",
-                                "label": "Colorado",
-                                "slug": "colorado",
-                                "short_label": "CO",
-                                "kind": "term",
-                                "description": "Colorado",
-                                "children": []
-                            },
-                            {
-                                "uuid": "81352040-51b5-4a84-a9db-2ce701421604",
-                                "label": "Connecticut",
-                                "slug": "connecticut",
-                                "short_label": "CT",
-                                "kind": "term",
-                                "description": "Connecticut",
-                                "children": []
-                            },
-                            {
-                                "uuid": "050e3201-1735-46e3-95ad-d1e8ec2a8cea",
-                                "label": "Delaware",
-                                "slug": "delaware",
-                                "short_label": "DE",
-                                "kind": "term",
-                                "description": "Delaware",
-                                "children": []
-                            },
-                            {
-                                "uuid": "f4e84e61-2435-4850-8601-027b5ad854aa",
-                                "label": "District of Columbia",
-                                "slug": "district-of-columbia",
-                                "short_label": "DC",
-                                "kind": "term",
-                                "description": "District of Columbia",
-                                "children": []
-                            },
-                            {
-                                "uuid": "44d8053c-1998-445d-a4c5-c5c0197f63e2",
-                                "label": "Florida",
-                                "slug": "florida",
-                                "short_label": "FL",
-                                "kind": "term",
-                                "description": "Florida",
-                                "children": []
-                            },
-                            {
-                                "uuid": "d31cc7eb-60ce-4de4-8448-1d429205313f",
-                                "label": "Georgia",
-                                "slug": "georgia",
-                                "short_label": "GA",
-                                "kind": "term",
-                                "description": "Georgia",
-                                "children": []
-                            },
-                            {
-                                "uuid": "a4f1c538-c067-4972-996a-19fe7bd58094",
-                                "label": "Hawaii",
-                                "slug": "hawaii",
-                                "short_label": "HI",
-                                "kind": "term",
-                                "description": "Hawaii",
-                                "children": []
-                            },
-                            {
-                                "uuid": "e305c908-534f-4262-ae9f-f34d553fb21b",
-                                "label": "Idaho",
-                                "slug": "idaho",
-                                "short_label": "ID",
-                                "kind": "term",
-                                "description": "Idaho",
-                                "children": []
-                            },
-                            {
-                                "uuid": "6d6d020a-9846-4885-9a55-19c0fd7a2963",
-                                "label": "Illinois",
-                                "slug": "illinois",
-                                "short_label": "IL",
-                                "kind": "term",
-                                "description": "Illinois",
-                                "children": []
-                            },
-                            {
-                                "uuid": "80c7047e-2dfa-499d-bef0-d64315722fd3",
-                                "label": "Indiana",
-                                "slug": "indiana",
-                                "short_label": "IN",
-                                "kind": "term",
-                                "description": "Indiana",
-                                "children": []
-                            },
-                            {
-                                "uuid": "b793836e-47b0-4366-9dc8-6d54f42697be",
-                                "label": "Iowa",
-                                "slug": "iowa",
-                                "short_label": "IA",
-                                "kind": "term",
-                                "description": "Iowa",
-                                "children": []
-                            },
-                            {
-                                "uuid": "59367236-c725-4ab0-8578-16393fab7ff7",
-                                "label": "Kansas",
-                                "slug": "kansas",
-                                "short_label": "KS",
-                                "kind": "term",
-                                "description": "Kansas",
-                                "children": []
-                            },
-                            {
-                                "uuid": "1e0e6cc1-4b68-4047-bcf5-88bf61221759",
-                                "label": "Kentucky",
-                                "slug": "kentucky",
-                                "short_label": "KY",
-                                "kind": "term",
-                                "description": "Kentucky",
-                                "children": []
-                            },
-                            {
-                                "uuid": "886ae21e-439a-43e5-bed5-c251e0d8786c",
-                                "label": "Louisiana",
-                                "slug": "louisiana",
-                                "short_label": "LA",
-                                "kind": "term",
-                                "description": "Louisiana",
-                                "children": []
-                            },
-                            {
-                                "uuid": "244da4af-eb8d-44f8-9022-3e32da7ed717",
-                                "label": "Maine",
-                                "slug": "maine",
-                                "short_label": "ME",
-                                "kind": "term",
-                                "description": "Maine",
-                                "children": []
-                            },
-                            {
-                                "uuid": "b443b8f6-13d3-4e01-8523-bf95f239e450",
-                                "label": "Maryland",
-                                "slug": "maryland",
-                                "short_label": "MD",
-                                "kind": "term",
-                                "description": "Maryland",
-                                "children": []
-                            },
-                            {
-                                "uuid": "472b8073-db37-45a0-8556-d1f7821f284c",
-                                "label": "Massachusetts",
-                                "slug": "massachusetts",
-                                "short_label": "MA",
-                                "kind": "term",
-                                "description": "Massachusetts",
-                                "children": []
-                            },
-                            {
-                                "uuid": "f5502439-4f9c-482e-8449-98f1c98c36b4",
-                                "label": "Michigan",
-                                "slug": "michigan",
-                                "short_label": "MI",
-                                "kind": "term",
-                                "description": "Michigan",
-                                "children": []
-                            },
-                            {
-                                "uuid": "4275a96d-7bec-405c-b454-66d69c22a4f4",
-                                "label": "Minnesota",
-                                "slug": "minnesota",
-                                "short_label": "MN",
-                                "kind": "term",
-                                "description": "Minnesota",
-                                "children": []
-                            },
-                            {
-                                "uuid": "795f8b32-46f8-4ce3-8796-c1de4ce44cc2",
-                                "label": "Mississippi",
-                                "slug": "mississippi",
-                                "short_label": "MS",
-                                "kind": "term",
-                                "description": "Mississippi",
-                                "children": []
-                            },
-                            {
-                                "uuid": "cd70f8fc-2c32-4ab4-ada7-78f5cdebee0a",
-                                "label": "Missouri",
-                                "slug": "missouri",
-                                "short_label": "MO",
-                                "kind": "term",
-                                "description": "Missouri",
-                                "children": []
-                            },
-                            {
-                                "uuid": "a2ea7584-2741-493a-99d2-d5f1295b4685",
-                                "label": "Montana",
-                                "slug": "montana",
-                                "short_label": "MT",
-                                "kind": "term",
-                                "description": "Montana",
-                                "children": []
-                            },
-                            {
-                                "uuid": "696fc3ba-6df1-430f-a8c0-3141e4a36c48",
-                                "label": "Nebraska",
-                                "slug": "nebraska",
-                                "short_label": "NE",
-                                "kind": "term",
-                                "description": "Nebraska",
-                                "children": []
-                            },
-                            {
-                                "uuid": "7a6574b2-c89d-4837-839b-a1ac1ecc0041",
-                                "label": "Nevada",
-                                "slug": "nevada",
-                                "short_label": "NV",
-                                "kind": "term",
-                                "description": "Nevada",
-                                "children": []
-                            },
-                            {
-                                "uuid": "34bd9209-5229-401e-84a5-1f69aaad4277",
-                                "label": "New Hampshire",
-                                "slug": "new-hampshire",
-                                "short_label": "NH",
-                                "kind": "term",
-                                "description": "New Hampshire",
-                                "children": []
-                            },
-                            {
-                                "uuid": "ac2e2a33-bed5-404c-8987-1ce17cadd1ed",
-                                "label": "New Jersey",
-                                "slug": "new-jersey",
-                                "short_label": "NJ",
-                                "kind": "term",
-                                "description": "New Jersey",
-                                "children": []
-                            },
-                            {
-                                "uuid": "29e074dc-a4d8-430d-baef-2f6d655ec04d",
-                                "label": "New Mexico",
-                                "slug": "new-mexico",
-                                "short_label": "NM",
-                                "kind": "term",
-                                "description": "New Mexico",
-                                "children": []
-                            },
-                            {
-                                "uuid": "3f7dd099-00dc-415d-9387-7cbeea6cecd2",
-                                "label": "New York",
-                                "slug": "new-york",
-                                "short_label": "NY",
-                                "kind": "term",
-                                "description": "New York",
-                                "children": []
-                            },
-                            {
-                                "uuid": "f523c517-a5e6-46a9-b094-6f7ac7ea53df",
-                                "label": "North Carolina",
-                                "slug": "north-carolina",
-                                "short_label": "NC",
-                                "kind": "term",
-                                "description": "North Carolina",
-                                "children": []
-                            },
-                            {
-                                "uuid": "a3ffe4bc-182c-46a1-ab70-d846ac3c814c",
-                                "label": "North Dakota",
-                                "slug": "north-dakota",
-                                "short_label": "ND",
-                                "kind": "term",
-                                "description": "North Dakota",
-                                "children": []
-                            },
-                            {
-                                "uuid": "5bb4c0f0-b727-40e4-9040-7761f61c0686",
-                                "label": "Ohio",
-                                "slug": "ohio",
-                                "short_label": "OH",
-                                "kind": "term",
-                                "description": "Ohio",
-                                "children": []
-                            },
-                            {
-                                "uuid": "c36aa37e-7841-46cf-bb60-9e4d5b5e6bed",
-                                "label": "Oklahoma",
-                                "slug": "oklahoma",
-                                "short_label": "OK",
-                                "kind": "term",
-                                "description": "Oklahoma",
-                                "children": []
-                            },
-                            {
-                                "uuid": "bddbc393-0d92-477e-b411-cb60b6f96e3e",
-                                "label": "Oregon",
-                                "slug": "oregon",
-                                "short_label": "OR",
-                                "kind": "term",
-                                "description": "Oregon",
-                                "children": []
-                            },
-                            {
-                                "uuid": "eac1d43f-0273-4caa-95f0-de94735ffdbc",
-                                "label": "Pennsylvania",
-                                "slug": "pennsylvania",
-                                "short_label": "PA",
-                                "kind": "term",
-                                "description": "Pennsylvania",
-                                "children": []
-                            },
-                            {
-                                "uuid": "e75fbd75-7d27-4591-9df6-31ec2835bfbb",
-                                "label": "Rhode Island",
-                                "slug": "rhode-island",
-                                "short_label": "RI",
-                                "kind": "term",
-                                "description": "Rhode Island",
-                                "children": []
-                            },
-                            {
-                                "uuid": "fd8eb020-f1f7-4e2a-86b0-0f2574cc2584",
-                                "label": "South Carolina",
-                                "slug": "south-carolina",
-                                "short_label": "SC",
-                                "kind": "term",
-                                "description": "South Carolina",
-                                "children": []
-                            },
-                            {
-                                "uuid": "7e9cf08f-fb0f-416d-8cb1-ed837953e80b",
-                                "label": "South Dakota",
-                                "slug": "south-dakota",
-                                "short_label": "SD",
-                                "kind": "term",
-                                "description": "South Dakota",
-                                "children": []
-                            },
-                            {
-                                "uuid": "8451b607-0cb2-4905-b52a-7835d9571e19",
-                                "label": "Tennessee",
-                                "slug": "tennessee",
-                                "short_label": "TN",
-                                "kind": "term",
-                                "description": "Tennessee",
-                                "children": []
-                            },
-                            {
-                                "uuid": "324901bc-9857-4bac-8c62-93ecc95ae64b",
-                                "label": "Texas",
-                                "slug": "texas",
-                                "short_label": "TX",
-                                "kind": "term",
-                                "description": "Texas",
-                                "children": []
-                            },
-                            {
-                                "uuid": "5d799f2d-c53c-4105-ac0f-b3a10432701a",
-                                "label": "Utah",
-                                "slug": "utah",
-                                "short_label": "UT",
-                                "kind": "term",
-                                "description": "Utah",
-                                "children": []
-                            },
-                            {
-                                "uuid": "f8d14c3a-6ede-40f3-95ec-c97d65118ff3",
-                                "label": "Vermont",
-                                "slug": "vermont",
-                                "short_label": "VT",
-                                "kind": "term",
-                                "description": "Vermont",
-                                "children": []
-                            },
-                            {
-                                "uuid": "aaeb2148-f73b-49c1-96aa-92000d4ae095",
-                                "label": "Virginia",
-                                "slug": "virginia",
-                                "short_label": "VA",
-                                "kind": "term",
-                                "description": "Virginia",
-                                "children": []
-                            },
-                            {
-                                "uuid": "9995ac26-4c2b-481d-be00-a111677a98a6",
-                                "label": "Washington",
-                                "slug": "washington",
-                                "short_label": "WA",
-                                "kind": "term",
-                                "description": "Washington",
-                                "children": []
-                            },
-                            {
-                                "uuid": "1ace60bc-8219-4cbe-9861-c77b0a2b0719",
-                                "label": "West Virginia",
-                                "slug": "west-virginia",
-                                "short_label": "WV",
-                                "kind": "term",
-                                "description": "West Virginia",
-                                "children": []
-                            },
-                            {
-                                "uuid": "d9f8ebb5-2bc5-400a-812e-ec4b93314428",
-                                "label": "Wisconsin",
-                                "slug": "wisconsin",
-                                "short_label": "WI",
-                                "kind": "term",
-                                "description": "Wisconsin",
-                                "children": []
-                            },
-                            {
-                                "uuid": "4bae3bf7-4c75-46aa-a2be-bdcf8219b1eb",
-                                "label": "Wyoming",
-                                "slug": "wyoming",
-                                "short_label": "WY",
-                                "kind": "term",
-                                "description": "Wyoming",
-                                "children": []
-                            }
-                        ],
-                        "short_label": "United States",
-                        "description": "United States"
-                    },
-                    {
-                        "uuid": "70663b77-4ece-47d3-b783-7c7d07d1ebfc",
-                        "label": "Remote",
-                        "slug": "remote",
-                        "short_label": "Remote",
-                        "kind": "term",
-                        "description": "Remote",
-                        "children": []
-                    },
-                    {
-                        "uuid": "047d166e-7e56-4fd3-864c-bfc39fd33be9",
-                        "label": "International / Outside U.S.",
-                        "slug": "international-outside-us",
-                        "short_label": "International",
-                        "kind": "term",
-                        "description": "International / Outside U.S.",
-                        "children": []
-                    }
-                ],
-                "short_label": "Location",
-                "description": "Location"
-            },
-            {
-                "uuid": "58cd8714-feb6-45b3-9f37-814840fb801c",
-                "label": "Hot Topics",
-                "slug": "hot-topics",
-                "short_label": "Hot Topics",
+                "description": "Transitional Kindergarten Teachers",
+                "children": []
+              },
+              {
+                "uuid": "d6925081-bbe4-4225-ba57-745292e48ddf",
+                "label": "Kindergarten",
+                "slug": "kindergarten",
+                "short_label": "K",
                 "kind": "term",
-                "description": "Hot Topics Teachers",
-                "children": [
-                    {
-                        "uuid": "d24603a7-239a-48e9-bfe3-1d4424177280",
-                        "label": "Politics",
-                        "slug": "politics",
-                        "short_label": "Politics",
-                        "kind": "term",
-                        "description": "Teachers.Net Politics discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "723967b0-7c55-45b0-bd0b-d6d05ebcc977",
-                        "label": "NCLB",
-                        "slug": "nclb",
-                        "short_label": "NCLB",
-                        "kind": "term",
-                        "description": "Teachers.Net NCLB discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "2ec0be0d-0c64-4406-bfb9-e7f14f35e9b6",
-                        "label": "Classroom Inspirations",
-                        "slug": "classroom-inspirations",
-                        "short_label": "Classroom Inspirations",
-                        "kind": "term",
-                        "description": "Teachers.Net Classroom Inspirations discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "39f4ae85-5130-4fd0-8d7c-3492dffd740a",
-                        "label": "Current Events",
-                        "slug": "current-events",
-                        "short_label": "Current Events",
-                        "kind": "term",
-                        "description": "Teachers.Net Current Events discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "e4e44a18-1f35-4721-bb65-17adea63ce7d",
-                        "label": "Classroom Size",
-                        "slug": "classroom-size",
-                        "short_label": "Classroom Size",
-                        "kind": "term",
-                        "description": "Teachers.Net Classroom Size discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "ca217fda-4804-4da3-b987-f602fe957332",
-                        "label": "Bullying",
-                        "slug": "bullying",
-                        "short_label": "Bullying",
-                        "kind": "term",
-                        "description": "Teachers.Net Bullying discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "e9454fa0-20d1-420d-9eb2-c63dbf691f2a",
-                        "label": "Ed Advocacy",
-                        "slug": "ed-advocacy",
-                        "short_label": "Ed Advocacy",
-                        "kind": "term",
-                        "description": "Teachers.Net Ed Advocacy discussion term.",
-                        "children": []
-                    }
-                ]
-            },
-            {
-                "uuid": "6c287f19-5e50-4532-9caf-33c35b99cd8d",
-                "label": "Teaching Practice & Theory",
-                "slug": "teaching-practice-theory",
-                "short_label": "Teaching Practice & Theory",
+                "description": "Kindergarten Teachers",
+                "children": []
+              }
+            ]
+          },
+          {
+            "uuid": "2563bfe4-1ba6-4c22-b36e-7779ca6ecbc9",
+            "label": "Elementary",
+            "slug": "elementary",
+            "short_label": "Elem",
+            "kind": "term",
+            "description": "Elementary Teachers",
+            "children": [
+              {
+                "uuid": "768511ef-a7e1-44a6-bb9d-304b09a6b1a9",
+                "label": "Grade 1",
+                "slug": "grade-1",
+                "short_label": "Gr 1",
                 "kind": "term",
-                "description": "Teachers.Net Teaching Practice & Theory discussion term.",
-                "children": [
-                    {
-                        "uuid": "b48d41b7-8405-4e9b-9572-f595a50f2980",
-                        "label": "Testing and Grading",
-                        "slug": "testing-and-grading",
-                        "short_label": "Testing and Grading",
-                        "kind": "term",
-                        "description": "Teachers.Net Testing and Grading discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "7d6946c2-4876-4c09-9ebf-520fd2f97afc",
-                        "label": "Motivating Students",
-                        "slug": "motivating-students",
-                        "short_label": "Motivating Students",
-                        "kind": "term",
-                        "description": "Teachers.Net Motivating Students discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "ed3790c5-82b1-459a-b01f-941b7bece7c6",
-                        "label": "Standardized Testing",
-                        "slug": "standardized-testing",
-                        "short_label": "Standardized Testing",
-                        "kind": "term",
-                        "description": "Teachers.Net Standardized Testing discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "1b0c76a4-385f-40b6-91a6-8d7e812add92",
-                        "label": "Staff Development",
-                        "slug": "staff-development",
-                        "short_label": "Staff Development",
-                        "kind": "term",
-                        "description": "Teachers.Net Staff Development discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "7fa26928-93f0-4ac7-aa2c-67948e415f13",
-                        "label": "Professional Readings",
-                        "slug": "professional-readings",
-                        "short_label": "Professional Readings",
-                        "kind": "term",
-                        "description": "Teachers.Net Professional Readings discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "e8a406d7-9303-4b71-81cf-19a3e0234c46",
-                        "label": "Professional Development",
-                        "slug": "professional-development",
-                        "short_label": "Professional Development",
-                        "kind": "term",
-                        "description": "Teachers.Net Professional Development discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "3bca5424-b32f-48b5-abdd-5d6b061a7836",
-                        "label": "Montessori Teachers",
-                        "slug": "montessori-teachers",
-                        "short_label": "Montessori Teachers",
-                        "kind": "term",
-                        "description": "Teachers.Net Montessori Teachers discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "2addffa2-7daa-4a81-b702-5e1764649d1d",
-                        "label": "Lesson Planning",
-                        "slug": "lesson-planning",
-                        "short_label": "Lesson Planning",
-                        "kind": "term",
-                        "description": "Teachers.Net Lesson Planning discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "75c7a24a-6f9c-4499-a578-e859516e69cb",
-                        "label": "Learning Research",
-                        "slug": "learning-research",
-                        "short_label": "Learning Research",
-                        "kind": "term",
-                        "description": "Teachers.Net Learning Research discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "159ba76a-c5cf-4fc1-9abb-62c0761e3097",
-                        "label": "Disruptive Students",
-                        "slug": "disruptive-students",
-                        "short_label": "Disruptive Students",
-                        "kind": "term",
-                        "description": "Teachers.Net Disruptive Students discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "973e9c1c-dc39-4f2a-916f-84e618f6faf3",
-                        "label": "Classroom Discipline",
-                        "slug": "classroom-discipline",
-                        "short_label": "Classroom Discipline",
-                        "kind": "term",
-                        "description": "Teachers.Net Classroom Discipline discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "43049b36-1dc0-4dbf-85b2-ad1b1318c43c",
-                        "label": "Co-Teaching",
-                        "slug": "co-teaching",
-                        "short_label": "Co-Teaching",
-                        "kind": "term",
-                        "description": "Teachers.Net Co-Teaching discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "038f4154-f922-48f5-9f05-38312d15c0a5",
-                        "label": "Collaborative Learning",
-                        "slug": "collaborative-learning",
-                        "short_label": "Collaborative Learning",
-                        "kind": "term",
-                        "description": "Teachers.Net Collaborative Learning discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "119e085c-6343-41a0-b435-30bf98ce4dd1",
-                        "label": "Classroom Management",
-                        "slug": "classroom-management",
-                        "short_label": "Classroom Management",
-                        "kind": "term",
-                        "description": "Teachers.Net Classroom Management discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "98bc8c59-7b04-4291-b080-f28d4ee14bae",
-                        "label": "Character Education",
-                        "slug": "character-education",
-                        "short_label": "Character Education",
-                        "kind": "term",
-                        "description": "Teachers.Net Character Education discussion term.",
-                        "children": []
-                    }
-                ]
-            },
-            {
-                "uuid": "641a5340-cb79-4b24-9382-6c9ac8d54a62",
-                "label": "Professional Communities & Roles",
-                "slug": "professional-communities-roles",
-                "short_label": "Professional Communities & Roles",
+                "description": "Grade 1",
+                "children": []
+              },
+              {
+                "uuid": "7f248d0d-e897-4d6a-ab04-000fb82f2cf5",
+                "label": "Grade 2",
+                "slug": "grade-2",
+                "short_label": "Gr 2",
                 "kind": "term",
-                "description": "Teachers.Net Professional Communities & Roles discussion term.",
-                "children": [
-                    {
-                        "uuid": "0838edba-879b-46c6-9e51-32fdce5dabcc",
-                        "label": "Administrators",
-                        "slug": "administrators",
-                        "short_label": "Administrators",
-                        "kind": "term",
-                        "description": "Teachers.Net Administrators discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "f685216f-567a-4807-adfb-6f0b7a9e4334",
-                        "label": "Teacher Unions",
-                        "slug": "teacher-unions",
-                        "short_label": "Teacher Unions",
-                        "kind": "term",
-                        "description": "Teachers.Net Teacher Unions discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "d987c1c0-9322-4021-bd7f-47d2e9a58af7",
-                        "label": "Substitute Teachers",
-                        "slug": "substitute-teachers",
-                        "short_label": "Substitute Teachers",
-                        "kind": "term",
-                        "description": "Teachers.Net Substitute Teachers discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "579b64b5-2e54-4db1-b062-2fd5b93c3df0",
-                        "label": "Student Teaching",
-                        "slug": "student-teaching",
-                        "short_label": "Student Teaching",
-                        "kind": "term",
-                        "description": "Teachers.Net Student Teaching discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "92178b0a-2917-4491-94ac-67771853c64a",
-                        "label": "Private School Teachers",
-                        "slug": "private-school-teachers",
-                        "short_label": "Private School Teachers",
-                        "kind": "term",
-                        "description": "Teachers.Net Private School Teachers discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "5247b9d7-092b-4f3b-b864-7d285355c327",
-                        "label": "Mentor Teachers",
-                        "slug": "mentor-teachers",
-                        "short_label": "Mentor Teachers",
-                        "kind": "term",
-                        "description": "Teachers.Net Mentor Teachers discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "f71d9a50-d539-436d-98e0-63325a22af1d",
-                        "label": "Master Teachers",
-                        "slug": "master-teachers",
-                        "short_label": "Master Teachers",
-                        "kind": "term",
-                        "description": "Teachers.Net Master Teachers discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "d913468f-a495-4b5c-a770-6f507046f8d4",
-                        "label": "Golden Apples",
-                        "slug": "golden-apples",
-                        "short_label": "Golden Apples",
-                        "kind": "term",
-                        "description": "Teachers.Net Golden Apples discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "7b82d771-1e8a-4d96-8879-5f6d7a4212bf",
-                        "label": "AP/GATE Teachers",
-                        "slug": "ap-gate-teachers",
-                        "short_label": "AP/GATE Teachers",
-                        "kind": "term",
-                        "description": "Teachers.Net AP/GATE Teachers discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "f343bbc9-7a67-4d69-b779-15601d0387fa",
-                        "label": "DODD Teachers",
-                        "slug": "dodd-teachers",
-                        "short_label": "DODD Teachers",
-                        "kind": "term",
-                        "description": "Teachers.Net DODD Teachers discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "7701eb87-eb3f-4125-a7f5-97f8a247d651",
-                        "label": "Distance Teachers",
-                        "slug": "distance-teachers",
-                        "short_label": "Distance Teachers",
-                        "kind": "term",
-                        "description": "Teachers.Net Distance Teachers discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "01498f2f-6bf8-453c-883e-f3d7d8d80e30",
-                        "label": "Department Heads",
-                        "slug": "department-heads",
-                        "short_label": "Department Heads",
-                        "kind": "term",
-                        "description": "Teachers.Net Department Heads discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "d0cf4469-40d9-447f-adbd-5115dd201611",
-                        "label": "Beginning Teachers",
-                        "slug": "beginning-teachers",
-                        "short_label": "Beginning Teachers",
-                        "kind": "term",
-                        "description": "Teachers.Net Beginning Teachers discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "629c3326-cff1-47d9-8015-f8b558204052",
-                        "label": "Retired Teachers",
-                        "slug": "retired-teachers",
-                        "short_label": "Retired Teachers",
-                        "kind": "term",
-                        "description": "Teachers.Net Retired Teachers discussion term.",
-                        "children": []
-                    }
-                ]
-            },
-            {
-                "uuid": "3b4f8061-8070-4b0c-9c47-054860a4a44d",
-                "label": "Classroom Projects & Themes",
-                "slug": "classroom-projects-themes",
-                "short_label": "Classroom Projects & Themes",
+                "description": "Grade 2",
+                "children": []
+              },
+              {
+                "uuid": "64d72915-437a-4f55-9c47-c01001441c18",
+                "label": "Grade 3",
+                "slug": "grade-3",
+                "short_label": "Gr 3",
                 "kind": "term",
-                "description": "Teachers.Net Classroom Projects & Themes discussion term.",
-                "children": [
-                    {
-                        "uuid": "1287813a-1259-4f0d-ba0f-e902bcc82d20",
-                        "label": "Project Springboard",
-                        "slug": "project-springboard",
-                        "short_label": "Project Springboard",
-                        "kind": "term",
-                        "description": "Teachers.Net Project Springboard discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "04dae860-ae9e-4014-b4d7-20e4ad61c081",
-                        "label": "Postcard Projects",
-                        "slug": "postcard-projects",
-                        "short_label": "Postcard Projects",
-                        "kind": "term",
-                        "description": "Teachers.Net Postcard Projects discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "ce33760d-e443-4d90-82e0-360d0844f2b5",
-                        "label": "Classroom Pets",
-                        "slug": "classroom-pets",
-                        "short_label": "Classroom Pets",
-                        "kind": "term",
-                        "description": "Teachers.Net Classroom Pets discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "d5aae444-3d59-48cf-8224-2fe78b2830a5",
-                        "label": "Pen Pal Switchboard",
-                        "slug": "pen-pal-switchboard",
-                        "short_label": "Pen Pal Switchboard",
-                        "kind": "term",
-                        "description": "Teachers.Net Pen Pal Switchboard discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "46ca8a33-97fc-41d0-9f42-5be1bab2b0d2",
-                        "label": "Grant Writing",
-                        "slug": "grant-writing",
-                        "short_label": "Grant Writing",
-                        "kind": "term",
-                        "description": "Teachers.Net Grant Writing discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "107bc01c-b571-445f-946a-5e01281f7076",
-                        "label": "Fundraising Projects",
-                        "slug": "fundraising-projects",
-                        "short_label": "Fundraising Projects",
-                        "kind": "term",
-                        "description": "Teachers.Net Fundraising Projects discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "3be672dc-2e5a-4cf2-a847-3e4d2b2dacc2",
-                        "label": "Fieldtrips",
-                        "slug": "fieldtrips",
-                        "short_label": "Fieldtrips",
-                        "kind": "term",
-                        "description": "Teachers.Net Fieldtrips discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "6f0fdec9-d9a3-40ee-8b76-fe54b16d9f17",
-                        "label": "Earth Day/Ecology Projects",
-                        "slug": "earth-day-ecology-projects",
-                        "short_label": "Earth Day/Ecology Projects",
-                        "kind": "term",
-                        "description": "Teachers.Net Earth Day/Ecology Projects discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "361c036c-bce5-4dec-9847-ec9c28b57416",
-                        "label": "Classroom Centers",
-                        "slug": "classroom-centers",
-                        "short_label": "Classroom Centers",
-                        "kind": "term",
-                        "description": "Teachers.Net Classroom Centers discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "ef1f584a-f0bf-4f96-9fd1-7ba4c53135a5",
-                        "label": "Traveling Buddies Projects",
-                        "slug": "traveling-buddies-projects",
-                        "short_label": "Traveling Buddies Projects",
-                        "kind": "term",
-                        "description": "Teachers.Net Traveling Buddies Projects discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "d9d8200f-e4d1-4c29-ac70-3d0e18467669",
-                        "label": "Webquests",
-                        "slug": "webquests",
-                        "short_label": "Webquests",
-                        "kind": "term",
-                        "description": "Teachers.Net Webquests discussion term.",
-                        "children": []
-                    }
-                ]
-            },
-            {
-                "uuid": "2b7b998f-1626-44a4-b228-c6d352776de4",
-                "label": "Education Careers & Credentials",
-                "slug": "education-careers-credentials",
-                "short_label": "Education Careers & Credentials",
+                "description": "Grade 3",
+                "children": []
+              },
+              {
+                "uuid": "073dd227-e6ba-4dda-8159-2e6067519250",
+                "label": "Grade 4",
+                "slug": "grade-4",
+                "short_label": "Gr 4",
                 "kind": "term",
-                "description": "Teachers.Net Education Careers & Credentials discussion term.",
-                "children": [
-                    {
-                        "uuid": "52bd64ef-7207-4294-9e04-a24c6546f13e",
-                        "label": "Tutors",
-                        "slug": "tutors",
-                        "short_label": "Tutors",
-                        "kind": "term",
-                        "description": "Teachers.Net Tutors discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "e5f88ea2-9568-46f1-8560-4927a044396a",
-                        "label": "Teacher Recruiters",
-                        "slug": "teacher-recruiters",
-                        "short_label": "Teacher Recruiters",
-                        "kind": "term",
-                        "description": "Teachers.Net Teacher Recruiters discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "d864321c-ba33-4471-9a54-549bcb96bfb7",
-                        "label": "NBPTS",
-                        "slug": "nbpts",
-                        "short_label": "NBPTS",
-                        "kind": "term",
-                        "description": "Teachers.Net NBPTS discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "8fd60e7d-0c1b-4718-a234-031b17cbacf3",
-                        "label": "Continuing Education",
-                        "slug": "continuing-education",
-                        "short_label": "Continuing Education",
-                        "kind": "term",
-                        "description": "Teachers.Net Continuing Education discussion term.",
-                        "children": []
-                    },
-                    {
-                        "uuid": "87820d14-61f9-4852-a681-69968a719a7b",
-                        "label": "Job Talk",
-                        "slug": "job-talk",
-                        "short_label": "Job Talk",
-                        "kind": "term",
-                        "description": "Teachers.Net Job Talk discussion term.",
-                        "children": []
-                    }
-                ]
-            }
+                "description": "Grade 4",
+                "children": []
+              },
+              {
+                "uuid": "3061b243-835f-4f56-8b11-40ae9c8249b2",
+                "label": "Grade 5",
+                "slug": "grade-5",
+                "short_label": "Gr 5",
+                "kind": "term",
+                "description": "Grade 5",
+                "children": []
+              }
+            ]
+          },
+          {
+            "uuid": "e449211f-95bb-4287-90d3-0c451a81ef4c",
+            "label": "Middle School",
+            "slug": "middle-school",
+            "short_label": "MS",
+            "kind": "term",
+            "description": "Middle School Teachers",
+            "children": [
+              {
+                "uuid": "f167d17f-6d99-4341-9a77-7dda8cc76fd5",
+                "label": "Grade 6",
+                "slug": "grade-6",
+                "short_label": "Gr 6",
+                "kind": "term",
+                "description": "Grade 6",
+                "children": []
+              },
+              {
+                "uuid": "5d189ff1-f372-4eec-9ead-82ebf14c24ac",
+                "label": "Grade 7",
+                "slug": "grade-7",
+                "short_label": "Gr 7",
+                "kind": "term",
+                "description": "Grade 7",
+                "children": []
+              },
+              {
+                "uuid": "1bd6b70d-d58a-4bd9-afae-7826fe738ee0",
+                "label": "Grade 8",
+                "slug": "grade-8",
+                "short_label": "Gr 8",
+                "kind": "term",
+                "description": "Grade 8",
+                "children": []
+              }
+            ]
+          },
+          {
+            "uuid": "3993cd02-964b-4d67-ad3d-267dcb0a6a04",
+            "label": "High School",
+            "slug": "high-school",
+            "short_label": "HS",
+            "kind": "term",
+            "description": "High School Teachers",
+            "children": [
+              {
+                "uuid": "e33d88d1-19bf-4380-b55a-561c37005f18",
+                "label": "Grade 9",
+                "slug": "grade-9",
+                "short_label": "Gr 9",
+                "kind": "term",
+                "description": "Grade 9 Teachers",
+                "children": []
+              },
+              {
+                "uuid": "50b7c944-7432-4e1b-bbbb-5d2261466aeb",
+                "label": "Grade 10",
+                "slug": "grade-10",
+                "short_label": "Gr 10",
+                "kind": "term",
+                "description": "Grade 10 Teachers",
+                "children": []
+              },
+              {
+                "uuid": "2bd5ced9-81e7-4b2a-b1e7-74f43ee7a69f",
+                "label": "Grade 11",
+                "slug": "grade-11",
+                "short_label": "Gr 11",
+                "kind": "term",
+                "description": "Grade 11",
+                "children": []
+              },
+              {
+                "uuid": "f190288d-7878-448e-85d0-ce3d431078f7",
+                "label": "Grade 12",
+                "slug": "grade-12",
+                "short_label": "Gr 12",
+                "kind": "term",
+                "description": "Grade 12",
+                "children": []
+              }
+            ]
+          },
+          {
+            "uuid": "213b627b-f788-4df2-9719-c7822481c750",
+            "label": "Adult Education",
+            "slug": "adult-education",
+            "short_label": "Adult Ed",
+            "kind": "term",
+            "description": "Adult Educators",
+            "children": []
+          },
+          {
+            "uuid": "7f650a7a-0541-4830-bf10-e1f4ccd1eadf",
+            "label": "Higher Education",
+            "slug": "higher-education",
+            "kind": "term",
+            "children": [],
+            "short_label": "Higher Ed",
+            "description": "Higher Education Instructors"
+          }
         ],
-        "short_label": "Teachers.Net",
-        "description": "Teachers.Net",
-        "uuid": "7b8c0c1f-bdec-4cfc-b215-26d41ec32a3d"
-    },
-    "runtime_refresh_ticket": "COMMUNITY3-CORE-TERMS-INTEGRATION001",
-    "runtime_authority": {
-        "branch": "COMMUNITY3-ui-working",
-        "commit": "846be8702fc2ed70f4bfd0c26591d9c95b78c3df",
-        "plugin_tree_hash": "9c492e6ed66ae133b687e75f48fc34faf3ea7c45f27c7c7b082b30a60cfd8ce3",
-        "compiled_version_id": 1,
-        "tree_sha256_normalized": "60b0e1b331fc505a6909bf0ac3c4805ff33d80ecbea8e42996306d68f68bedfe"
-    }
+        "short_label": "Grade Levels",
+        "description": "Grade Level Teachers"
+      },
+      {
+        "uuid": "8b7ec968-acba-4edd-894c-495e4f30e1cd",
+        "label": "Subject Area",
+        "slug": "subject-area",
+        "kind": "term",
+        "children": [
+          {
+            "uuid": "ad2d902b-9f30-4356-b814-229fc60df450",
+            "label": "English Language Arts",
+            "slug": "english-language-arts",
+            "kind": "term",
+            "children": [
+              {
+                "uuid": "52479565-8e1e-4e91-ab96-3c48d05c71b2",
+                "label": "Reading & Literacy",
+                "slug": "reading-literacy",
+                "short_label": "Reading/Lit",
+                "kind": "term",
+                "description": "Reading & Literacy Teachers",
+                "children": [
+                  {
+                    "uuid": "fb2a3729-a4d7-42b5-818b-3afaf60ad13e",
+                    "label": "Vocabulary",
+                    "slug": "vocabulary",
+                    "short_label": "Vocabulary",
+                    "description": "Vocabulary Teachers",
+                    "kind": "term",
+                    "children": []
+                  },
+                  {
+                    "uuid": "d00055bf-3b6d-4b15-a81d-7e8267b65f5e",
+                    "label": "Phonics",
+                    "slug": "phonics",
+                    "short_label": "Phonics",
+                    "description": "Phonics Teachers",
+                    "kind": "term",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "uuid": "050a8313-fa36-4be8-afe1-b64a3ee96999",
+                "label": "Literature",
+                "slug": "literature",
+                "short_label": "Literature",
+                "description": "Literature Teachers",
+                "kind": "term",
+                "children": []
+              },
+              {
+                "uuid": "8e2b6f00-fb3b-4501-b5ca-0574a76e9107",
+                "label": "Writing",
+                "slug": "writing",
+                "short_label": "Writing",
+                "description": "Writing Teachers",
+                "kind": "term",
+                "children": [
+                  {
+                    "uuid": "e8f9f329-69ff-462a-9333-1158b7fd63db",
+                    "label": "Composition",
+                    "slug": "composition",
+                    "short_label": "Composition",
+                    "description": "Composition Teachers",
+                    "kind": "term",
+                    "children": []
+                  },
+                  {
+                    "uuid": "aacade9e-a9c6-4648-8d17-e6b044e953d8",
+                    "label": "Creative Writing",
+                    "slug": "creative-writing",
+                    "short_label": "Creative Writing",
+                    "description": "Creative Writing Teachers",
+                    "kind": "term",
+                    "children": []
+                  },
+                  {
+                    "uuid": "9e5bda47-a60b-4e8e-9ece-4da4379600ee",
+                    "label": "Journalism",
+                    "slug": "journalism",
+                    "short_label": "Journalism",
+                    "description": "Journalism Teachers",
+                    "kind": "term",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "uuid": "5a6ca473-bd6d-409e-b979-90fa06230839",
+                "label": "Language",
+                "slug": "language",
+                "short_label": "Language",
+                "description": "Language Teachers",
+                "kind": "term",
+                "children": [
+                  {
+                    "uuid": "231d75bd-6add-4548-95cc-c5cfdd12f255",
+                    "label": "Grammar",
+                    "slug": "grammar",
+                    "short_label": "Grammar",
+                    "description": "Grammar Teachers",
+                    "kind": "term",
+                    "children": []
+                  },
+                  {
+                    "uuid": "e74ab809-af53-45bb-9394-1008d3ae46a9",
+                    "label": "Spelling",
+                    "slug": "spelling",
+                    "short_label": "Spelling",
+                    "description": "Spelling Teachers",
+                    "kind": "term",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "uuid": "f12c0968-b65b-4a42-b61a-1c6388dc8ec3",
+                "label": "Speech & Communication",
+                "slug": "speech-communication",
+                "short_label": "Speech/Comm",
+                "description": "Speech & Communication Teachers",
+                "kind": "term",
+                "children": [
+                  {
+                    "uuid": "54dd8dc4-dce3-4281-b63a-0d0ab317db9e",
+                    "label": "Public Speaking",
+                    "slug": "public-speaking",
+                    "short_label": "Public Speaking",
+                    "description": "Public Speaking Teachers",
+                    "kind": "term",
+                    "children": []
+                  },
+                  {
+                    "uuid": "1bea3a54-390b-4b1c-a39b-98a9df9dcb43",
+                    "label": "Debate",
+                    "slug": "debate",
+                    "short_label": "Debate",
+                    "description": "Debate Teachers",
+                    "kind": "term",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "uuid": "25f56ec5-06b6-4956-8728-531d4cb62b47",
+                "label": "Media Literacy",
+                "slug": "media-literacy",
+                "short_label": "Media Lit",
+                "description": "Media Literacy Teachers",
+                "kind": "term",
+                "children": []
+              },
+              {
+                "uuid": "380dd99a-95e2-490d-ac79-b14ef959854a",
+                "label": "English as a Second Language (ESL)",
+                "slug": "english-as-a-second-language-esl",
+                "kind": "term",
+                "children": [],
+                "short_label": "ESL",
+                "description": "English as a Second Language (ESL) Teachers"
+              }
+            ],
+            "short_label": "ELA",
+            "description": "English Language Arts Teachers"
+          },
+          {
+            "uuid": "69294fa2-c0c4-4a2f-9864-211848c1c00a",
+            "label": "Mathematics",
+            "slug": "mathematics",
+            "kind": "term",
+            "children": [
+              {
+                "uuid": "9d0ac9a3-767c-412a-9bd2-7f49db764826",
+                "label": "Algebra",
+                "slug": "algebra",
+                "short_label": "Algebra",
+                "kind": "term",
+                "description": "Algebra Teachers",
+                "children": []
+              },
+              {
+                "uuid": "0f793276-073a-44b0-8a06-3206335cdf76",
+                "label": "Geometry",
+                "slug": "geometry",
+                "short_label": "Geometry",
+                "description": "Geometry Teachers",
+                "kind": "term",
+                "children": []
+              },
+              {
+                "uuid": "c42d2c67-e5c7-4bd9-ad76-03b1c173296c",
+                "label": "Trigonometry",
+                "slug": "trigonometry",
+                "short_label": "Trigonometry",
+                "description": "Trigonometry Teachers",
+                "kind": "term",
+                "children": []
+              },
+              {
+                "uuid": "700ee075-25b7-4fe9-b3e1-74f46e3dabde",
+                "label": "Calculus",
+                "slug": "calculus",
+                "short_label": "Calculus",
+                "description": "Calculus Teachers",
+                "kind": "term",
+                "children": []
+              },
+              {
+                "uuid": "34e7130e-1e38-4804-a50d-7b3994c6c54b",
+                "label": "Statistics",
+                "slug": "statistics",
+                "short_label": "Statistics",
+                "description": "Statistics Teachers",
+                "kind": "term",
+                "children": []
+              }
+            ],
+            "short_label": "Math",
+            "description": "Mathematics Teachers"
+          },
+          {
+            "uuid": "8f2243d1-8ea7-4547-b44b-88a5456d318b",
+            "label": "Science",
+            "slug": "science",
+            "kind": "term",
+            "children": [
+              {
+                "uuid": "4586519a-09ca-4d86-97c3-40af5d008502",
+                "label": "Biology",
+                "slug": "biology",
+                "short_label": "Biology",
+                "kind": "term",
+                "description": "Biology Teachers",
+                "children": []
+              },
+              {
+                "uuid": "24d177d3-c0d7-470b-9384-2816b3e56b1a",
+                "label": "Chemistry",
+                "slug": "chemistry",
+                "short_label": "Chemistry",
+                "description": "Chemistry Teachers",
+                "kind": "term",
+                "children": []
+              },
+              {
+                "uuid": "c2784df2-3451-4e62-bffe-fad8c9b6e778",
+                "label": "Physics",
+                "slug": "physics",
+                "short_label": "Physics",
+                "description": "Physics Teachers",
+                "kind": "term",
+                "children": []
+              },
+              {
+                "uuid": "250cf881-ca05-49cf-afed-1c8ea9b39d51",
+                "label": "Earth Science",
+                "slug": "earth-science",
+                "short_label": "Earth Science",
+                "description": "Earth Science Teachers",
+                "kind": "term",
+                "children": []
+              },
+              {
+                "uuid": "678c6cbf-ac86-4349-861f-75740075559b",
+                "label": "Environmental Science",
+                "slug": "environmental-science",
+                "short_label": "Env Sci",
+                "description": "Environmental Science Teachers",
+                "kind": "term",
+                "children": []
+              }
+            ],
+            "short_label": "Science",
+            "description": "Science"
+          },
+          {
+            "uuid": "bce06bd1-8a54-4526-a93e-8b5643b17fcd",
+            "label": "Social Studies",
+            "slug": "social-studies",
+            "kind": "term",
+            "children": [
+              {
+                "uuid": "20a6b1c0-8435-437f-849f-cf17d221e1e3",
+                "label": "History",
+                "slug": "history",
+                "short_label": "History",
+                "kind": "term",
+                "description": "History Teachers",
+                "children": []
+              },
+              {
+                "uuid": "55a06416-0fd6-433a-85fe-cc164a3f0d3e",
+                "label": "Geography",
+                "slug": "geography",
+                "short_label": "Geography",
+                "description": "Geography Teachers",
+                "kind": "term",
+                "children": []
+              },
+              {
+                "uuid": "18cf916a-cd53-4125-b2c9-ea47cbd671e2",
+                "label": "Civics & Government",
+                "slug": "civics-government",
+                "short_label": "Civics/Gov",
+                "description": "Civics & Government Teachers",
+                "kind": "term",
+                "children": []
+              },
+              {
+                "uuid": "d71e9476-802b-4834-a016-a76a0293dbd9",
+                "label": "Economics",
+                "slug": "economics",
+                "short_label": "Economics",
+                "description": "Economics Teachers",
+                "kind": "term",
+                "children": []
+              },
+              {
+                "uuid": "d574e5e9-90e0-41d1-bddf-85d926340c28",
+                "label": "Psychology",
+                "slug": "psychology",
+                "short_label": "Psychology",
+                "description": "Psychology Teachers",
+                "kind": "term",
+                "children": []
+              },
+              {
+                "uuid": "924802b9-bd73-4e2d-ad52-c7e630b2e139",
+                "label": "Sociology",
+                "slug": "sociology",
+                "short_label": "Sociology",
+                "description": "Sociology Teachers",
+                "kind": "term",
+                "children": []
+              },
+              {
+                "uuid": "68744946-ff91-4ba1-a093-8a6092560904",
+                "label": "Anthropology",
+                "slug": "anthropology",
+                "short_label": "Anthropology",
+                "description": "Anthropology Teachers",
+                "kind": "term",
+                "children": []
+              },
+              {
+                "uuid": "2728f00a-90ba-4a32-806c-62adea436abb",
+                "label": "Global Studies",
+                "slug": "global-studies",
+                "short_label": "Global Studies",
+                "description": "Global Studies Teachers",
+                "kind": "term",
+                "children": []
+              }
+            ],
+            "short_label": "Social Studies",
+            "description": "Social Studies"
+          },
+          {
+            "uuid": "6d407f6b-80a5-4f69-b334-9bf8d0c9b40e",
+            "label": "Art",
+            "slug": "art",
+            "kind": "term",
+            "children": [
+              {
+                "uuid": "27cc235e-a032-4126-a889-38742c117d24",
+                "label": "Arts & Crafts",
+                "slug": "arts-crafts",
+                "short_label": "Arts/Crafts",
+                "description": "Arts & Crafts Teachers",
+                "kind": "term",
+                "children": []
+              },
+              {
+                "uuid": "e3e79176-40f0-4e8c-8a89-7cd3245123e5",
+                "label": "Art History",
+                "slug": "art-history",
+                "short_label": "Art History",
+                "description": "Art History Teachers",
+                "kind": "term",
+                "children": []
+              },
+              {
+                "uuid": "7b97545d-58b7-4c03-8e06-e22dd2e06271",
+                "label": "Dance",
+                "slug": "dance",
+                "short_label": "Dance",
+                "description": "Dance Teachers",
+                "kind": "term",
+                "children": []
+              },
+              {
+                "uuid": "2b5a65ab-1013-4bde-9ee1-10f6db891ef0",
+                "label": "Theater / Drama",
+                "slug": "theater-drama",
+                "short_label": "Theater/Drama",
+                "description": "Theater / Drama Teachers",
+                "kind": "term",
+                "children": []
+              },
+              {
+                "uuid": "a323e85c-4a34-440c-8df4-80ec5d185bee",
+                "label": "Music",
+                "slug": "music",
+                "kind": "term",
+                "children": [],
+                "short_label": "Music",
+                "description": "Music"
+              }
+            ],
+            "short_label": "Art",
+            "description": "Art"
+          },
+          {
+            "uuid": "019e13ed-b304-4897-8029-b4116d11989d",
+            "label": "World Languages",
+            "slug": "world-languages",
+            "kind": "term",
+            "children": [
+              {
+                "uuid": "ee999b0b-0ea5-46e8-ac81-f0828de37f59",
+                "label": "Spanish",
+                "slug": "spanish",
+                "short_label": "Spanish",
+                "kind": "term",
+                "description": "Spanish Teachers",
+                "children": []
+              },
+              {
+                "uuid": "0985e47c-f98e-4c0b-81ad-a52898a79049",
+                "label": "French",
+                "slug": "french",
+                "short_label": "French",
+                "description": "French Teachers",
+                "kind": "term",
+                "children": []
+              },
+              {
+                "uuid": "6472d20f-933a-47a7-bdc7-1b3d5352c2fb",
+                "label": "Latin",
+                "slug": "latin",
+                "short_label": "Latin",
+                "description": "Latin Teachers",
+                "kind": "term",
+                "children": []
+              },
+              {
+                "uuid": "b2c2b6e9-4a80-4df5-9ed8-8eb642664688",
+                "label": "American Sign Language",
+                "slug": "american-sign-language",
+                "short_label": "ASL",
+                "description": "American Sign Language Teachers",
+                "kind": "term",
+                "children": []
+              }
+            ],
+            "short_label": "Lang",
+            "description": "World Languages"
+          },
+          {
+            "uuid": "8a619941-e623-4eec-9545-3678f5798830",
+            "label": "Technology",
+            "slug": "technology",
+            "kind": "term",
+            "children": [
+              {
+                "uuid": "f2c2c7e6-0220-4314-8837-9971f29d35f5",
+                "label": "Computer Science",
+                "slug": "computer-science",
+                "short_label": "Comp Sci",
+                "kind": "term",
+                "description": "Computer Science Teachers",
+                "children": []
+              },
+              {
+                "uuid": "9ff7b756-0ef9-4e19-9ea5-6f55b49b1ee2",
+                "label": "Programming",
+                "slug": "programming",
+                "short_label": "Programming",
+                "description": "Programming Teachers",
+                "kind": "term",
+                "children": []
+              },
+              {
+                "uuid": "02fcfcca-58fd-4a57-b7c4-d34071b3585c",
+                "label": "Artificial Intelligence",
+                "slug": "artificial-intelligence",
+                "short_label": "AI",
+                "description": "Artificial Intelligence Teachers",
+                "kind": "term",
+                "children": []
+              },
+              {
+                "uuid": "9dbe93f0-db84-4f20-a63b-bb260ab07749",
+                "label": "Web Development",
+                "slug": "web-development",
+                "short_label": "Web Dev",
+                "description": "Web Development Teachers",
+                "kind": "term",
+                "children": []
+              },
+              {
+                "uuid": "185edf66-f456-4cba-be94-fd2c45af7f33",
+                "label": "Information Technology",
+                "slug": "information-technology",
+                "short_label": "IT",
+                "description": "Information Technology Teachers",
+                "kind": "term",
+                "children": []
+              },
+              {
+                "uuid": "4d9916a1-b528-456b-b415-72267f79796a",
+                "label": "Digital Media",
+                "slug": "digital-media",
+                "short_label": "Digital Media",
+                "description": "Digital Media Teachers",
+                "kind": "term",
+                "children": []
+              },
+              {
+                "uuid": "1bbb7492-6b04-4bf1-9f8c-0c8289e01e09",
+                "label": "AI in Education",
+                "slug": "ai-in-education",
+                "short_label": "AI in Education",
+                "kind": "term",
+                "description": "Teachers.Net AI in Education discussion term.",
+                "children": []
+              }
+            ],
+            "short_label": "Tech",
+            "description": "Technology"
+          },
+          {
+            "uuid": "7160ba2a-aac6-4770-9450-d5e122de6762",
+            "label": "Career Technical Education",
+            "slug": "career-technical-education",
+            "kind": "term",
+            "children": [
+              {
+                "uuid": "a8110e17-d13a-4b1a-be35-6c82230385c9",
+                "label": "Business Education",
+                "slug": "business-education",
+                "short_label": "Business Ed",
+                "description": "Business Education Teachers",
+                "kind": "term",
+                "children": [
+                  {
+                    "uuid": "aa4ebb10-d3b4-45f8-a1ec-5966570fe55d",
+                    "label": "Accounting",
+                    "slug": "accounting",
+                    "short_label": "Accounting",
+                    "description": "Accounting Teachers",
+                    "kind": "term",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "uuid": "8b93d614-8c53-47a1-8573-c1653152d2f7",
+                "label": "Automotive Technology",
+                "slug": "automotive-technology",
+                "short_label": "Auto Tech",
+                "description": "Automotive Technology Teachers",
+                "kind": "term",
+                "children": []
+              },
+              {
+                "uuid": "6d0295cd-803c-4f27-b8c8-c9dcab5ad8a0",
+                "label": "Construction Trades",
+                "slug": "construction-trades",
+                "short_label": "Construction Trades",
+                "description": "Construction Trades Teachers",
+                "kind": "term",
+                "children": []
+              },
+              {
+                "uuid": "0ec4962b-a71c-4515-886f-ff98818e5c9b",
+                "label": "Culinary Arts",
+                "slug": "culinary-arts",
+                "short_label": "Culinary Arts",
+                "description": "Culinary Arts Teachers",
+                "kind": "term",
+                "children": []
+              },
+              {
+                "uuid": "68e291d7-d346-4e71-bb00-e0e261206ac6",
+                "label": "Nutrition & Food Science",
+                "slug": "nutrition-food-science",
+                "short_label": "Nutrition/Food Sci",
+                "description": "Nutrition & Food Science Teachers",
+                "kind": "term",
+                "children": []
+              }
+            ],
+            "short_label": "CTE",
+            "description": "Career Technical Education Teachers"
+          },
+          {
+            "uuid": "c8baf6ee-ecc7-437a-84fd-ab1952df4696",
+            "label": "Physical Education & Health",
+            "slug": "physical-education-health",
+            "kind": "term",
+            "children": [
+              {
+                "uuid": "05d58b3a-7462-4738-a62d-3152ccc85eea",
+                "label": "Physical Education",
+                "slug": "physical-education",
+                "short_label": "Physical Education",
+                "description": "Physical Education Teachers",
+                "kind": "term",
+                "children": []
+              },
+              {
+                "uuid": "8b84093a-2061-49b8-9058-fef276ddc68a",
+                "label": "Health Education",
+                "slug": "health-education",
+                "short_label": "Health Education",
+                "description": "Health Education Teachers",
+                "kind": "term",
+                "children": []
+              },
+              {
+                "uuid": "2c2d1572-8184-488b-958e-c553dfbcf63f",
+                "label": "Driver & Safety Education",
+                "slug": "driver-safety-education",
+                "short_label": "Driver/Safety Ed",
+                "description": "Driver & Safety Education Teachers",
+                "kind": "term",
+                "children": []
+              }
+            ],
+            "short_label": "PE/Health",
+            "description": "Physical Education & Health Teachers"
+          },
+          {
+            "uuid": "fb819186-6e6e-4586-9e68-65abb2638d53",
+            "label": "Religious Studies",
+            "slug": "religious-studies",
+            "short_label": "Religious Studies",
+            "description": "Religious Studies Teachers",
+            "kind": "term",
+            "children": []
+          },
+          {
+            "uuid": "a2990cb3-d1c7-4cdf-9f92-dde31d521e5d",
+            "label": "General / Multiple Subjects",
+            "slug": "general-multiple-subjects",
+            "short_label": "Gen/Mult Subj",
+            "kind": "term",
+            "description": "General / Multiple Subjects",
+            "children": []
+          },
+          {
+            "uuid": "5395981b-4c01-46ba-9b2f-c16ba6fd78f2",
+            "label": "Special Education",
+            "slug": "special-education",
+            "kind": "term",
+            "children": [],
+            "short_label": "SPED",
+            "description": "Special Education"
+          },
+          {
+            "uuid": "2e0ea2f5-8d10-4bfb-8f3e-6cd1cfa146c8",
+            "label": "Counseling",
+            "slug": "counseling",
+            "short_label": "Counseling",
+            "kind": "term",
+            "description": "Counseling Professionals",
+            "children": []
+          },
+          {
+            "uuid": "816599cb-c627-4ad8-a3b2-ae5f2fb590c8",
+            "label": "Library / Media",
+            "slug": "library-media",
+            "short_label": "Library/Media",
+            "kind": "term",
+            "description": "School Librarians",
+            "children": []
+          }
+        ],
+        "short_label": "Subject Areas",
+        "description": "Subject Area"
+      },
+      {
+        "uuid": "0e7fe983-68df-4026-95a3-c66575cd9dbe",
+        "label": "Location",
+        "slug": "location",
+        "kind": "term",
+        "children": [
+          {
+            "uuid": "87b032ce-70d5-4bab-a56f-35bf59acb5a4",
+            "label": "United States",
+            "slug": "united-states",
+            "kind": "term",
+            "children": [
+              {
+                "uuid": "3877d049-1e0f-40e5-a2e4-43d412643cb0",
+                "label": "Alabama",
+                "slug": "alabama",
+                "short_label": "AL",
+                "kind": "term",
+                "description": "Alabama",
+                "children": []
+              },
+              {
+                "uuid": "4a7a89db-9850-4f2d-87df-fa7d6ac5daae",
+                "label": "Alaska",
+                "slug": "alaska",
+                "short_label": "AK",
+                "kind": "term",
+                "description": "Alaska",
+                "children": []
+              },
+              {
+                "uuid": "5c23adfd-4e7c-4235-a4ea-5a300170cad6",
+                "label": "Arizona",
+                "slug": "arizona",
+                "short_label": "AZ",
+                "kind": "term",
+                "description": "Arizona",
+                "children": []
+              },
+              {
+                "uuid": "93a04f6d-2ccc-4dab-b50a-b5be8ad2ea9c",
+                "label": "Arkansas",
+                "slug": "arkansas",
+                "short_label": "AR",
+                "kind": "term",
+                "description": "Arkansas",
+                "children": []
+              },
+              {
+                "uuid": "e6fa1ab0-d216-4982-9c14-44cab36bfab0",
+                "label": "California",
+                "slug": "california",
+                "short_label": "CA",
+                "kind": "term",
+                "description": "California",
+                "children": []
+              },
+              {
+                "uuid": "a9f6d2f1-d19e-421c-a959-b421738bb14b",
+                "label": "Colorado",
+                "slug": "colorado",
+                "short_label": "CO",
+                "kind": "term",
+                "description": "Colorado",
+                "children": []
+              },
+              {
+                "uuid": "81352040-51b5-4a84-a9db-2ce701421604",
+                "label": "Connecticut",
+                "slug": "connecticut",
+                "short_label": "CT",
+                "kind": "term",
+                "description": "Connecticut",
+                "children": []
+              },
+              {
+                "uuid": "050e3201-1735-46e3-95ad-d1e8ec2a8cea",
+                "label": "Delaware",
+                "slug": "delaware",
+                "short_label": "DE",
+                "kind": "term",
+                "description": "Delaware",
+                "children": []
+              },
+              {
+                "uuid": "f4e84e61-2435-4850-8601-027b5ad854aa",
+                "label": "District of Columbia",
+                "slug": "district-of-columbia",
+                "short_label": "DC",
+                "kind": "term",
+                "description": "District of Columbia",
+                "children": []
+              },
+              {
+                "uuid": "44d8053c-1998-445d-a4c5-c5c0197f63e2",
+                "label": "Florida",
+                "slug": "florida",
+                "short_label": "FL",
+                "kind": "term",
+                "description": "Florida",
+                "children": []
+              },
+              {
+                "uuid": "d31cc7eb-60ce-4de4-8448-1d429205313f",
+                "label": "Georgia",
+                "slug": "georgia",
+                "short_label": "GA",
+                "kind": "term",
+                "description": "Georgia",
+                "children": []
+              },
+              {
+                "uuid": "a4f1c538-c067-4972-996a-19fe7bd58094",
+                "label": "Hawaii",
+                "slug": "hawaii",
+                "short_label": "HI",
+                "kind": "term",
+                "description": "Hawaii",
+                "children": []
+              },
+              {
+                "uuid": "e305c908-534f-4262-ae9f-f34d553fb21b",
+                "label": "Idaho",
+                "slug": "idaho",
+                "short_label": "ID",
+                "kind": "term",
+                "description": "Idaho",
+                "children": []
+              },
+              {
+                "uuid": "6d6d020a-9846-4885-9a55-19c0fd7a2963",
+                "label": "Illinois",
+                "slug": "illinois",
+                "short_label": "IL",
+                "kind": "term",
+                "description": "Illinois",
+                "children": []
+              },
+              {
+                "uuid": "80c7047e-2dfa-499d-bef0-d64315722fd3",
+                "label": "Indiana",
+                "slug": "indiana",
+                "short_label": "IN",
+                "kind": "term",
+                "description": "Indiana",
+                "children": []
+              },
+              {
+                "uuid": "b793836e-47b0-4366-9dc8-6d54f42697be",
+                "label": "Iowa",
+                "slug": "iowa",
+                "short_label": "IA",
+                "kind": "term",
+                "description": "Iowa",
+                "children": []
+              },
+              {
+                "uuid": "59367236-c725-4ab0-8578-16393fab7ff7",
+                "label": "Kansas",
+                "slug": "kansas",
+                "short_label": "KS",
+                "kind": "term",
+                "description": "Kansas",
+                "children": []
+              },
+              {
+                "uuid": "1e0e6cc1-4b68-4047-bcf5-88bf61221759",
+                "label": "Kentucky",
+                "slug": "kentucky",
+                "short_label": "KY",
+                "kind": "term",
+                "description": "Kentucky",
+                "children": []
+              },
+              {
+                "uuid": "886ae21e-439a-43e5-bed5-c251e0d8786c",
+                "label": "Louisiana",
+                "slug": "louisiana",
+                "short_label": "LA",
+                "kind": "term",
+                "description": "Louisiana",
+                "children": []
+              },
+              {
+                "uuid": "244da4af-eb8d-44f8-9022-3e32da7ed717",
+                "label": "Maine",
+                "slug": "maine",
+                "short_label": "ME",
+                "kind": "term",
+                "description": "Maine",
+                "children": []
+              },
+              {
+                "uuid": "b443b8f6-13d3-4e01-8523-bf95f239e450",
+                "label": "Maryland",
+                "slug": "maryland",
+                "short_label": "MD",
+                "kind": "term",
+                "description": "Maryland",
+                "children": []
+              },
+              {
+                "uuid": "472b8073-db37-45a0-8556-d1f7821f284c",
+                "label": "Massachusetts",
+                "slug": "massachusetts",
+                "short_label": "MA",
+                "kind": "term",
+                "description": "Massachusetts",
+                "children": []
+              },
+              {
+                "uuid": "f5502439-4f9c-482e-8449-98f1c98c36b4",
+                "label": "Michigan",
+                "slug": "michigan",
+                "short_label": "MI",
+                "kind": "term",
+                "description": "Michigan",
+                "children": []
+              },
+              {
+                "uuid": "4275a96d-7bec-405c-b454-66d69c22a4f4",
+                "label": "Minnesota",
+                "slug": "minnesota",
+                "short_label": "MN",
+                "kind": "term",
+                "description": "Minnesota",
+                "children": []
+              },
+              {
+                "uuid": "795f8b32-46f8-4ce3-8796-c1de4ce44cc2",
+                "label": "Mississippi",
+                "slug": "mississippi",
+                "short_label": "MS",
+                "kind": "term",
+                "description": "Mississippi",
+                "children": []
+              },
+              {
+                "uuid": "cd70f8fc-2c32-4ab4-ada7-78f5cdebee0a",
+                "label": "Missouri",
+                "slug": "missouri",
+                "short_label": "MO",
+                "kind": "term",
+                "description": "Missouri",
+                "children": []
+              },
+              {
+                "uuid": "a2ea7584-2741-493a-99d2-d5f1295b4685",
+                "label": "Montana",
+                "slug": "montana",
+                "short_label": "MT",
+                "kind": "term",
+                "description": "Montana",
+                "children": []
+              },
+              {
+                "uuid": "696fc3ba-6df1-430f-a8c0-3141e4a36c48",
+                "label": "Nebraska",
+                "slug": "nebraska",
+                "short_label": "NE",
+                "kind": "term",
+                "description": "Nebraska",
+                "children": []
+              },
+              {
+                "uuid": "7a6574b2-c89d-4837-839b-a1ac1ecc0041",
+                "label": "Nevada",
+                "slug": "nevada",
+                "short_label": "NV",
+                "kind": "term",
+                "description": "Nevada",
+                "children": []
+              },
+              {
+                "uuid": "34bd9209-5229-401e-84a5-1f69aaad4277",
+                "label": "New Hampshire",
+                "slug": "new-hampshire",
+                "short_label": "NH",
+                "kind": "term",
+                "description": "New Hampshire",
+                "children": []
+              },
+              {
+                "uuid": "ac2e2a33-bed5-404c-8987-1ce17cadd1ed",
+                "label": "New Jersey",
+                "slug": "new-jersey",
+                "short_label": "NJ",
+                "kind": "term",
+                "description": "New Jersey",
+                "children": []
+              },
+              {
+                "uuid": "29e074dc-a4d8-430d-baef-2f6d655ec04d",
+                "label": "New Mexico",
+                "slug": "new-mexico",
+                "short_label": "NM",
+                "kind": "term",
+                "description": "New Mexico",
+                "children": []
+              },
+              {
+                "uuid": "3f7dd099-00dc-415d-9387-7cbeea6cecd2",
+                "label": "New York",
+                "slug": "new-york",
+                "short_label": "NY",
+                "kind": "term",
+                "description": "New York",
+                "children": []
+              },
+              {
+                "uuid": "f523c517-a5e6-46a9-b094-6f7ac7ea53df",
+                "label": "North Carolina",
+                "slug": "north-carolina",
+                "short_label": "NC",
+                "kind": "term",
+                "description": "North Carolina",
+                "children": []
+              },
+              {
+                "uuid": "a3ffe4bc-182c-46a1-ab70-d846ac3c814c",
+                "label": "North Dakota",
+                "slug": "north-dakota",
+                "short_label": "ND",
+                "kind": "term",
+                "description": "North Dakota",
+                "children": []
+              },
+              {
+                "uuid": "5bb4c0f0-b727-40e4-9040-7761f61c0686",
+                "label": "Ohio",
+                "slug": "ohio",
+                "short_label": "OH",
+                "kind": "term",
+                "description": "Ohio",
+                "children": []
+              },
+              {
+                "uuid": "c36aa37e-7841-46cf-bb60-9e4d5b5e6bed",
+                "label": "Oklahoma",
+                "slug": "oklahoma",
+                "short_label": "OK",
+                "kind": "term",
+                "description": "Oklahoma",
+                "children": []
+              },
+              {
+                "uuid": "bddbc393-0d92-477e-b411-cb60b6f96e3e",
+                "label": "Oregon",
+                "slug": "oregon",
+                "short_label": "OR",
+                "kind": "term",
+                "description": "Oregon",
+                "children": []
+              },
+              {
+                "uuid": "eac1d43f-0273-4caa-95f0-de94735ffdbc",
+                "label": "Pennsylvania",
+                "slug": "pennsylvania",
+                "short_label": "PA",
+                "kind": "term",
+                "description": "Pennsylvania",
+                "children": []
+              },
+              {
+                "uuid": "e75fbd75-7d27-4591-9df6-31ec2835bfbb",
+                "label": "Rhode Island",
+                "slug": "rhode-island",
+                "short_label": "RI",
+                "kind": "term",
+                "description": "Rhode Island",
+                "children": []
+              },
+              {
+                "uuid": "fd8eb020-f1f7-4e2a-86b0-0f2574cc2584",
+                "label": "South Carolina",
+                "slug": "south-carolina",
+                "short_label": "SC",
+                "kind": "term",
+                "description": "South Carolina",
+                "children": []
+              },
+              {
+                "uuid": "7e9cf08f-fb0f-416d-8cb1-ed837953e80b",
+                "label": "South Dakota",
+                "slug": "south-dakota",
+                "short_label": "SD",
+                "kind": "term",
+                "description": "South Dakota",
+                "children": []
+              },
+              {
+                "uuid": "8451b607-0cb2-4905-b52a-7835d9571e19",
+                "label": "Tennessee",
+                "slug": "tennessee",
+                "short_label": "TN",
+                "kind": "term",
+                "description": "Tennessee",
+                "children": []
+              },
+              {
+                "uuid": "324901bc-9857-4bac-8c62-93ecc95ae64b",
+                "label": "Texas",
+                "slug": "texas",
+                "short_label": "TX",
+                "kind": "term",
+                "description": "Texas",
+                "children": []
+              },
+              {
+                "uuid": "5d799f2d-c53c-4105-ac0f-b3a10432701a",
+                "label": "Utah",
+                "slug": "utah",
+                "short_label": "UT",
+                "kind": "term",
+                "description": "Utah",
+                "children": []
+              },
+              {
+                "uuid": "f8d14c3a-6ede-40f3-95ec-c97d65118ff3",
+                "label": "Vermont",
+                "slug": "vermont",
+                "short_label": "VT",
+                "kind": "term",
+                "description": "Vermont",
+                "children": []
+              },
+              {
+                "uuid": "aaeb2148-f73b-49c1-96aa-92000d4ae095",
+                "label": "Virginia",
+                "slug": "virginia",
+                "short_label": "VA",
+                "kind": "term",
+                "description": "Virginia",
+                "children": []
+              },
+              {
+                "uuid": "9995ac26-4c2b-481d-be00-a111677a98a6",
+                "label": "Washington",
+                "slug": "washington",
+                "short_label": "WA",
+                "kind": "term",
+                "description": "Washington",
+                "children": []
+              },
+              {
+                "uuid": "1ace60bc-8219-4cbe-9861-c77b0a2b0719",
+                "label": "West Virginia",
+                "slug": "west-virginia",
+                "short_label": "WV",
+                "kind": "term",
+                "description": "West Virginia",
+                "children": []
+              },
+              {
+                "uuid": "d9f8ebb5-2bc5-400a-812e-ec4b93314428",
+                "label": "Wisconsin",
+                "slug": "wisconsin",
+                "short_label": "WI",
+                "kind": "term",
+                "description": "Wisconsin",
+                "children": []
+              },
+              {
+                "uuid": "4bae3bf7-4c75-46aa-a2be-bdcf8219b1eb",
+                "label": "Wyoming",
+                "slug": "wyoming",
+                "short_label": "WY",
+                "kind": "term",
+                "description": "Wyoming",
+                "children": []
+              }
+            ],
+            "short_label": "United States",
+            "description": "United States"
+          },
+          {
+            "uuid": "70663b77-4ece-47d3-b783-7c7d07d1ebfc",
+            "label": "Remote",
+            "slug": "remote",
+            "short_label": "Remote",
+            "kind": "term",
+            "description": "Remote",
+            "children": []
+          },
+          {
+            "uuid": "047d166e-7e56-4fd3-864c-bfc39fd33be9",
+            "label": "International / Outside U.S.",
+            "slug": "international-outside-us",
+            "short_label": "International",
+            "kind": "term",
+            "description": "International / Outside U.S.",
+            "children": []
+          }
+        ],
+        "short_label": "Location",
+        "description": "Location"
+      },
+      {
+        "uuid": "58cd8714-feb6-45b3-9f37-814840fb801c",
+        "label": "Hot Topics",
+        "slug": "hot-topics",
+        "short_label": "Hot Topics",
+        "kind": "term",
+        "description": "Hot Topics Teachers",
+        "children": [
+          {
+            "uuid": "d24603a7-239a-48e9-bfe3-1d4424177280",
+            "label": "Politics",
+            "slug": "politics",
+            "short_label": "Politics",
+            "kind": "term",
+            "description": "Teachers.Net Politics discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "723967b0-7c55-45b0-bd0b-d6d05ebcc977",
+            "label": "NCLB",
+            "slug": "nclb",
+            "short_label": "NCLB",
+            "kind": "term",
+            "description": "Teachers.Net NCLB discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "2ec0be0d-0c64-4406-bfb9-e7f14f35e9b6",
+            "label": "Classroom Inspirations",
+            "slug": "classroom-inspirations",
+            "short_label": "Classroom Inspirations",
+            "kind": "term",
+            "description": "Teachers.Net Classroom Inspirations discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "39f4ae85-5130-4fd0-8d7c-3492dffd740a",
+            "label": "Current Events",
+            "slug": "current-events",
+            "short_label": "Current Events",
+            "kind": "term",
+            "description": "Teachers.Net Current Events discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "e4e44a18-1f35-4721-bb65-17adea63ce7d",
+            "label": "Classroom Size",
+            "slug": "classroom-size",
+            "short_label": "Classroom Size",
+            "kind": "term",
+            "description": "Teachers.Net Classroom Size discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "ca217fda-4804-4da3-b987-f602fe957332",
+            "label": "Bullying",
+            "slug": "bullying",
+            "short_label": "Bullying",
+            "kind": "term",
+            "description": "Teachers.Net Bullying discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "e9454fa0-20d1-420d-9eb2-c63dbf691f2a",
+            "label": "Ed Advocacy",
+            "slug": "ed-advocacy",
+            "short_label": "Ed Advocacy",
+            "kind": "term",
+            "description": "Teachers.Net Ed Advocacy discussion term.",
+            "children": []
+          }
+        ]
+      },
+      {
+        "uuid": "6c287f19-5e50-4532-9caf-33c35b99cd8d",
+        "label": "Teaching Practice & Theory",
+        "slug": "teaching-practice-theory",
+        "short_label": "Practice & Theory",
+        "kind": "term",
+        "description": "Teachers.Net Teaching Practice & Theory discussion term.",
+        "children": [
+          {
+            "uuid": "b48d41b7-8405-4e9b-9572-f595a50f2980",
+            "label": "Testing and Grading",
+            "slug": "testing-and-grading",
+            "short_label": "Testing and Grading",
+            "kind": "term",
+            "description": "Teachers.Net Testing and Grading discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "7d6946c2-4876-4c09-9ebf-520fd2f97afc",
+            "label": "Motivating Students",
+            "slug": "motivating-students",
+            "short_label": "Motivating Students",
+            "kind": "term",
+            "description": "Teachers.Net Motivating Students discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "ed3790c5-82b1-459a-b01f-941b7bece7c6",
+            "label": "Standardized Testing",
+            "slug": "standardized-testing",
+            "short_label": "Standardized Testing",
+            "kind": "term",
+            "description": "Teachers.Net Standardized Testing discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "1b0c76a4-385f-40b6-91a6-8d7e812add92",
+            "label": "Staff Development",
+            "slug": "staff-development",
+            "short_label": "Staff Development",
+            "kind": "term",
+            "description": "Teachers.Net Staff Development discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "7fa26928-93f0-4ac7-aa2c-67948e415f13",
+            "label": "Professional Readings",
+            "slug": "professional-readings",
+            "short_label": "Professional Readings",
+            "kind": "term",
+            "description": "Teachers.Net Professional Readings discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "e8a406d7-9303-4b71-81cf-19a3e0234c46",
+            "label": "Professional Development",
+            "slug": "professional-development",
+            "short_label": "Prof Dev",
+            "kind": "term",
+            "description": "Teachers.Net Professional Development discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "3bca5424-b32f-48b5-abdd-5d6b061a7836",
+            "label": "Montessori Teachers",
+            "slug": "montessori-teachers",
+            "short_label": "Montessori Teachers",
+            "kind": "term",
+            "description": "Teachers.Net Montessori Teachers discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "2addffa2-7daa-4a81-b702-5e1764649d1d",
+            "label": "Lesson Planning",
+            "slug": "lesson-planning",
+            "short_label": "Lesson Planning",
+            "kind": "term",
+            "description": "Teachers.Net Lesson Planning discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "75c7a24a-6f9c-4499-a578-e859516e69cb",
+            "label": "Learning Research",
+            "slug": "learning-research",
+            "short_label": "Learning Research",
+            "kind": "term",
+            "description": "Teachers.Net Learning Research discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "159ba76a-c5cf-4fc1-9abb-62c0761e3097",
+            "label": "Disruptive Students",
+            "slug": "disruptive-students",
+            "short_label": "Disruptive Students",
+            "kind": "term",
+            "description": "Teachers.Net Disruptive Students discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "973e9c1c-dc39-4f2a-916f-84e618f6faf3",
+            "label": "Classroom Discipline",
+            "slug": "classroom-discipline",
+            "short_label": "Classroom Discipline",
+            "kind": "term",
+            "description": "Teachers.Net Classroom Discipline discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "43049b36-1dc0-4dbf-85b2-ad1b1318c43c",
+            "label": "Co-Teaching",
+            "slug": "co-teaching",
+            "short_label": "Co-Teaching",
+            "kind": "term",
+            "description": "Teachers.Net Co-Teaching discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "038f4154-f922-48f5-9f05-38312d15c0a5",
+            "label": "Collaborative Learning",
+            "slug": "collaborative-learning",
+            "short_label": "Collaborative Learning",
+            "kind": "term",
+            "description": "Teachers.Net Collaborative Learning discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "119e085c-6343-41a0-b435-30bf98ce4dd1",
+            "label": "Classroom Management",
+            "slug": "classroom-management",
+            "short_label": "Classroom Management",
+            "kind": "term",
+            "description": "Teachers.Net Classroom Management discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "98bc8c59-7b04-4291-b080-f28d4ee14bae",
+            "label": "Character Education",
+            "slug": "character-education",
+            "short_label": "Character Education",
+            "kind": "term",
+            "description": "Teachers.Net Character Education discussion term.",
+            "children": []
+          }
+        ]
+      },
+      {
+        "uuid": "641a5340-cb79-4b24-9382-6c9ac8d54a62",
+        "label": "Professional Communities & Roles",
+        "slug": "professional-communities-roles",
+        "short_label": "Professional Groups",
+        "kind": "term",
+        "description": "Teachers.Net Professional Communities & Roles discussion term.",
+        "children": [
+          {
+            "uuid": "0838edba-879b-46c6-9e51-32fdce5dabcc",
+            "label": "Administrators",
+            "slug": "administrators",
+            "short_label": "Administrators",
+            "kind": "term",
+            "description": "Teachers.Net Administrators discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "f685216f-567a-4807-adfb-6f0b7a9e4334",
+            "label": "Teacher Unions",
+            "slug": "teacher-unions",
+            "short_label": "Teacher Unions",
+            "kind": "term",
+            "description": "Teachers.Net Teacher Unions discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "d987c1c0-9322-4021-bd7f-47d2e9a58af7",
+            "label": "Substitute Teachers",
+            "slug": "substitute-teachers",
+            "short_label": "Substitute Teachers",
+            "kind": "term",
+            "description": "Teachers.Net Substitute Teachers discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "579b64b5-2e54-4db1-b062-2fd5b93c3df0",
+            "label": "Student Teaching",
+            "slug": "student-teaching",
+            "short_label": "Student Teaching",
+            "kind": "term",
+            "description": "Teachers.Net Student Teaching discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "92178b0a-2917-4491-94ac-67771853c64a",
+            "label": "Private School Teachers",
+            "slug": "private-school-teachers",
+            "short_label": "Private Schools",
+            "kind": "term",
+            "description": "Teachers.Net Private School Teachers discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "5247b9d7-092b-4f3b-b864-7d285355c327",
+            "label": "Mentor Teachers",
+            "slug": "mentor-teachers",
+            "short_label": "Mentor Teachers",
+            "kind": "term",
+            "description": "Teachers.Net Mentor Teachers discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "f71d9a50-d539-436d-98e0-63325a22af1d",
+            "label": "Master Teachers",
+            "slug": "master-teachers",
+            "short_label": "Master Teachers",
+            "kind": "term",
+            "description": "Teachers.Net Master Teachers discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "d913468f-a495-4b5c-a770-6f507046f8d4",
+            "label": "Golden Apples",
+            "slug": "golden-apples",
+            "short_label": "Golden Apples",
+            "kind": "term",
+            "description": "Teachers.Net Golden Apples discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "7b82d771-1e8a-4d96-8879-5f6d7a4212bf",
+            "label": "AP/GATE Teachers",
+            "slug": "ap-gate-teachers",
+            "short_label": "AP / GATE",
+            "kind": "term",
+            "description": "Teachers.Net AP/GATE Teachers discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "f343bbc9-7a67-4d69-b779-15601d0387fa",
+            "label": "DODD Teachers",
+            "slug": "dodd-teachers",
+            "short_label": "DODD Teachers",
+            "kind": "term",
+            "description": "Teachers.Net DODD Teachers discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "7701eb87-eb3f-4125-a7f5-97f8a247d651",
+            "label": "Distance Teachers",
+            "slug": "distance-teachers",
+            "short_label": "Distance Teachers",
+            "kind": "term",
+            "description": "Teachers.Net Distance Teachers discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "01498f2f-6bf8-453c-883e-f3d7d8d80e30",
+            "label": "Department Heads",
+            "slug": "department-heads",
+            "short_label": "Department Heads",
+            "kind": "term",
+            "description": "Teachers.Net Department Heads discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "d0cf4469-40d9-447f-adbd-5115dd201611",
+            "label": "Beginning Teachers",
+            "slug": "beginning-teachers",
+            "short_label": "Beginning Teachers",
+            "kind": "term",
+            "description": "Teachers.Net Beginning Teachers discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "629c3326-cff1-47d9-8015-f8b558204052",
+            "label": "Retired Teachers",
+            "slug": "retired-teachers",
+            "short_label": "Retired Teachers",
+            "kind": "term",
+            "description": "Teachers.Net Retired Teachers discussion term.",
+            "children": []
+          }
+        ]
+      },
+      {
+        "uuid": "3b4f8061-8070-4b0c-9c47-054860a4a44d",
+        "label": "Classroom Projects & Themes",
+        "slug": "classroom-projects-themes",
+        "short_label": "Classroom Projects",
+        "kind": "term",
+        "description": "Teachers.Net Classroom Projects & Themes discussion term.",
+        "children": [
+          {
+            "uuid": "1287813a-1259-4f0d-ba0f-e902bcc82d20",
+            "label": "Project Springboard",
+            "slug": "project-springboard",
+            "short_label": "Project Springboard",
+            "kind": "term",
+            "description": "Teachers.Net Project Springboard discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "04dae860-ae9e-4014-b4d7-20e4ad61c081",
+            "label": "Postcard Projects",
+            "slug": "postcard-projects",
+            "short_label": "Postcard Projects",
+            "kind": "term",
+            "description": "Teachers.Net Postcard Projects discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "ce33760d-e443-4d90-82e0-360d0844f2b5",
+            "label": "Classroom Pets",
+            "slug": "classroom-pets",
+            "short_label": "Classroom Pets",
+            "kind": "term",
+            "description": "Teachers.Net Classroom Pets discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "d5aae444-3d59-48cf-8224-2fe78b2830a5",
+            "label": "Pen Pal Switchboard",
+            "slug": "pen-pal-switchboard",
+            "short_label": "Pen Pal Switchboard",
+            "kind": "term",
+            "description": "Teachers.Net Pen Pal Switchboard discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "46ca8a33-97fc-41d0-9f42-5be1bab2b0d2",
+            "label": "Grant Writing",
+            "slug": "grant-writing",
+            "short_label": "Grant Writing",
+            "kind": "term",
+            "description": "Teachers.Net Grant Writing discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "107bc01c-b571-445f-946a-5e01281f7076",
+            "label": "Fundraising Projects",
+            "slug": "fundraising-projects",
+            "short_label": "Fundraising Projects",
+            "kind": "term",
+            "description": "Teachers.Net Fundraising Projects discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "3be672dc-2e5a-4cf2-a847-3e4d2b2dacc2",
+            "label": "Fieldtrips",
+            "slug": "fieldtrips",
+            "short_label": "Fieldtrips",
+            "kind": "term",
+            "description": "Teachers.Net Fieldtrips discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "6f0fdec9-d9a3-40ee-8b76-fe54b16d9f17",
+            "label": "Earth Day/Ecology Projects",
+            "slug": "earth-day-ecology-projects",
+            "short_label": "Earth Day / Ecology",
+            "kind": "term",
+            "description": "Teachers.Net Earth Day/Ecology Projects discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "361c036c-bce5-4dec-9847-ec9c28b57416",
+            "label": "Classroom Centers",
+            "slug": "classroom-centers",
+            "short_label": "Classroom Centers",
+            "kind": "term",
+            "description": "Teachers.Net Classroom Centers discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "ef1f584a-f0bf-4f96-9fd1-7ba4c53135a5",
+            "label": "Traveling Buddies Projects",
+            "slug": "traveling-buddies-projects",
+            "short_label": "Traveling Buddies",
+            "kind": "term",
+            "description": "Teachers.Net Traveling Buddies Projects discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "d9d8200f-e4d1-4c29-ac70-3d0e18467669",
+            "label": "Webquests",
+            "slug": "webquests",
+            "short_label": "Webquests",
+            "kind": "term",
+            "description": "Teachers.Net Webquests discussion term.",
+            "children": []
+          }
+        ]
+      },
+      {
+        "uuid": "2b7b998f-1626-44a4-b228-c6d352776de4",
+        "label": "Education Careers & Credentials",
+        "slug": "education-careers-credentials",
+        "short_label": "Careers & Credentials",
+        "kind": "term",
+        "description": "Teachers.Net Education Careers & Credentials discussion term.",
+        "children": [
+          {
+            "uuid": "52bd64ef-7207-4294-9e04-a24c6546f13e",
+            "label": "Tutors",
+            "slug": "tutors",
+            "short_label": "Tutors",
+            "kind": "term",
+            "description": "Teachers.Net Tutors discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "e5f88ea2-9568-46f1-8560-4927a044396a",
+            "label": "Teacher Recruiters",
+            "slug": "teacher-recruiters",
+            "short_label": "Teacher Recruiters",
+            "kind": "term",
+            "description": "Teachers.Net Teacher Recruiters discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "d864321c-ba33-4471-9a54-549bcb96bfb7",
+            "label": "NBPTS",
+            "slug": "nbpts",
+            "short_label": "NBPTS",
+            "kind": "term",
+            "description": "Teachers.Net NBPTS discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "8fd60e7d-0c1b-4718-a234-031b17cbacf3",
+            "label": "Continuing Education",
+            "slug": "continuing-education",
+            "short_label": "Continuing Education",
+            "kind": "term",
+            "description": "Teachers.Net Continuing Education discussion term.",
+            "children": []
+          },
+          {
+            "uuid": "87820d14-61f9-4852-a681-69968a719a7b",
+            "label": "Job Talk",
+            "slug": "job-talk",
+            "short_label": "Job Talk",
+            "kind": "term",
+            "description": "Teachers.Net Job Talk discussion term.",
+            "children": []
+          }
+        ]
+      }
+    ],
+    "short_label": "Teachers.Net",
+    "description": "Teachers.Net",
+    "uuid": "7b8c0c1f-bdec-4cfc-b215-26d41ec32a3d"
+  },
+  "runtime_refresh_ticket": "COMMUNITY3-RAIL-PARENT-LISTS001",
+  "runtime_authority": {
+    "branch": "COMMUNITY3-ui-working",
+    "commit": "846be8702fc2ed70f4bfd0c26591d9c95b78c3df",
+    "plugin_tree_hash": "9c492e6ed66ae133b687e75f48fc34faf3ea7c45f27c7c7b082b30a60cfd8ce3",
+    "compiled_version_id": 1,
+    "tree_sha256_normalized": "e8d77f748c88f08bcd60db6fcca6e75300e17945956e65c555c2d6c1197a8bfe"
+  }
 }
