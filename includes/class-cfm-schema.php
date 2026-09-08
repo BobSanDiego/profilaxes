@@ -199,6 +199,7 @@ class CFM_Schema
                 id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
                 view_uuid CHAR(36) NOT NULL,
                 schema_version VARCHAR(20) NOT NULL DEFAULT '1.0',
+                structure_type VARCHAR(30) NOT NULL DEFAULT 'taxonomy',
                 name VARCHAR(190) NOT NULL,
                 description TEXT NULL,
                 owner_type VARCHAR(50) NOT NULL DEFAULT 'platform',
@@ -214,6 +215,7 @@ class CFM_Schema
                 PRIMARY KEY (id),
                 UNIQUE KEY view_uuid (view_uuid),
                 KEY status (status),
+                KEY structure_type (structure_type),
                 KEY owner (owner_type, owner_id),
                 KEY current_version_id (current_version_id)
             ) {$charset_collate};
@@ -228,6 +230,10 @@ class CFM_Schema
                 lineage_uuid CHAR(36) NOT NULL,
                 based_on_version_id BIGINT UNSIGNED NULL,
                 schema_version VARCHAR(20) NOT NULL DEFAULT '1.0',
+                parent_ref_type VARCHAR(30) NULL,
+                parent_ref_key CHAR(36) NULL,
+                parent_framework VARCHAR(190) NULL,
+                role_key VARCHAR(50) NULL,
                 status VARCHAR(20) NOT NULL DEFAULT 'draft',
                 content_hash CHAR(64) NULL,
                 validation_state VARCHAR(20) NOT NULL DEFAULT 'warning',
@@ -246,6 +252,8 @@ class CFM_Schema
                 KEY view_id (view_id),
                 KEY lineage_uuid (lineage_uuid),
                 KEY status (status),
+                KEY parent_ref (parent_ref_type, parent_ref_key, parent_framework),
+                KEY role_key (role_key),
                 KEY based_on_version_id (based_on_version_id)
             ) {$charset_collate};
         ");

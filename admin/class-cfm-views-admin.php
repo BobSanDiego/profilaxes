@@ -27,7 +27,7 @@ class CFM_Views_Admin
     check_admin_referer('cfm_views_' . $action, 'cfm_views_nonce');
     $redirect_url = null;
     if ($action === 'create_view') {
-      $view_id = CFM_Views_Repository::create_view(['name' => wp_unslash($_POST['name'] ?? ''), 'description' => wp_unslash($_POST['description'] ?? '')]);
+      $view_id = CFM_Views_Repository::create_view(['name' => wp_unslash($_POST['name'] ?? ''), 'description' => wp_unslash($_POST['description'] ?? ''), 'structure_type' => sanitize_key(wp_unslash($_POST['structure_type'] ?? 'taxonomy'))]);
       if (!is_wp_error($view_id)) {
         $draft_id = CFM_Views_Repository::create_draft_version($view_id);
         if (!is_wp_error($draft_id)) {
@@ -47,6 +47,16 @@ class CFM_Views_Admin
       if (!is_wp_error($result)) {
         $redirect_url = admin_url('admin.php?page=cfm-views&version_id=' . $version_id . '&batch_added=' . absint($result['added']) . '&batch_skipped=' . absint($result['skipped']));
       }
+    } elseif ($action === 'save_list_contract') {
+      $version_id = absint($_POST['version_id'] ?? 0);
+      $parent_parts = explode('|', sanitize_text_field(wp_unslash($_POST['parent_ref'] ?? '')), 2);
+      CFM_Views_Repository::save_list_contract($version_id, [
+        'parent_ref_type' => 'term',
+        'parent_ref_key' => sanitize_text_field((string) ($parent_parts[1] ?? '')),
+        'parent_framework' => sanitize_key((string) ($parent_parts[0] ?? '')),
+        'role_key' => sanitize_key(wp_unslash($_POST['role_key'] ?? '')),
+      ]);
+      $redirect_url = admin_url('admin.php?page=cfm-views&version_id=' . $version_id . '&contract=saved');
     } elseif ($action === 'save_group') {
       $version_id = absint($_POST['version_id'] ?? 0);
       CFM_Views_Repository::save_group($version_id, ['group_key' => wp_unslash($_POST['group_key'] ?? ''), 'label' => wp_unslash($_POST['label'] ?? ''), 'description' => wp_unslash($_POST['description'] ?? ''), 'display_order' => absint($_POST['display_order'] ?? 0)]);
@@ -140,7 +150,7 @@ class CFM_Views_Admin
     } else {
       echo '<div class="cfm-views-manager-heading"><div><h2>Operational Views</h2><p class="description">Manage active drafts, published versions, and subscriber bindings.</p></div><button type="button" class="button button-primary" data-cfm-views-show-create>Create View</button></div><form method="post" class="cfm-views-create-form" data-cfm-views-create hidden>';
       wp_nonce_field('cfm_views_create_view', 'cfm_views_nonce');
-      echo '<input type="hidden" name="cfm_views_action" value="create_view"><p><label>Name <input name="name" type="text" required></label> <label>Description <textarea name="description"></textarea></label> <button class="button button-primary">Create draft</button> <button type="button" class="button" data-cfm-views-hide-create>Cancel</button></p></form>';
+      echo '<input type="hidden" name="cfm_views_action" value="create_view"><p><label>Name <input name="name" type="text" required></label> <label>Description <textarea name="description"></textarea></label> <label>Structure <select name="structure_type"><option value="taxonomy">Taxonomy</option><option value="list">List</option></select></label> <button class="button button-primary">Create draft</button> <button type="button" class="button" data-cfm-views-hide-create>Cancel</button></p></form>';
       if (!empty($_GET['edit_from_source']) && !empty($_GET['edit_from_draft'])) {
         $source = CFM_Views_Repository::get_version(absint($_GET['edit_from_source']));
         if ($source) {
@@ -327,6 +337,10 @@ class CFM_Views_Admin
       $represented_terms[(string) $entry->core_terms_framework . '|' . (string) $entry->term_uuid] = true;
     }
     $validation = $read_only ? ['state' => 'success', 'entry_count' => count($entries), 'errors' => [], 'warnings' => []] : CFM_Views_Repository::validate_version($version_id);
+    if (CFM_Views_Repository::structure_for_view($view) === CFM_Views_Repository::STRUCTURE_LIST) {
+      self::render_list_editor($version_id, $version, $view, $frameworks, $terms_by_framework, $entries, $validation, $represented_terms, $read_only);
+      return;
+    }
     echo '<div class="cfm-views-compact-editor"><div class="cfm-views-compact-identity"><h2>' . esc_html($view ? $view->name : 'View') . ' <span aria-hidden="true">—</span> <span class="cfm-views-status">' . esc_html(ucfirst((string) $version->status)) . ($read_only ? ' · Read-only' : '') . '</span></h2><a class="button-link" href="' . esc_url(admin_url('admin.php?page=cfm-views')) . '">Back to Views</a></div>';
     $autosave_state = sanitize_key(wp_unslash($_GET['autosave'] ?? 'saved'));
     echo '<p class="cfm-views-autosave-status cfm-views-legacy-autosave" role="status"><strong>' . ($read_only ? 'Published version is immutable' : ($autosave_state === 'failed' ? 'Save Failed' : 'Saved')) . '</strong></p>';
@@ -428,7 +442,51 @@ class CFM_Views_Admin
     self::render_workbench_assets();
   }
 
-  private static function render_canonical_browser(array $frameworks, array $terms_by_framework, array $represented_terms = [], bool $read_only = false): void
+  private static function render_list_editor(int $version_id, object $version, ?object $view, array $frameworks, array $terms_by_framework, array $entries, array $validation, array $represented_terms, bool $read_only): void
+  {
+    $autosave_state = sanitize_key(wp_unslash($_GET['autosave'] ?? 'saved'));
+    $selected_parent = (string) ($version->parent_framework ?? '') . '|' . (string) ($version->parent_ref_key ?? '');
+    echo '<div class="cfm-views-compact-editor"><div class="cfm-views-compact-identity"><h2>' . esc_html($view ? $view->name : 'List View') . ' <span aria-hidden="true">—</span> <span class="cfm-views-status">List · ' . esc_html(ucfirst((string) $version->status)) . ($read_only ? ' · Read-only' : '') . '</span></h2><a class="button-link" href="' . esc_url(admin_url('admin.php?page=cfm-views')) . '">Back to Views</a></div>';
+    echo '<p class="cfm-views-autosave-status" role="status"><strong>' . ($read_only ? 'Published List is immutable' : ($autosave_state === 'failed' ? 'Save Failed' : 'Saved')) . '</strong></p>';
+    echo '<div class="notice cfm-views-validation ' . ($validation['state'] === 'invalid' ? 'notice-error' : ($validation['state'] === 'warning' ? 'notice-warning' : 'notice-success')) . '"><p><strong>Validation: ' . esc_html(ucfirst($validation['state'])) . '</strong> — ' . esc_html((string) ($validation['entry_count'] ?? 0)) . ' members.</p>';
+    foreach (array_merge((array) ($validation['errors'] ?? []), (array) ($validation['warnings'] ?? [])) as $message) { echo '<p>' . esc_html($message) . '</p>'; }
+    echo '</div><div class="cfm-views-lifecycle-toolbar"><a class="button-link" href="' . esc_url(admin_url('admin.php?page=cfm-views&version_id=' . $version_id . '&preview=1')) . '">Preview</a>' . ($read_only ? '' : ' <form method="post" style="display:inline">' . wp_nonce_field('cfm_views_publish', 'cfm_views_nonce', true, false) . '<input type="hidden" name="cfm_views_action" value="publish"><input type="hidden" name="version_id" value="' . esc_attr((string) $version_id) . '"><button class="button-link">Publish</button></form> <form method="post" style="display:inline" data-cfm-views-delete-draft>' . wp_nonce_field('cfm_views_delete_draft', 'cfm_views_nonce', true, false) . '<input type="hidden" name="cfm_views_action" value="delete_draft"><input type="hidden" name="version_id" value="' . esc_attr((string) $version_id) . '"><button class="button-link-delete">Delete Draft</button></form>') . '</div></div>';
+    if (!$read_only) {
+      echo '<form method="post" class="cfm-views-list-contract"><h3>List contract</h3><p class="description">A List has one canonical Core Term parent. Members remain flat and ordered; no ancestors or descendants are added automatically.</p>' . wp_nonce_field('cfm_views_save_list_contract', 'cfm_views_nonce', true, false) . '<input type="hidden" name="cfm_views_action" value="save_list_contract"><input type="hidden" name="version_id" value="' . esc_attr((string) $version_id) . '"><label>Parent Term <select name="parent_ref" required><option value="">Select one canonical parent</option>';
+      foreach ($terms_by_framework as $slug => $terms) {
+        foreach ((array) $terms as $term) {
+          $term_uuid = (string) ($term->term_uuid ?? '');
+          if ($term_uuid === '') { continue; }
+          $value = $slug . '|' . $term_uuid;
+          $label = str_repeat('— ', max(0, (int) ($term->depth ?? 0))) . (string) ($term->label ?? $term->name ?? $term_uuid);
+          echo '<option value="' . esc_attr($value) . '"' . selected($selected_parent, $value, false) . '>' . esc_html($label) . ' (' . esc_html($slug) . ')</option>';
+        }
+      }
+      echo '</select></label> <label>Role <select name="role_key"><option value="">Ordinary List</option><option value="c3_rail_parent"' . selected((string) ($version->role_key ?? ''), 'c3_rail_parent', false) . '>C3 Rail Parent</option></select></label> <button class="button button-primary">Save List contract</button></form>';
+    } else {
+      echo '<div class="cfm-views-list-contract cfm-views-read-only-contract"><h3>List contract</h3><p><strong>Parent:</strong> ' . esc_html($version->parent_ref_key ? (($version->parent_framework ? $version->parent_framework . ' · ' : '') . $version->parent_ref_key) : 'Not set') . ' <strong>Role:</strong> ' . esc_html($version->role_key ?: 'Ordinary List') . '</p></div>';
+    }
+    echo '<div class="cfm-views-workbench cfm-views-list-workbench" data-cfm-views-workbench><section class="cfm-views-source" aria-labelledby="cfm-views-list-source-title"><h3 id="cfm-views-list-source-title">Core Terms Library <span class="description">(Read-only)</span></h3>';
+    self::render_canonical_browser($frameworks, $terms_by_framework, $represented_terms, $read_only, CFM_Views_Repository::STRUCTURE_LIST);
+    echo '</section><section class="cfm-views-composition" data-cfm-views-composition aria-labelledby="cfm-views-list-members-title"><h3 id="cfm-views-list-members-title">Ordered List <span class="description">(' . ($read_only ? 'Published read-only' : 'Editable draft') . ')</span></h3>';
+    if (!$read_only) {
+      echo '<form method="post" id="cfm-views-list-remove-form" class="cfm-views-tree-toolbar" role="toolbar" aria-label="List member controls">' . wp_nonce_field('cfm_views_remove_selected', 'cfm_views_nonce', true, false) . '<input type="hidden" name="cfm_views_action" value="remove_selected"><input type="hidden" name="version_id" value="' . esc_attr((string) $version_id) . '"><button type="submit" class="button-link" data-cfm-views-remove-selected>Remove selected</button></form>';
+    }
+    if (!$entries) { echo '<p class="cfm-views-empty">No List members yet. Select canonical Terms on the left.</p>'; }
+    foreach ($entries as $entry) {
+      $label = (string) $entry->term_uuid;
+      foreach ((array) ($terms_by_framework[$entry->core_terms_framework] ?? []) as $term) { if ((string) ($term->term_uuid ?? '') === (string) $entry->term_uuid) { $label = (string) ($term->label ?? $term->name ?? $label); break; } }
+      echo '<article class="cfm-views-composition-item cfm-views-list-member" data-cfm-views-entry data-entry-id="' . esc_attr((string) $entry->id) . '"><div class="cfm-views-item-heading">' . ($read_only ? '' : '<label class="cfm-views-entry-select"><input type="checkbox" form="cfm-views-list-remove-form" name="entry_ids[]" value="' . esc_attr((string) $entry->id) . '" aria-label="Select ' . esc_attr($label) . ' for removal"></label>') . '<div><strong>' . esc_html($label) . '</strong><span class="description">' . esc_html((string) $entry->core_terms_framework) . ' · Order ' . esc_html((string) $entry->display_order) . '</span></div></div>';
+      if (!$read_only) {
+        echo '<div class="cfm-views-item-actions"><form method="post" class="cfm-views-inline-form">' . wp_nonce_field('cfm_views_move_entry', 'cfm_views_nonce', true, false) . '<input type="hidden" name="cfm_views_action" value="move_entry"><input type="hidden" name="version_id" value="' . esc_attr((string) $version_id) . '"><input type="hidden" name="entry_id" value="' . esc_attr((string) $entry->id) . '"><input type="hidden" name="direction" value="up"><button class="button button-small">Move up</button></form><form method="post" class="cfm-views-inline-form">' . wp_nonce_field('cfm_views_move_entry', 'cfm_views_nonce', true, false) . '<input type="hidden" name="cfm_views_action" value="move_entry"><input type="hidden" name="version_id" value="' . esc_attr((string) $version_id) . '"><input type="hidden" name="entry_id" value="' . esc_attr((string) $entry->id) . '"><input type="hidden" name="direction" value="down"><button class="button button-small">Move down</button></form><form method="post" class="cfm-views-inline-form">' . wp_nonce_field('cfm_views_delete_entry', 'cfm_views_nonce', true, false) . '<input type="hidden" name="cfm_views_action" value="delete_entry"><input type="hidden" name="version_id" value="' . esc_attr((string) $version_id) . '"><input type="hidden" name="entry_id" value="' . esc_attr((string) $entry->id) . '"><button class="button-link-delete">Remove</button></form></div>';
+      }
+      echo '</article>';
+    }
+    echo '</section></div>';
+    self::render_workbench_assets();
+  }
+
+  private static function render_canonical_browser(array $frameworks, array $terms_by_framework, array $represented_terms = [], bool $read_only = false, string $structure_type = CFM_Views_Repository::STRUCTURE_TAXONOMY): void
   {
     $selected_slug = sanitize_key(wp_unslash($_GET['cfm_framework'] ?? ''));
     if ($selected_slug === '' && !empty($frameworks[0]->slug)) {
@@ -448,14 +506,14 @@ class CFM_Views_Admin
         $parent = sanitize_text_field((string) ($term->parent_uuid ?? ''));
         $children_by_parent[$parent][] = $term;
       }
-      self::render_views_library_nodes($children_by_parent[''] ?? [], $children_by_parent, $slug, $represented_terms, 0, $read_only);
+      self::render_views_library_nodes($children_by_parent[''] ?? [], $children_by_parent, $slug, $represented_terms, 0, $read_only, $structure_type);
       echo '</div>';
     }
     if (!$read_only) { echo '<p class="cfm-views-shuttle"><button class="button button-primary" type="submit" data-cfm-views-submit-shuttle hidden>Shuttle Selected →</button></p></form>'; }
     if (!$terms_by_framework) { echo '<p class="notice notice-warning">No active canonical terms are available.</p>'; }
   }
 
-  private static function render_views_library_nodes(array $nodes, array $children_by_parent, string $slug, array $represented_terms, int $depth, bool $read_only = false): void
+  private static function render_views_library_nodes(array $nodes, array $children_by_parent, string $slug, array $represented_terms, int $depth, bool $read_only = false, string $structure_type = CFM_Views_Repository::STRUCTURE_TAXONOMY): void
   {
     usort($nodes, static function ($a, $b): int {
       $sort = ((int) ($a->sort_order ?? 0)) <=> ((int) ($b->sort_order ?? 0));
@@ -479,13 +537,13 @@ class CFM_Views_Admin
       else { echo '<span class="cfm-views-toggle-spacer" aria-hidden="true"></span>'; }
       if ($read_only) {
         echo '<span class="cfm-views-selection-spacer" aria-hidden="true"></span>';
-      } elseif ($depth > 0 && !$represented) {
+      } elseif (($structure_type === CFM_Views_Repository::STRUCTURE_LIST || $depth > 0) && !$represented) {
         echo '<input type="checkbox" name="term_uuids[]" value="' . esc_attr($slug . '|' . $uuid) . '" data-cfm-views-select aria-label="Select ' . esc_attr($label) . '">';
       } elseif ($depth > 0) {
         echo '<span class="cfm-views-selection-spacer" aria-hidden="true"></span>';
       }
       echo '<button type="button" class="button-link cfm-views-term-name" data-cfm-views-term-name data-depth="' . esc_attr((string) $depth) . '">' . esc_html($label) . '</button></div>';
-      if ($has_children) { echo '<div class="cfm-views-term-children" data-cfm-views-children>'; self::render_views_library_nodes($children, $children_by_parent, $slug, $represented_terms, $depth + 1, $read_only); echo '</div>'; }
+      if ($has_children) { echo '<div class="cfm-views-term-children" data-cfm-views-children>'; self::render_views_library_nodes($children, $children_by_parent, $slug, $represented_terms, $depth + 1, $read_only, $structure_type); echo '</div>'; }
       echo '</div>';
     }
   }

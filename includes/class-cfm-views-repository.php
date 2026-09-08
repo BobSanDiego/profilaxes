@@ -11,6 +11,33 @@ if (!defined('ABSPATH')) {
  */
 class CFM_Views_Repository
 {
+  public const STRUCTURE_TAXONOMY = 'taxonomy';
+  public const STRUCTURE_LIST = 'list';
+  public const STRUCTURE_COLLECTION = 'collection';
+  public const ROLE_C3_RAIL_PARENT = 'c3_rail_parent';
+
+  private static function normalize_structure_type($value): string
+  {
+    $value = sanitize_key((string) $value);
+    return in_array($value, [self::STRUCTURE_TAXONOMY, self::STRUCTURE_LIST, self::STRUCTURE_COLLECTION], true)
+      ? $value
+      : self::STRUCTURE_TAXONOMY;
+  }
+
+  public static function structure_for_view($view): string
+  {
+    return self::normalize_structure_type($view->structure_type ?? self::STRUCTURE_TAXONOMY);
+  }
+
+  public static function is_list_version($version): bool
+  {
+    if (!$version) {
+      return false;
+    }
+    $view = self::get_view((int) $version->view_id);
+    return $view && self::structure_for_view($view) === self::STRUCTURE_LIST;
+  }
+
   public static function create_view(array $data)
   {
     global $wpdb;
@@ -21,11 +48,16 @@ class CFM_Views_Repository
     }
 
     $now = current_time('mysql');
+    $structure_type = self::normalize_structure_type($data['structure_type'] ?? self::STRUCTURE_TAXONOMY);
+    if ($structure_type === self::STRUCTURE_COLLECTION) {
+      return new WP_Error('cfm_views_collection_reserved', 'Collection structure is reserved for a future implementation.');
+    }
     $view_uuid = wp_generate_uuid4();
     $table = $wpdb->prefix . 'cfm_views';
     $inserted = $wpdb->insert($table, [
       'view_uuid' => $view_uuid,
-      'schema_version' => '1.0',
+      'schema_version' => $structure_type === self::STRUCTURE_LIST ? '1.1' : '1.0',
+      'structure_type' => $structure_type,
       'name' => sanitize_text_field($name),
       'description' => isset($data['description']) ? sanitize_textarea_field((string) $data['description']) : null,
       'owner_type' => 'platform',
@@ -36,7 +68,7 @@ class CFM_Views_Repository
       'updated_by' => get_current_user_id() ?: null,
       'created_at' => $now,
       'updated_at' => $now,
-    ], ['%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s']);
+    ], ['%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s']);
 
     if ($inserted === false) {
       return new WP_Error('cfm_views_insert_failed', 'Failed to create View.', ['last_error' => $wpdb->last_error]);
@@ -77,6 +109,11 @@ class CFM_Views_Repository
       "SELECT COALESCE(MAX(version_number), 0) + 1 FROM {$table} WHERE view_id = %d",
       $view_id
     ));
+    $view = self::get_view($view_id);
+    $structure_type = self::structure_for_view($view);
+    if ($structure_type === self::STRUCTURE_COLLECTION) {
+      return new WP_Error('cfm_views_collection_reserved', 'Collection structure is reserved for a future implementation.');
+    }
     $now = current_time('mysql');
     $version_uuid = wp_generate_uuid4();
     $lineage_uuid = isset($data['lineage_uuid']) && trim((string) $data['lineage_uuid']) !== ''
@@ -89,13 +126,17 @@ class CFM_Views_Repository
       'version_number' => $next_version,
       'lineage_uuid' => $lineage_uuid,
       'based_on_version_id' => isset($data['based_on_version_id']) ? absint($data['based_on_version_id']) ?: null : null,
-      'schema_version' => '1.0',
+      'schema_version' => $structure_type === self::STRUCTURE_LIST ? '1.1' : '1.0',
+      'parent_ref_type' => isset($data['parent_ref_type']) ? sanitize_key((string) $data['parent_ref_type']) : null,
+      'parent_ref_key' => isset($data['parent_ref_key']) ? sanitize_text_field((string) $data['parent_ref_key']) : null,
+      'parent_framework' => isset($data['parent_framework']) ? sanitize_key((string) $data['parent_framework']) : null,
+      'role_key' => isset($data['role_key']) && (string) $data['role_key'] !== '' ? sanitize_key((string) $data['role_key']) : null,
       'status' => 'draft',
       'validation_state' => 'warning',
       'created_by' => get_current_user_id() ?: null,
       'created_at' => $now,
       'updated_at' => $now,
-    ], ['%d', '%s', '%d', '%s', '%d', '%s', '%s', '%s', '%d', '%s', '%s']);
+    ], ['%d', '%s', '%d', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s']);
 
     if ($inserted === false) {
       return new WP_Error('cfm_views_version_insert_failed', 'Failed to create View draft version.', ['last_error' => $wpdb->last_error]);
@@ -139,6 +180,53 @@ class CFM_Views_Repository
     return $inserted === false ? new WP_Error('cfm_views_insert_failed', 'Failed to create View group.') : $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . $wpdb->prefix . 'cfm_view_groups WHERE id = %d', $wpdb->insert_id));
   }
 
+  public static function save_list_contract($version_id, array $data)
+  {
+    global $wpdb;
+    $version = self::get_version($version_id);
+    if (!$version || (string) $version->status !== 'draft') {
+      return new WP_Error('cfm_views_draft_required', 'List contract fields can only be edited on a draft version.');
+    }
+    if (!self::is_list_version($version)) {
+      return new WP_Error('cfm_views_not_list', 'Parent and role fields are only available for List Views.');
+    }
+
+    $parent_ref_type = sanitize_key((string) ($data['parent_ref_type'] ?? 'term'));
+    $parent_ref_key = sanitize_text_field((string) ($data['parent_ref_key'] ?? ''));
+    $parent_framework = sanitize_key((string) ($data['parent_framework'] ?? ''));
+    $role_key = sanitize_key((string) ($data['role_key'] ?? ''));
+    if ($parent_ref_type !== 'term') {
+      return new WP_Error('cfm_views_parent_type_unsupported', 'List parent must currently be a canonical Core Term.');
+    }
+    if ($parent_ref_key === '' || $parent_framework === '') {
+      return new WP_Error('cfm_views_parent_required', 'A List requires exactly one canonical Core Term parent.');
+    }
+    $catalog = self::term_catalog($parent_framework);
+    if (!$catalog['framework'] || !isset($catalog['terms'][$parent_ref_key])) {
+      return new WP_Error('cfm_views_invalid_parent', 'List parent must reference an existing canonical Core Term.');
+    }
+    if ($role_key !== '' && $role_key !== self::ROLE_C3_RAIL_PARENT) {
+      return new WP_Error('cfm_views_invalid_role', 'The requested View role is not supported.');
+    }
+    $updated = $wpdb->update(
+      $wpdb->prefix . 'cfm_view_versions',
+      [
+        'schema_version' => '1.1',
+        'parent_ref_type' => $parent_ref_type,
+        'parent_ref_key' => $parent_ref_key,
+        'parent_framework' => $parent_framework,
+        'role_key' => $role_key !== '' ? $role_key : null,
+        'updated_at' => current_time('mysql'),
+      ],
+      ['id' => (int) $version->id],
+      ['%s', '%s', '%s', '%s', '%s'],
+      ['%d']
+    );
+    return $updated === false
+      ? new WP_Error('cfm_views_update_failed', 'Failed to save the List parent and role.', ['last_error' => $wpdb->last_error])
+      : self::get_version($version->id);
+  }
+
   public static function remove_group($version_id, $group_id)
   {
     global $wpdb;
@@ -177,18 +265,27 @@ class CFM_Views_Repository
     if (!self::term_catalog($framework)['framework'] || !isset(self::term_catalog($framework)['terms'][$term_uuid])) {
       return new WP_Error('cfm_views_invalid_term', 'Entry must reference an existing Core Terms UUID.');
     }
+    $is_list = self::is_list_version($version);
+    if ($is_list) {
+      if (!in_array($inclusion, ['include'], true)) {
+        return new WP_Error('cfm_views_list_inclusion_invalid', 'List membership must be included canonical Terms.');
+      }
+      if (!empty($data['group_id']) || !empty($data['include_descendants'])) {
+        return new WP_Error('cfm_views_list_flat_required', 'List members cannot be grouped or expanded to descendants.');
+      }
+    }
     $now = current_time('mysql');
     $entry_id = absint($data['entry_id'] ?? 0);
     $payload = [
       'term_uuid' => $term_uuid,
       'core_terms_framework' => $framework,
-      'group_id' => absint($data['group_id'] ?? 0) ?: null,
+      'group_id' => $is_list ? null : (absint($data['group_id'] ?? 0) ?: null),
       'inclusion' => $inclusion,
       'display_order' => max(0, (int) ($data['display_order'] ?? 0)),
       'display_label' => isset($data['display_label']) ? sanitize_text_field((string) $data['display_label']) : null,
       'is_featured' => empty($data['is_featured']) ? 0 : 1,
       'is_hidden' => empty($data['is_hidden']) ? 0 : 1,
-      'include_descendants' => empty($data['include_descendants']) ? 0 : 1,
+      'include_descendants' => $is_list ? 0 : (empty($data['include_descendants']) ? 0 : 1),
       'source' => sanitize_key((string) ($data['source'] ?? 'manual')),
       'metadata_json' => wp_json_encode(is_array($data['metadata'] ?? null) ? $data['metadata'] : []),
       'validation_state' => 'warning',
@@ -230,6 +327,7 @@ class CFM_Views_Repository
       $default_group_id = (int) $wpdb->get_var($wpdb->prepare('SELECT id FROM ' . $wpdb->prefix . 'cfm_view_groups WHERE version_id = %d ORDER BY display_order ASC, id ASC LIMIT 1', (int) $version_id));
     }
     $expanded_selections = [];
+    $is_list = self::is_list_version($version);
     foreach ($selections as $selection) {
       $parts = explode('|', sanitize_text_field((string) $selection), 2);
       $framework = sanitize_key((string) ($parts[0] ?? ''));
@@ -237,9 +335,11 @@ class CFM_Views_Repository
       $catalog = self::term_catalog($framework);
       $term = $catalog['terms'][$term_uuid] ?? null;
       if ($catalog['framework'] && $term) {
-        $ancestors = CFM_Framework_Repository::get_ancestor_uuids((int) $catalog['framework']->id, $term_uuid, (int) $catalog['framework']->active_version_id, false);
-        foreach ($ancestors as $ancestor_uuid) {
-          $expanded_selections[] = $framework . '|' . (string) $ancestor_uuid;
+        if (!$is_list) {
+          $ancestors = CFM_Framework_Repository::get_ancestor_uuids((int) $catalog['framework']->id, $term_uuid, (int) $catalog['framework']->active_version_id, false);
+          foreach ($ancestors as $ancestor_uuid) {
+            $expanded_selections[] = $framework . '|' . (string) $ancestor_uuid;
+          }
         }
       }
       $expanded_selections[] = $framework . '|' . $term_uuid;
@@ -253,7 +353,7 @@ class CFM_Views_Repository
         $skipped++;
         continue;
       }
-      $result = self::save_entry($version_id, ['term_uuid' => $term_uuid, 'group_id' => $default_group_id, 'core_terms_framework' => $framework, 'inclusion' => 'include', 'display_label' => '', 'display_order' => count($existing) + $added, 'source' => 'canonical_browser_batch']);
+      $result = self::save_entry($version_id, ['term_uuid' => $term_uuid, 'group_id' => $is_list ? null : $default_group_id, 'core_terms_framework' => $framework, 'inclusion' => 'include', 'display_label' => '', 'display_order' => count($existing) + $added, 'source' => 'canonical_browser_batch']);
       if (is_wp_error($result)) {
         return $result;
       }
@@ -279,6 +379,15 @@ class CFM_Views_Repository
     $version = self::get_version($version_id);
     if (!$version || (string) $version->status !== 'draft') {
       return new WP_Error('cfm_views_draft_required', 'Entries can only be deleted from a draft version.');
+    }
+    if (self::is_list_version($version)) {
+      $deleted = 0;
+      foreach (array_unique(array_map('absint', $entry_ids)) as $entry_id) {
+        if ($entry_id && false !== $wpdb->delete($wpdb->prefix . 'cfm_view_entries', ['id' => $entry_id, 'version_id' => (int) $version->id], ['%d', '%d'])) {
+          $deleted++;
+        }
+      }
+      return $deleted;
     }
     $entries = self::entries_for_version((int) $version->id);
     $entries_by_id = [];
@@ -317,6 +426,7 @@ class CFM_Views_Repository
     global $wpdb;
     $version = self::get_version($version_id);
     if (!$version || (string) $version->status !== 'draft') { return 0; }
+    if (self::is_list_version($version)) { return 0; }
     $entries = self::entries_for_version((int) $version->id);
     usort($entries, static function ($left, $right) use ($version) {
       $left_term = self::term_catalog((string) $left->core_terms_framework)['terms'][(string) $left->term_uuid] ?? null;
@@ -514,16 +624,20 @@ class CFM_Views_Repository
       return new WP_Error('cfm_views_invalid_transition', 'Only draft or review versions can be published.');
     }
 
-    if ((string) $version->validation_state === 'invalid') {
-      return new WP_Error('cfm_views_invalid_version', 'An invalid View version cannot be published.');
-    }
-
     $now = current_time('mysql');
     $user_id = get_current_user_id() ?: null;
     $versions_table = $wpdb->prefix . 'cfm_view_versions';
     $views_table = $wpdb->prefix . 'cfm_views';
 
     $wpdb->query('START TRANSACTION');
+    if (self::is_list_version($version)) {
+      self::lock_list_parent($version);
+    }
+    $validation = self::validate_version($version_id, true);
+    if ($validation['state'] === 'invalid') {
+      $wpdb->query('ROLLBACK');
+      return new WP_Error('cfm_views_invalid_version', 'An invalid View version cannot be published.', $validation);
+    }
     $updated = $wpdb->update(
       $versions_table,
       [
@@ -577,6 +691,10 @@ class CFM_Views_Repository
     $draft_id = self::create_draft_version((int) $version->view_id, [
       'based_on_version_id' => (int) $version->id,
       'lineage_uuid' => (string) $version->lineage_uuid,
+      'parent_ref_type' => $version->parent_ref_type,
+      'parent_ref_key' => $version->parent_ref_key,
+      'parent_framework' => $version->parent_framework,
+      'role_key' => $version->role_key,
     ]);
     if (is_wp_error($draft_id)) {
       return $draft_id;
@@ -631,7 +749,16 @@ class CFM_Views_Repository
       }
     }
     $now = current_time('mysql');
-    $wpdb->update($wpdb->prefix . 'cfm_view_versions', ['based_on_version_id' => (int) $source->id, 'lineage_uuid' => (string) $source->lineage_uuid, 'updated_at' => $now], ['id' => (int) $draft->id], ['%d', '%s', '%s'], ['%d']);
+    $wpdb->update($wpdb->prefix . 'cfm_view_versions', [
+      'based_on_version_id' => (int) $source->id,
+      'lineage_uuid' => (string) $source->lineage_uuid,
+      'schema_version' => $source->schema_version ?: (self::is_list_version($source) ? '1.1' : '1.0'),
+      'parent_ref_type' => $source->parent_ref_type,
+      'parent_ref_key' => $source->parent_ref_key,
+      'parent_framework' => $source->parent_framework,
+      'role_key' => $source->role_key,
+      'updated_at' => $now,
+    ], ['id' => (int) $draft->id], ['%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s'], ['%d']);
     $group_map = [];
     foreach (self::groups_for_version($source->id) as $group) {
       $wpdb->insert($wpdb->prefix . 'cfm_view_groups', ['version_id' => (int) $draft->id, 'group_uuid' => wp_generate_uuid4(), 'group_key' => $group->group_key, 'label' => $group->label, 'description' => $group->description, 'display_order' => (int) $group->display_order, 'is_featured' => (int) $group->is_featured, 'is_hidden' => (int) $group->is_hidden, 'metadata_json' => $group->metadata_json, 'created_at' => $now, 'updated_at' => $now], ['%d', '%s', '%s', '%s', '%s', '%d', '%d', '%d', '%s', '%s', '%s']);
@@ -714,7 +841,7 @@ class CFM_Views_Repository
     return self::get_view($view_id);
   }
 
-  public static function validate_version($version_id): array
+  public static function validate_version($version_id, bool $for_publish = false): array
   {
     global $wpdb;
     $version = self::get_version($version_id);
@@ -728,6 +855,41 @@ class CFM_Views_Repository
     $groups = self::groups_for_version($version->id);
     $group_ids = array_fill_keys(array_map(static function ($group) { return (string) $group->id; }, $groups), true);
     $entries = self::entries_for_version($version->id);
+    $view = self::get_view((int) $version->view_id);
+    $structure_type = self::structure_for_view($view);
+
+    if ($structure_type === self::STRUCTURE_COLLECTION) {
+      $errors[] = 'Collection structure is reserved for a future implementation.';
+    } elseif (!in_array($structure_type, [self::STRUCTURE_TAXONOMY, self::STRUCTURE_LIST], true)) {
+      $errors[] = 'View structure is unsupported.';
+    }
+    if ($structure_type === self::STRUCTURE_LIST) {
+      if ((string) ($version->parent_ref_type ?? '') !== 'term' || (string) ($version->parent_ref_key ?? '') === '' || (string) ($version->parent_framework ?? '') === '') {
+        $errors[] = 'List requires exactly one canonical Core Term parent.';
+      } else {
+        $parent_catalog = self::term_catalog((string) $version->parent_framework);
+        if (!$parent_catalog['framework'] || !isset($parent_catalog['terms'][(string) $version->parent_ref_key])) {
+          $errors[] = 'List parent must reference an existing canonical Core Term.';
+        }
+      }
+      if ((string) ($version->role_key ?? '') !== '' && (string) $version->role_key !== self::ROLE_C3_RAIL_PARENT) {
+        $errors[] = 'The requested View role is not supported.';
+      }
+      if (self::groups_for_version($version->id)) {
+        $errors[] = 'List Views cannot contain presentation groups.';
+      }
+      $conflict = self::published_rail_parent_conflict($version);
+      if ($conflict) {
+        $message = sprintf('C3 Rail Parent conflicts with published List View %d (version %d) for this canonical Term.', (int) $conflict->view_id, (int) $conflict->id);
+        if ($for_publish) {
+          $errors[] = $message;
+        } else {
+          $warnings[] = $message;
+        }
+      }
+    } elseif ((string) ($version->role_key ?? '') !== '' || (string) ($version->parent_ref_key ?? '') !== '') {
+      $errors[] = 'Parent and role fields are only valid for List Views.';
+    }
 
     if (!$entries) {
       $warnings[] = 'View version contains no entries.';
@@ -743,6 +905,17 @@ class CFM_Views_Repository
       }
       if ($entry->group_id !== null && $entry->group_id !== '' && !isset($group_ids[(string) $entry->group_id])) {
         $errors[] = "Entry {$entry->entry_uuid} references a missing group.";
+      }
+      if ($structure_type === self::STRUCTURE_LIST) {
+        if ($entry->group_id !== null && $entry->group_id !== '') {
+          $errors[] = "List entry {$entry->entry_uuid} cannot reference a group.";
+        }
+        if ((string) $entry->inclusion !== 'include') {
+          $errors[] = "List entry {$entry->entry_uuid} must be included.";
+        }
+        if (!empty($entry->include_descendants)) {
+          $errors[] = "List entry {$entry->entry_uuid} cannot expand descendants.";
+        }
       }
       $catalog = self::term_catalog((string) $entry->core_terms_framework);
       if (!$catalog['framework']) {
@@ -778,10 +951,13 @@ class CFM_Views_Repository
       $resolved_groups[(int) $group->id] = ['group_id' => (int) $group->id, 'group_uuid' => (string) $group->group_uuid, 'group_key' => (string) $group->group_key, 'label' => (string) $group->label, 'display_order' => (int) $group->display_order, 'is_hidden' => (bool) $group->is_hidden, 'metadata' => self::decode_json($group->metadata_json), 'entries' => []];
     }
     $ungrouped = [];
+    $is_list = self::is_list_version($version);
     foreach (self::entries_for_version($version->id) as $entry) {
       $catalog = self::term_catalog((string) $entry->core_terms_framework);
-      $uuids = CFM_Framework_Repository::get_descendant_uuids((int) $catalog['framework']->id, (string) $entry->term_uuid, (int) $catalog['framework']->active_version_id, true);
-      if (!$entry->include_descendants) { $uuids = [(string) $entry->term_uuid]; }
+      $uuids = $is_list
+        ? [(string) $entry->term_uuid]
+        : CFM_Framework_Repository::get_descendant_uuids((int) $catalog['framework']->id, (string) $entry->term_uuid, (int) $catalog['framework']->active_version_id, true);
+      if (!$is_list && !$entry->include_descendants) { $uuids = [(string) $entry->term_uuid]; }
       foreach ($uuids as $uuid) {
         $term = $catalog['terms'][(string) $uuid] ?? null;
         if (!$term) { continue; }
@@ -796,7 +972,7 @@ class CFM_Views_Repository
     foreach ($ungrouped as $key => $item) { if (!str_starts_with($key, 'include:') || isset($excluded[$item['framework'] . ':' . $item['term_uuid']])) { continue; } $flat[] = $item; }
     usort($flat, static function ($a, $b) { return [$a['display_order'], $a['term_uuid']] <=> [$b['display_order'], $b['term_uuid']]; });
     foreach ($flat as $item) { $group_id = self::entry_group_id($item['entry_id'], $version->id); if ($group_id && isset($resolved_groups[$group_id])) { $item['group_id'] = $group_id; $resolved_groups[$group_id]['entries'][] = $item; } }
-    return ['view' => ['view_id' => (int) $view->id, 'view_uuid' => (string) $view->view_uuid, 'name' => (string) $view->name, 'status' => (string) $view->status], 'version' => ['version_id' => (int) $version->id, 'version_uuid' => (string) $version->version_uuid, 'version_number' => (int) $version->version_number, 'status' => (string) $version->status], 'validation' => $validation, 'groups' => array_values($resolved_groups), 'entries' => $flat];
+    return ['view' => ['view_id' => (int) $view->id, 'view_uuid' => (string) $view->view_uuid, 'name' => (string) $view->name, 'status' => (string) $view->status, 'structure_type' => self::structure_for_view($view)], 'version' => ['version_id' => (int) $version->id, 'version_uuid' => (string) $version->version_uuid, 'version_number' => (int) $version->version_number, 'status' => (string) $version->status, 'structure_type' => self::structure_for_view($view), 'parent_ref_type' => $version->parent_ref_type, 'parent_ref_key' => $version->parent_ref_key, 'parent_framework' => $version->parent_framework, 'role_key' => $version->role_key], 'validation' => $validation, 'groups' => array_values($resolved_groups), 'entries' => $flat];
   }
 
   public static function preview_version($version_id)
@@ -822,6 +998,55 @@ class CFM_Views_Repository
   private static function term_catalog($framework_slug): array { $framework = CFM::get_framework($framework_slug); $terms = $framework ? CFM::get_terms($framework_slug) : []; $indexed = []; foreach ($terms as $term) { $indexed[(string) $term->term_uuid] = $term; } return ['framework' => $framework, 'terms' => $indexed]; }
   private static function entry_group_id($entry_id, $version_id) { global $wpdb; return (int) $wpdb->get_var($wpdb->prepare('SELECT group_id FROM ' . $wpdb->prefix . 'cfm_view_entries WHERE id = %d AND version_id = %d', absint($entry_id), absint($version_id))); }
   private static function decode_json($value): array { $decoded = json_decode((string) $value, true); return is_array($decoded) ? $decoded : []; }
+
+  private static function lock_list_parent($version): void
+  {
+    global $wpdb;
+    if (!$version || (string) ($version->parent_ref_type ?? '') !== 'term' || (string) ($version->parent_ref_key ?? '') === '' || (string) ($version->parent_framework ?? '') === '') {
+      return;
+    }
+    $framework = CFM::get_framework((string) $version->parent_framework);
+    if (!$framework) {
+      return;
+    }
+    $wpdb->get_var($wpdb->prepare(
+      'SELECT id FROM ' . $wpdb->prefix . 'cfm_terms_compiled WHERE framework_id = %d AND version_id = %d AND term_uuid = %s FOR UPDATE',
+      (int) $framework->id,
+      (int) $framework->active_version_id,
+      (string) $version->parent_ref_key
+    ));
+  }
+
+  private static function published_rail_parent_conflict($version): ?object
+  {
+    global $wpdb;
+    if (!$version || !self::is_list_version($version) || (string) ($version->role_key ?? '') !== self::ROLE_C3_RAIL_PARENT) {
+      return null;
+    }
+    if ((string) ($version->parent_ref_key ?? '') === '' || (string) ($version->parent_framework ?? '') === '') {
+      return null;
+    }
+    $views = $wpdb->prefix . 'cfm_views';
+    $versions = $wpdb->prefix . 'cfm_view_versions';
+    return $wpdb->get_row($wpdb->prepare(
+      "SELECT v.id, v.view_id, v.version_number
+         FROM {$versions} v
+         INNER JOIN {$views} w ON w.id = v.view_id AND w.current_version_id = v.id
+        WHERE v.status = 'published'
+          AND w.status = 'published'
+          AND w.structure_type = 'list'
+          AND v.role_key = %s
+          AND v.parent_ref_type = 'term'
+          AND v.parent_ref_key = %s
+          AND v.parent_framework = %s
+          AND v.view_id <> %d
+        LIMIT 1",
+      self::ROLE_C3_RAIL_PARENT,
+      (string) $version->parent_ref_key,
+      (string) $version->parent_framework,
+      (int) $version->view_id
+    )) ?: null;
+  }
 
   private static function transition_version($version_id, array $allowed_from, $to_status)
   {
