@@ -630,8 +630,8 @@ class CFM_Views_Repository
     $views_table = $wpdb->prefix . 'cfm_views';
 
     $wpdb->query('START TRANSACTION');
-    if (self::is_list_version($version)) {
-      self::lock_list_parent($version);
+    if (self::is_list_version($version) && (string) ($version->role_key ?? '') === self::ROLE_C3_RAIL_PARENT) {
+      self::lock_rail_parent_members($version);
     }
     $validation = self::validate_version($version_id, true);
     if ($validation['state'] === 'invalid') {
@@ -878,9 +878,19 @@ class CFM_Views_Repository
       if (self::groups_for_version($version->id)) {
         $errors[] = 'List Views cannot contain presentation groups.';
       }
-      $conflict = self::published_rail_parent_conflict($version);
-      if ($conflict) {
-        $message = sprintf('C3 Rail Parent conflicts with published List View %d (version %d) for this canonical Term.', (int) $conflict->view_id, (int) $conflict->id);
+      $member_conflicts = self::published_rail_parent_member_conflicts($version);
+      foreach ($member_conflicts as $conflict) {
+        $catalog = self::term_catalog((string) $conflict->core_terms_framework);
+        $term = $catalog['terms'][(string) $conflict->term_uuid] ?? null;
+        $label = $term ? (string) ($term->label ?? $term->name ?? $conflict->term_uuid) : (string) $conflict->term_uuid;
+        $message = sprintf(
+          'C3 Rail Parent member "%s" (%s) is already assigned to published List View %d (version %d)%s.',
+          $label,
+          (string) $conflict->core_terms_framework,
+          (int) $conflict->view_id,
+          (int) $conflict->version_id,
+          ((string) ($conflict->view_name ?? '') !== '' ? ' "' . (string) $conflict->view_name . '"' : '')
+        );
         if ($for_publish) {
           $errors[] = $message;
         } else {
@@ -999,53 +1009,74 @@ class CFM_Views_Repository
   private static function entry_group_id($entry_id, $version_id) { global $wpdb; return (int) $wpdb->get_var($wpdb->prepare('SELECT group_id FROM ' . $wpdb->prefix . 'cfm_view_entries WHERE id = %d AND version_id = %d', absint($entry_id), absint($version_id))); }
   private static function decode_json($value): array { $decoded = json_decode((string) $value, true); return is_array($decoded) ? $decoded : []; }
 
-  private static function lock_list_parent($version): void
+  private static function lock_rail_parent_members($version): void
   {
     global $wpdb;
-    if (!$version || (string) ($version->parent_ref_type ?? '') !== 'term' || (string) ($version->parent_ref_key ?? '') === '' || (string) ($version->parent_framework ?? '') === '') {
+    if (!$version || (string) ($version->role_key ?? '') !== self::ROLE_C3_RAIL_PARENT) {
       return;
     }
-    $framework = CFM::get_framework((string) $version->parent_framework);
-    if (!$framework) {
-      return;
+    $locks = [];
+    foreach (self::entries_for_version((int) $version->id) as $entry) {
+      if ((string) $entry->inclusion !== 'include') {
+        continue;
+      }
+      $locks[(string) $entry->core_terms_framework . '|' . (string) $entry->term_uuid] = [
+        'framework' => (string) $entry->core_terms_framework,
+        'term_uuid' => (string) $entry->term_uuid,
+      ];
     }
-    $wpdb->get_var($wpdb->prepare(
-      'SELECT id FROM ' . $wpdb->prefix . 'cfm_terms_compiled WHERE framework_id = %d AND version_id = %d AND term_uuid = %s FOR UPDATE',
-      (int) $framework->id,
-      (int) $framework->active_version_id,
-      (string) $version->parent_ref_key
-    ));
+    uasort($locks, static function (array $a, array $b): int {
+      return [$a['framework'], $a['term_uuid']] <=> [$b['framework'], $b['term_uuid']];
+    });
+    foreach ($locks as $lock) {
+      $framework = CFM::get_framework($lock['framework']);
+      if (!$framework) {
+        continue;
+      }
+      $wpdb->get_var($wpdb->prepare(
+        'SELECT id FROM ' . $wpdb->prefix . 'cfm_terms_compiled WHERE framework_id = %d AND version_id = %d AND term_uuid = %s FOR UPDATE',
+        (int) $framework->id,
+        (int) $framework->active_version_id,
+        $lock['term_uuid']
+      ));
+    }
   }
 
-  private static function published_rail_parent_conflict($version): ?object
+  private static function published_rail_parent_member_conflicts($version): array
   {
     global $wpdb;
     if (!$version || !self::is_list_version($version) || (string) ($version->role_key ?? '') !== self::ROLE_C3_RAIL_PARENT) {
-      return null;
+      return [];
     }
-    if ((string) ($version->parent_ref_key ?? '') === '' || (string) ($version->parent_framework ?? '') === '') {
-      return null;
-    }
+    $entries = $wpdb->prefix . 'cfm_view_entries';
     $views = $wpdb->prefix . 'cfm_views';
     $versions = $wpdb->prefix . 'cfm_view_versions';
-    return $wpdb->get_row($wpdb->prepare(
-      "SELECT v.id, v.view_id, v.version_number
-         FROM {$versions} v
-         INNER JOIN {$views} w ON w.id = v.view_id AND w.current_version_id = v.id
-        WHERE v.status = 'published'
-          AND w.status = 'published'
-          AND w.structure_type = 'list'
-          AND v.role_key = %s
-          AND v.parent_ref_type = 'term'
-          AND v.parent_ref_key = %s
-          AND v.parent_framework = %s
-          AND v.view_id <> %d
-        LIMIT 1",
+    return $wpdb->get_results($wpdb->prepare(
+      "SELECT DISTINCT candidate.core_terms_framework, candidate.term_uuid,
+              conflicting.view_id, conflicting.id AS version_id, conflicting_view.name AS view_name
+         FROM {$entries} candidate
+         INNER JOIN {$entries} existing
+           ON existing.core_terms_framework = candidate.core_terms_framework
+          AND existing.term_uuid = candidate.term_uuid
+          AND existing.inclusion = 'include'
+         INNER JOIN {$versions} conflicting
+           ON conflicting.id = existing.version_id
+          AND conflicting.status = 'published'
+          AND conflicting.role_key = %s
+         INNER JOIN {$views} conflicting_view
+           ON conflicting_view.id = conflicting.view_id
+          AND conflicting_view.current_version_id = conflicting.id
+          AND conflicting_view.status = 'published'
+          AND conflicting_view.structure_type = 'list'
+        WHERE candidate.version_id = %d
+          AND candidate.inclusion = 'include'
+          AND conflicting.view_id <> %d
+        ORDER BY candidate.core_terms_framework ASC, candidate.term_uuid ASC,
+                 conflicting.view_id ASC, conflicting.id ASC",
       self::ROLE_C3_RAIL_PARENT,
-      (string) $version->parent_ref_key,
-      (string) $version->parent_framework,
+      (int) $version->id,
       (int) $version->view_id
-    )) ?: null;
+    )) ?: [];
   }
 
   private static function transition_version($version_id, array $allowed_from, $to_status)
