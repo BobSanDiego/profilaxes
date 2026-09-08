@@ -131,6 +131,19 @@ Representative hooks:
 - `cfm_term_moved`
 - `cfm_term_deleted`
 
+### Published typed List discovery
+
+Views/Core Terms consumers must discover current published typed Lists through
+the public service contract rather than reading View tables or embedding
+View/version identifiers:
+
+- `CFM_Views_Service::discover_published_lists($framework, $role_key)`
+
+The result uses the existing published-List read contract and includes the
+current published identity/version, canonical parent reference, and ordered
+member Terms. Discovery is scoped by governed framework and role; consumers
+must not infer stale versions or bypass publication state.
+
 ### Assignment Hooks
 
 Consumers may observe assignment changes without modifying Core Terms internals.

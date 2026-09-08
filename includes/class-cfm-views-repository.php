@@ -542,6 +542,42 @@ class CFM_Views_Repository
     return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE id = %d", $version_id)) ?: null;
   }
 
+  /**
+   * Resolve current published List versions for a public consumer contract.
+   * Consumers identify the governed framework and role, never View/version IDs
+   * or the underlying tables.
+   */
+  public static function discover_published_lists(string $framework, string $role_key): array
+  {
+    global $wpdb;
+
+    $framework = sanitize_key($framework);
+    $role_key = sanitize_key($role_key);
+    if ($framework === '' || $role_key === '') {
+      return [];
+    }
+
+    $views_table = $wpdb->prefix . 'cfm_views';
+    $versions_table = $wpdb->prefix . 'cfm_view_versions';
+    $rows = $wpdb->get_results($wpdb->prepare(
+      "SELECT vv.*
+         FROM {$versions_table} vv
+         INNER JOIN {$views_table} v ON v.id = vv.view_id
+        WHERE vv.parent_framework = %s
+          AND vv.role_key = %s
+          AND vv.status = 'published'
+          AND v.status = 'published'
+          AND v.structure_type = %s
+          AND v.current_version_id = vv.id
+        ORDER BY v.name ASC, v.id ASC, vv.id ASC",
+      $framework,
+      $role_key,
+      self::STRUCTURE_LIST
+    ));
+
+    return is_array($rows) ? $rows : [];
+  }
+
   public static function delete_draft($version_id)
   {
     global $wpdb;

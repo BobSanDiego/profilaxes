@@ -82,6 +82,37 @@ class CFM_Views_Service
     ];
   }
 
+  /**
+   * Discover current published Lists by governed consumer scope.
+   * This is the canonical public read surface for consumers such as Community 3.
+   */
+  public static function discover_published_lists(string $framework, string $role_key): array
+  {
+    $framework = sanitize_key($framework);
+    $role_key = sanitize_key($role_key);
+    if ($framework === '' || $role_key === '') {
+      return [];
+    }
+
+    $lists = [];
+    foreach (CFM_Views_Repository::discover_published_lists($framework, $role_key) as $version) {
+      $list = self::get_published_list((int) $version->id);
+      if (is_wp_error($list)) {
+        continue;
+      }
+      $lists[] = $list;
+    }
+
+    usort($lists, static function (array $left, array $right): int {
+      return strnatcasecmp(
+        (string) ($left['view']['name'] ?? ''),
+        (string) ($right['view']['name'] ?? '')
+      );
+    });
+
+    return $lists;
+  }
+
   public static function preview(int $version_id)
   {
     return CFM_Views_Repository::preview_version($version_id);
